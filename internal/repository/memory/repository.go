@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
@@ -47,7 +46,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (models.
 	defer r.mu.RUnlock()
 	user, ok := r.users[id]
 	if !ok {
-		return models.User{}, fmt.Errorf("no user found")
+		return models.User{}, models.ErrUserNotFound
 	}
 	return user, nil
 }
@@ -60,5 +59,5 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, login string) (mode
 			return r.users[u], nil
 		}
 	}
-	return models.User{}, fmt.Errorf("no user found")
+	return models.User{}, models.ErrUserNotFound
 }

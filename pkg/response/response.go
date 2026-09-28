@@ -11,7 +11,7 @@ func DecodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 }
 
 func WriteJSON(w http.ResponseWriter, code int, payload any) {
-	write(w, code, map[string]any{"body": payload})
+	write(w, code, payload)
 }
 
 func Error(w http.ResponseWriter, code int, msg string) {

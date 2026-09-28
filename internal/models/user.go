@@ -11,6 +11,7 @@ var (
 	ErrUserExists         = errors.New("user already exists")
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrValidation         = errors.New("invalid request body")
+	ErrUnauthorized       = errors.New("unauthorized")
 )
 
 type User struct {

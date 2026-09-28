@@ -80,6 +80,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		Expires:  time.Now(),
 		MaxAge:   -1,
 	})
+	response.WriteJSON(w, http.StatusOK, map[string]string{"message": "logged out"}) // договориться о контракте
 }
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {

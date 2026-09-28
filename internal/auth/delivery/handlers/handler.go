@@ -33,6 +33,7 @@ func (h *Handler) RegisterRoutes(r *mux.Router, authMiddleware func(http.Handler
 	r.HandleFunc("/login", h.Login).Methods("POST")
 
 	r.Handle("/me", authMiddleware(http.HandlerFunc(h.Me))).Methods(http.MethodGet)
+	r.Handle("/logout", authMiddleware(http.HandlerFunc(h.Logout))).Methods(http.MethodPost)
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
@@ -69,6 +70,18 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, http.StatusOK, toUserResponse(user))
 }
 
+func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    "",
+		HttpOnly: true,
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+		Expires:  time.Now(),
+		MaxAge:   -1,
+	})
+}
+
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	user, err := h.uc.GetUserFromContext(r.Context())
 	if err != nil {
@@ -80,9 +93,11 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, models.ErrUserExists):
-		response.Error(w, http.StatusConflict, "user already exists")
+		response.Error(w, http.StatusConflict, err.Error())
 	case errors.Is(err, models.ErrInvalidCredentials):
-		response.Error(w, http.StatusUnauthorized, "invalid email or password")
+		response.Error(w, http.StatusUnauthorized, err.Error())
+	case errors.Is(err, models.ErrUnauthorized):
+		response.Error(w, http.StatusUnauthorized, err.Error())
 	case errors.Is(err, models.ErrValidation):
 		response.Error(w, http.StatusBadRequest, err.Error())
 	default:

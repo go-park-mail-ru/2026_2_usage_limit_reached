@@ -16,7 +16,6 @@ import (
 type UseCase interface {
 	Register(ctx context.Context, email, username, nickname, password string) (models.User, string, error)
 	Login(ctx context.Context, email, password string) (models.User, string, error)
-	GetUserFromContext(ctx context.Context) (models.User, error)
 }
 
 type Handler struct {
@@ -28,11 +27,9 @@ func NewHandler(uc UseCase, tokenTTL time.Duration) *Handler {
 	return &Handler{uc: uc, tokenTTL: tokenTTL}
 }
 
-func (h *Handler) RegisterRoutes(r *mux.Router, authMiddleware func(http.Handler) http.Handler) {
+func (h *Handler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/signup", h.Register).Methods("POST")
 	r.HandleFunc("/login", h.Login).Methods("POST")
-
-	r.Handle("/me", authMiddleware(http.HandlerFunc(h.Me))).Methods(http.MethodGet)
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
@@ -66,14 +63,6 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.setAuthCookie(w, token)
-	response.WriteJSON(w, http.StatusOK, toUserResponse(user))
-}
-
-func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
-	user, err := h.uc.GetUserFromContext(r.Context())
-	if err != nil {
-		h.handleError(w, err)
-	}
 	response.WriteJSON(w, http.StatusOK, toUserResponse(user))
 }
 

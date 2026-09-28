@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/models"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -14,7 +13,6 @@ import (
 type Repository interface {
 	CreateUser(ctx context.Context, user models.User) (models.User, error)
 	GetUserByEmail(ctx context.Context, email string) (models.User, error)
-	GetUserByID(ctx context.Context, id uuid.UUID) (models.User, error)
 }
 
 type TokenGenerator interface {
@@ -77,12 +75,4 @@ func (uc *Usecase) Login(ctx context.Context, email, password string) (models.Us
 	}
 
 	return user, token, nil
-}
-
-func (uc *Usecase) GetUserFromContext(ctx context.Context) (models.User, error) {
-	userID, ok := middleware.UserIDFromContext(ctx)
-	if !ok {
-		return models.User{}, models.ErrUnauthorized
-	}
-	return uc.repo.GetUserByID(ctx, userID)
 }

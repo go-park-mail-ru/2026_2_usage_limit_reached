@@ -4,28 +4,32 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery/handlers/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
 type UseCase interface {
 	Register(ctx context.Context, email, username, nickname, password string) (models.User, string, error)
 	Login(ctx context.Context, email, password string) (models.User, string, error)
-	GetUserFromContext(ctx context.Context) (models.User, error)
+	GetUserByID(ctx context.Context, id uuid.UUID) (models.User, error)
 }
 
 type Handler struct {
 	uc       UseCase
 	tokenTTL time.Duration
+	logger   *slog.Logger
 }
 
-func NewHandler(uc UseCase, tokenTTL time.Duration) *Handler {
-	return &Handler{uc: uc, tokenTTL: tokenTTL}
+func NewHandler(uc UseCase, tokenTTL time.Duration, logger *slog.Logger) *Handler {
+	return &Handler{uc: uc, tokenTTL: tokenTTL, logger: logger}
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router, authMiddleware func(http.Handler) http.Handler) {
@@ -39,16 +43,31 @@ func (h *Handler) RegisterRoutes(r *mux.Router, authMiddleware func(http.Handler
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var regReq dto.RegistrationRequest
 	defer r.Body.Close()
+
 	if err := json.NewDecoder(r.Body).Decode(&regReq); err != nil {
-		h.handleError(w, models.ErrValidation)
+		h.handleError(r.Context(), w, "register", "request body decode error", models.ErrValidation)
 		return
 	}
 
-	user, token, err := h.uc.Register(r.Context(), regReq.Email, regReq.Username, regReq.Nickname, regReq.Password)
-	if err != nil {
-		h.handleError(w, err)
+	if err := regReq.Validate(); err != nil {
+		h.handleError(r.Context(), w, "register", "validation error", err)
 		return
 	}
+
+	h.logger.InfoContext(r.Context(), "registering user",
+		slog.String("email", regReq.Email),
+	)
+
+	user, token, err := h.uc.Register(r.Context(), regReq.Email, regReq.Username, regReq.Nickname, regReq.Password)
+	if err != nil {
+		h.handleError(r.Context(), w, "register", "register error", err)
+		return
+	}
+
+	h.logger.InfoContext(r.Context(), "user registered",
+		slog.String("userID", user.ID.String()),
+	)
+
 	h.setAuthCookie(w, token)
 	response.WriteJSON(w, http.StatusCreated, toUserResponse(user))
 }
@@ -56,21 +75,40 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var loginReq dto.LoginRequest
 	defer r.Body.Close()
+
 	if err := json.NewDecoder(r.Body).Decode(&loginReq); err != nil {
-		h.handleError(w, models.ErrValidation)
+		h.handleError(r.Context(), w, "login", "request body decode error", models.ErrValidation)
 		return
 	}
 
-	user, token, err := h.uc.Login(r.Context(), loginReq.Email, loginReq.Password)
-	if err != nil {
-		h.handleError(w, err)
+	if err := loginReq.Validate(); err != nil {
+		h.handleError(r.Context(), w, "login", "validation error", err)
 		return
 	}
+
+	h.logger.InfoContext(r.Context(), "logging in user",
+		slog.String("email", loginReq.Email),
+	)
+
+	user, token, err := h.uc.Login(r.Context(), loginReq.Email, loginReq.Password)
+	if err != nil {
+		h.handleError(r.Context(), w, "login", "login error", err)
+		return
+	}
+
+	h.logger.InfoContext(r.Context(), "user logged in",
+		slog.String("userID", user.ID.String()),
+	)
+
 	h.setAuthCookie(w, token)
 	response.WriteJSON(w, http.StatusOK, toUserResponse(user))
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	id, _ := middleware.UserIDFromContext(r.Context())
+	h.logger.InfoContext(r.Context(), "logging out user",
+		slog.String("userID", id.String()),
+	)
 	http.SetCookie(w, &http.Cookie{
 		Name:     "token",
 		Value:    "",
@@ -84,14 +122,24 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
-	user, err := h.uc.GetUserFromContext(r.Context())
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		h.handleError(r.Context(), w, "me", "missing user id in context", models.ErrUnauthorized)
+		return
+	}
+	user, err := h.uc.GetUserByID(r.Context(), userID)
 	if err != nil {
-		h.handleError(w, err)
+		h.handleError(r.Context(), w, "me", "get user by id error", err)
+		return
 	}
 	response.WriteJSON(w, http.StatusOK, toUserResponse(user))
 }
 
-func (h *Handler) handleError(w http.ResponseWriter, err error) {
+func (h *Handler) handleError(ctx context.Context, w http.ResponseWriter, handler string, logMessage string, err error) {
+	h.logger.ErrorContext(ctx, logMessage,
+		slog.String("handler", handler),
+		slog.String("error", err.Error()),
+	)
 	switch {
 	case errors.Is(err, models.ErrUserExists):
 		response.Error(w, http.StatusConflict, err.Error())

@@ -1,0 +1,175 @@
+openapi: 3.0.3
+info:
+  title: Patreon Clone API — Auth
+  version: "1.0"
+  description: Регистрация, вход, выход и получение текущего пользователя.
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /signup:
+    post:
+      summary: Регистрация нового пользователя
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrationRequest'
+            example:
+              email: alice@example.com
+              username: alice
+              nickname: Alice
+              password: strongpassword123
+      responses:
+        '201':
+          description: Пользователь создан, cookie с токеном установлена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  body:
+                    $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /login:
+    post:
+      summary: Вход существующего пользователя
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: alice@example.com
+              password: strongpassword123
+      responses:
+        '200':
+          description: Успешный вход, cookie с токеном установлена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  body:
+                    $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logout:
+    post:
+      summary: Выход из текущей сессии
+      tags: [auth]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Cookie с токеном очищена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: logged out
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /me:
+    get:
+      summary: Текущий авторизованный пользователь
+      tags: [auth]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Данные текущего пользователя
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  body:
+                    $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+
+  responses:
+    ValidationError:
+      description: Ошибка валидации входных данных
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Не авторизован или неверные учётные данные
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Пользователь с таким email/username уже существует
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    RegistrationRequest:
+      type: object
+      required: [email, username, nickname, password]
+      properties:
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        nickname:
+          type: string
+        password:
+          type: string
+          format: password
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    UserResponse:
+      type: object
+      properties:
+        email:
+          type: string
+        username:
+          type: string
+        nickname:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string

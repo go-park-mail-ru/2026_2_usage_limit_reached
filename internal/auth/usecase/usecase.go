@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/models"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -50,7 +49,12 @@ func (uc *Usecase) Register(ctx context.Context, email, username, nickname, pass
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
-	uc.repo.CreateUser(ctx, user)
+
+	user, err = uc.repo.CreateUser(ctx, user)
+	if err != nil {
+		return models.User{}, "", err
+	}
+
 	token, err := uc.tokenGenerator.Generate(user.ID)
 	if err != nil {
 		return models.User{}, "", err
@@ -70,7 +74,6 @@ func (uc *Usecase) Login(ctx context.Context, email, password string) (models.Us
 		return models.User{}, "", models.ErrInvalidCredentials
 	}
 
-	uc.repo.CreateUser(ctx, user)
 	token, err := uc.tokenGenerator.Generate(user.ID)
 	if err != nil {
 		return models.User{}, "", err
@@ -79,10 +82,6 @@ func (uc *Usecase) Login(ctx context.Context, email, password string) (models.Us
 	return user, token, nil
 }
 
-func (uc *Usecase) GetUserFromContext(ctx context.Context) (models.User, error) {
-	userID, ok := middleware.UserIDFromContext(ctx)
-	if !ok {
-		return models.User{}, models.ErrUnauthorized
-	}
-	return uc.repo.GetUserByID(ctx, userID)
+func (uc *Usecase) GetUserByID(ctx context.Context, id uuid.UUID) (models.User, error) {
+	return uc.repo.GetUserByID(ctx, id)
 }

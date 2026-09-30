@@ -1,46 +1,51 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
-	"time"
+	"os"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery/handlers"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/token"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/middleware"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	profilehandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery/handlers"
 	profilememory "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/memory"
 	profileusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
 	memory "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/repository/memory"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
 	"github.com/gorilla/mux"
 )
 
 func main() {
-	secret := "secret-string"                   // должно читаться из .env через config
-	tokenTTL := time.Duration(30 * time.Second) // должно читаться из .env через config
-	addr := ":8080"                             // должно читаться из .env через config
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("config load error: %v", err)
+	}
 
-	tokens := token.NewManager(secret, tokenTTL)
-
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	tokens := token.NewManager(cfg.JWTSecret, cfg.TokenTTL)
 	repo := memory.NewUserRepository()
 	profileRepo := profilememory.NewProfileRepository(nil, nil)
 	uc := usecase.NewUsecase(repo, tokens)
-	h := handlers.NewHandler(uc, tokens.TTL())
+	h := handlers.NewHandler(uc, tokens.TTL(), logger)
 
-	auth := middleware.AuthMiddleware(tokens)
+	authMiddleware := middleware.AuthMiddleware(tokens)
 	r := mux.NewRouter()
-	h.RegisterRoutes(r)
+	h.RegisterRoutes(r, authMiddleware)
 	profileHandler := profilehandlers.NewProfileHandler(
 		profileusecase.NewProfileUsecase(repo, profileRepo),
 		middleware.UserIDFromContext,
 		slog.Default(),
 	)
-	profileHandler.RegisterRoutes(r, auth)
+	profileHandler.RegisterRoutes(r, authMiddleware)
 
-	srv := &http.Server{Addr: addr, Handler: r}
-	fmt.Println("server running on :8080")
+	handler := middleware.CORSMiddleware(cfg.AllowedOrigin)(r)
+	handler = middleware.AccessLogMiddleware(logger)(handler)
+	handler = middleware.RecoverMiddleware(logger)(handler)
+
+	srv := &http.Server{Addr: cfg.Addr, Handler: handler}
+	logger.Info("server starting", slog.String("addr", cfg.Addr))
 	log.Fatal(srv.ListenAndServe())
 }

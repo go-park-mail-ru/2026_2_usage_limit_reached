@@ -13,6 +13,7 @@ import (
 type Repository interface {
 	CreateUser(ctx context.Context, user models.User) (models.User, error)
 	GetUserByEmail(ctx context.Context, email string) (models.User, error)
+	GetUserByID(ctx context.Context, id uuid.UUID) (models.User, error)
 }
 
 type TokenGenerator interface {
@@ -48,7 +49,12 @@ func (uc *Usecase) Register(ctx context.Context, email, username, nickname, pass
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
-	uc.repo.CreateUser(ctx, user)
+
+	user, err = uc.repo.CreateUser(ctx, user)
+	if err != nil {
+		return models.User{}, "", err
+	}
+
 	token, err := uc.tokenGenerator.Generate(user.ID)
 	if err != nil {
 		return models.User{}, "", err
@@ -68,11 +74,14 @@ func (uc *Usecase) Login(ctx context.Context, email, password string) (models.Us
 		return models.User{}, "", models.ErrInvalidCredentials
 	}
 
-	uc.repo.CreateUser(ctx, user)
 	token, err := uc.tokenGenerator.Generate(user.ID)
 	if err != nil {
 		return models.User{}, "", err
 	}
 
 	return user, token, nil
+}
+
+func (uc *Usecase) GetUserByID(ctx context.Context, id uuid.UUID) (models.User, error) {
+	return uc.repo.GetUserByID(ctx, id)
 }

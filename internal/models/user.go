@@ -12,6 +12,7 @@ var (
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrValidation         = errors.New("invalid request body")
 	ErrUserNotFound       = errors.New("user not found")
+	ErrUnauthorized       = errors.New("unauthorized")
 )
 
 type User struct {

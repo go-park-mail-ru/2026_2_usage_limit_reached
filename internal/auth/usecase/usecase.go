@@ -16,16 +16,21 @@ type Repository interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (models.User, error)
 }
 
-type TokenGenerator interface {
-	Generate(userID uuid.UUID) (string, error)
+type UserPayload struct {
+	UserID uuid.UUID `json:"user_id"`
+	Role   string    `json:"role"`
+}
+
+type TokenManager interface {
+	Generate(payload UserPayload) (string, error)
 }
 
 type Usecase struct {
 	repo           Repository
-	tokenGenerator TokenGenerator
+	tokenGenerator TokenManager
 }
 
-func NewUsecase(r Repository, t TokenGenerator) *Usecase {
+func NewUsecase(r Repository, t TokenManager) *Usecase {
 	return &Usecase{repo: r, tokenGenerator: t}
 }
 
@@ -55,7 +60,7 @@ func (uc *Usecase) Register(ctx context.Context, email, username, nickname, pass
 		return models.User{}, "", err
 	}
 
-	token, err := uc.tokenGenerator.Generate(user.ID)
+	token, err := uc.tokenGenerator.Generate(UserPayload{UserID: user.ID, Role: "user"})
 	if err != nil {
 		return models.User{}, "", err
 	}
@@ -74,7 +79,7 @@ func (uc *Usecase) Login(ctx context.Context, email, password string) (models.Us
 		return models.User{}, "", models.ErrInvalidCredentials
 	}
 
-	token, err := uc.tokenGenerator.Generate(user.ID)
+	token, err := uc.tokenGenerator.Generate(UserPayload{UserID: user.ID, Role: "user"})
 	if err != nil {
 		return models.User{}, "", err
 	}

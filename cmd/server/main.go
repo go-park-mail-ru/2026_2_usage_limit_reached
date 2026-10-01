@@ -22,10 +22,13 @@ func main() {
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	tokens := token.NewManager(cfg.JWTSecret, cfg.TokenTTL)
+	tokens, err := token.NewJWTManager(cfg.JWTSecret, cfg.TokenTTL)
+	if err != nil {
+		log.Fatalf("token manager initialization error: %v", err)
+	}
 	repo := memory.NewUserRepository()
 	uc := usecase.NewUsecase(repo, tokens)
-	h := handlers.NewHandler(uc, tokens.TTL(), logger)
+	h := handlers.NewHandler(uc, cfg.TokenTTL, logger)
 
 	authMiddleware := middleware.AuthMiddleware(tokens)
 	r := mux.NewRouter()

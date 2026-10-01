@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery/handlers/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/token"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
@@ -110,7 +111,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		slog.String("userID", id.String()),
 	)
 	http.SetCookie(w, &http.Cookie{
-		Name:     "token",
+		Name:     token.CookieName,
 		Value:    "",
 		HttpOnly: true,
 		Path:     "/",
@@ -156,7 +157,7 @@ func (h *Handler) handleError(ctx context.Context, w http.ResponseWriter, handle
 
 func (h *Handler) setAuthCookie(w http.ResponseWriter, jwtToken string) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     "token",
+		Name:     token.CookieName,
 		Value:    jwtToken,
 		HttpOnly: true,
 		Path:     "/",

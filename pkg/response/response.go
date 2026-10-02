@@ -5,6 +5,10 @@ import (
 	"net/http"
 )
 
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
+
 func DecodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	return json.NewDecoder(r.Body).Decode(dst)
@@ -15,7 +19,7 @@ func WriteJSON(w http.ResponseWriter, code int, payload any) {
 }
 
 func Error(w http.ResponseWriter, code int, msg string) {
-	write(w, code, map[string]any{"error": msg})
+	write(w, code, ErrorResponse{Error: msg})
 }
 
 func write(w http.ResponseWriter, code int, v any) {

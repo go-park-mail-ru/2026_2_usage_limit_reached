@@ -3,6 +3,8 @@ package middleware
 import (
 	"log/slog"
 	"net/http"
+
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 )
 
 func RecoverMiddleware(log *slog.Logger) func(http.Handler) http.Handler {
@@ -11,7 +13,7 @@ func RecoverMiddleware(log *slog.Logger) func(http.Handler) http.Handler {
 			defer func() {
 				if err := recover(); err != nil {
 					log.ErrorContext(r.Context(), "panic recovered", slog.Any("error", err))
-					http.Error(w, "internal error", http.StatusInternalServerError)
+					response.Error(w, http.StatusInternalServerError, "internal server error")
 				}
 			}()
 			next.ServeHTTP(w, r)

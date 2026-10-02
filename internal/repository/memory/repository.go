@@ -51,14 +51,19 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*models
 	return &user, nil
 }
 
-func (r *UserRepository) GetUserByEmail(ctx context.Context, login string) (*models.User, error) {
+func (r *UserRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	for _, u := range r.byEmail {
-		if r.users[u].Email == login {
-			user := r.users[u]
-			return &user, nil
-		}
+
+	userID, ok := r.byUsername[username]
+	if !ok {
+		return nil, models.ErrUserNotFound
 	}
-	return nil, models.ErrUserNotFound
+
+	user, ok := r.users[userID]
+	if !ok {
+		return nil, models.ErrUserNotFound
+	}
+
+	return &user, nil
 }

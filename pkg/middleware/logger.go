@@ -1,3 +1,4 @@
+// TODO: добавить requestID из контекста
 package middleware
 
 import (
@@ -5,6 +6,8 @@ import (
 	"net/http"
 	"time"
 )
+
+type RequestIDKey struct{}
 
 type statusRecorder struct {
 	http.ResponseWriter
@@ -21,6 +24,7 @@ func AccessLogMiddleware(log *slog.Logger) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 			rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+
 			next.ServeHTTP(rec, r)
 
 			duration := time.Since(start)
@@ -32,7 +36,7 @@ func AccessLogMiddleware(log *slog.Logger) func(http.Handler) http.Handler {
 				level = slog.LevelWarn
 			}
 
-			log.LogAttrs(r.Context(), level, "request",
+			log.LogAttrs(r.Context(), level, "HTTP",
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
 				slog.Int("status", rec.status),

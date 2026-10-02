@@ -11,18 +11,17 @@ func DecodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 }
 
 func WriteJSON(w http.ResponseWriter, code int, payload any) {
-	write(w, code, map[string]any{"body": payload})
+	write(w, code, payload)
 }
 
 func Error(w http.ResponseWriter, code int, msg string) {
-	write(w, code, map[string]string{"error": msg})
+	write(w, code, map[string]any{"error": msg})
 }
 
 func write(w http.ResponseWriter, code int, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
-		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
-		return
+		Error(w, http.StatusInternalServerError, "internal server error")
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)

@@ -8,28 +8,37 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery/handlers/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
+var (
+	ErrInternal     = errors.New("internal server error")
+	ErrBadRequest   = errors.New("bad request")
+	ErrUnauthorized = errors.New("unauthorized")
+)
+
 type UseCase interface {
-	Register(ctx context.Context, email, username, nickname, password string) (models.User, string, error)
-	Login(ctx context.Context, email, password string) (models.User, string, error)
-	GetUserByID(ctx context.Context, id uuid.UUID) (models.User, error)
+	Register(ctx context.Context, email, username, nickname, password string) (*models.User, string, error)
+	Login(ctx context.Context, email, password string) (*models.User, string, error)
+	GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 }
 
 type Handler struct {
-	uc       UseCase
-	tokenTTL time.Duration
-	logger   *slog.Logger
+	uc        UseCase
+	tokenTTL  time.Duration
+	validator validator.Validator
+	logger    *slog.Logger
 }
 
-func NewHandler(uc UseCase, tokenTTL time.Duration, logger *slog.Logger) *Handler {
-	return &Handler{uc: uc, tokenTTL: tokenTTL, logger: logger}
+func NewHandler(uc UseCase, tokenTTL time.Duration, validator validator.Validator, logger *slog.Logger) *Handler {
+	return &Handler{uc: uc, tokenTTL: tokenTTL, validator: validator, logger: logger}
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router, authMiddleware func(http.Handler) http.Handler) {
@@ -45,11 +54,11 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := json.NewDecoder(r.Body).Decode(&regReq); err != nil {
-		h.handleError(r.Context(), w, "register", "request body decode error", models.ErrValidation)
+		h.handleError(r.Context(), w, "register", "request body decode error", ErrBadRequest)
 		return
 	}
 
-	if err := regReq.Validate(); err != nil {
+	if err := regReq.Validate(h.validator); err != nil {
 		h.handleError(r.Context(), w, "register", "validation error", err)
 		return
 	}
@@ -69,7 +78,8 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	)
 
 	h.setAuthCookie(w, token)
-	response.WriteJSON(w, http.StatusCreated, toUserResponse(user))
+
+	response.WriteJSON(w, http.StatusOK, dto.ToUserResponse(*user))
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
@@ -77,11 +87,11 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := json.NewDecoder(r.Body).Decode(&loginReq); err != nil {
-		h.handleError(r.Context(), w, "login", "request body decode error", models.ErrValidation)
+		h.handleError(r.Context(), w, "login", "request body decode error", ErrBadRequest)
 		return
 	}
 
-	if err := loginReq.Validate(); err != nil {
+	if err := loginReq.Validate(h.validator); err != nil {
 		h.handleError(r.Context(), w, "login", "validation error", err)
 		return
 	}
@@ -101,7 +111,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	)
 
 	h.setAuthCookie(w, token)
-	response.WriteJSON(w, http.StatusOK, toUserResponse(user))
+	response.WriteJSON(w, http.StatusOK, dto.ToUserResponse(*user))
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
@@ -109,22 +119,14 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	h.logger.InfoContext(r.Context(), "logging out user",
 		slog.String("userID", id.String()),
 	)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "token",
-		Value:    "",
-		HttpOnly: true,
-		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
-		Expires:  time.Now(),
-		MaxAge:   -1,
-	})
-	response.WriteJSON(w, http.StatusOK, map[string]string{"message": "logged out"}) // договориться о контракте
+	h.deleteAuthCookie(w)
+	response.WriteJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
 }
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		h.handleError(r.Context(), w, "me", "missing user id in context", models.ErrUnauthorized)
+		h.handleError(r.Context(), w, "me", "missing user id in context", ErrUnauthorized)
 		return
 	}
 	user, err := h.uc.GetUserByID(r.Context(), userID)
@@ -132,7 +134,8 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		h.handleError(r.Context(), w, "me", "get user by id error", err)
 		return
 	}
-	response.WriteJSON(w, http.StatusOK, toUserResponse(user))
+
+	response.WriteJSON(w, http.StatusOK, dto.ToUserResponse(*user))
 }
 
 func (h *Handler) handleError(ctx context.Context, w http.ResponseWriter, handler string, logMessage string, err error) {
@@ -141,16 +144,16 @@ func (h *Handler) handleError(ctx context.Context, w http.ResponseWriter, handle
 		slog.String("error", err.Error()),
 	)
 	switch {
-	case errors.Is(err, models.ErrUserExists):
+	case errors.Is(err, usecase.ErrRegistrationFailed):
 		response.Error(w, http.StatusConflict, err.Error())
-	case errors.Is(err, models.ErrInvalidCredentials):
+	case errors.Is(err, usecase.ErrLoginFailed):
 		response.Error(w, http.StatusUnauthorized, err.Error())
-	case errors.Is(err, models.ErrUnauthorized):
-		response.Error(w, http.StatusUnauthorized, err.Error())
-	case errors.Is(err, models.ErrValidation):
+	case errors.Is(err, dto.ErrValidation):
 		response.Error(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, usecase.ErrInternal):
+		response.Error(w, http.StatusInternalServerError, err.Error())
 	default:
-		response.Error(w, http.StatusInternalServerError, "internal error")
+		response.Error(w, http.StatusInternalServerError, "internal server error")
 	}
 }
 
@@ -166,10 +169,14 @@ func (h *Handler) setAuthCookie(w http.ResponseWriter, jwtToken string) {
 	})
 }
 
-func toUserResponse(user models.User) dto.UserResponse {
-	return dto.UserResponse{
-		Email:    user.Email,
-		Username: user.Username,
-		Nickname: user.Nickname,
-	}
+func (h *Handler) deleteAuthCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    "",
+		HttpOnly: true,
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+		Expires:  time.Now(),
+		MaxAge:   -1,
+	})
 }

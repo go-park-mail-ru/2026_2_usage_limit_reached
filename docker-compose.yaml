@@ -2,7 +2,7 @@ services:
   app:
     build: .
     ports:
-      - "${APP_PORT}:${APP_PORT}"
+      - "${HTTP_PORT}:${HTTP_PORT}"
     env_file:
       - .env
     restart: unless-stopped

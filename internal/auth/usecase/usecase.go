@@ -25,16 +25,21 @@ type Repository interface {
 	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
 }
 
-type TokenGenerator interface {
-	Generate(userID uuid.UUID) (string, error)
+type UserPayload struct {
+	UserID uuid.UUID `json:"user_id"`
+	Role   string    `json:"role"`
+}
+
+type TokenManager interface {
+	Generate(payload UserPayload) (string, error)
 }
 
 type Usecase struct {
 	repo           Repository
-	tokenGenerator TokenGenerator
+	tokenGenerator TokenManager
 }
 
-func NewUsecase(r Repository, t TokenGenerator) *Usecase {
+func NewUsecase(r Repository, t TokenManager) *Usecase {
 	return &Usecase{repo: r, tokenGenerator: t}
 }
 
@@ -72,7 +77,7 @@ func (uc *Usecase) Register(ctx context.Context, regInput RegisterInput) (*model
 		return nil, "", fmt.Errorf("%w: %w", ErrInternal, err)
 	}
 
-	token, err := uc.tokenGenerator.Generate(user.ID)
+	token, err := uc.tokenGenerator.Generate(UserPayload{UserID: user.ID, Role: "user"})
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %w", ErrInternal, err)
 	}
@@ -94,7 +99,7 @@ func (uc *Usecase) Login(ctx context.Context, username, password string) (*model
 		return nil, "", fmt.Errorf("%w: %w", ErrLoginFailed, err)
 	}
 
-	token, err := uc.tokenGenerator.Generate(user.ID)
+	token, err := uc.tokenGenerator.Generate(UserPayload{UserID: user.ID, Role: "user"})
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %w", ErrInternal, err)
 	}

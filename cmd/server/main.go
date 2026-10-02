@@ -36,7 +36,10 @@ func main() {
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	tokens := token.NewManager(cfg.JWT.Secret, cfg.JWT.TokenTTL)
+	tokens, err := token.NewJWTManager(cfg.JWT.Secret, cfg.JWT.TokenTTL)
+	if err != nil {
+		log.Fatalf("token manager initialization error: %v", err)
+	}
 	repo := memory.NewUserRepository()
 	uc := usecase.NewUsecase(repo, tokens)
 	valid := validator.NewValidator(
@@ -49,7 +52,7 @@ func main() {
 		cfg.Validation.EmailRegexp,
 		cfg.Validation.UsernameAllowedRunes,
 	)
-	authHandler := AuthHandlers.NewHandler(uc, tokens.TTL(), valid, logger)
+	authHandler := AuthHandlers.NewHandler(uc, cfg.JWT.TokenTTL, valid, logger)
 	authMiddleware := middleware.AuthMiddleware(tokens)
 	r := mux.NewRouter()
 	private := r.NewRoute().Subrouter()

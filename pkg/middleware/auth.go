@@ -4,19 +4,19 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/google/uuid"
-
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/token"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
+	"github.com/google/uuid"
 )
 
-type TokenParser interface {
-	Parse(tokenString string) (uuid.UUID, error)
+type TokenVerifier interface {
+	Verify(tokenString string) (*usecase.UserPayload, error)
 }
 
 type ctxKey struct{}
 
-func AuthMiddleware(parser TokenParser) func(http.Handler) http.Handler {
+func AuthMiddleware(verifier TokenVerifier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(token.CookieName)
@@ -25,13 +25,13 @@ func AuthMiddleware(parser TokenParser) func(http.Handler) http.Handler {
 				return
 			}
 
-			userID, err := parser.Parse(cookie.Value)
-			if err != nil {
+			payload, err := verifier.Verify(cookie.Value)
+			if err != nil || payload == nil || payload.UserID == uuid.Nil {
 				response.Error(w, http.StatusUnauthorized, "unauthorized")
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), ctxKey{}, userID)
+			ctx := context.WithValue(r.Context(), ctxKey{}, payload.UserID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

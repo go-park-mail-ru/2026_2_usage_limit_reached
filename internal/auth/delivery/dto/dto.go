@@ -10,10 +10,10 @@ import (
 var ErrValidation = errors.New("validation error")
 
 type RegistrationRequest struct {
-	Email    string `json:"email"`
-	Username string `json:"username"`
-	Nickname string `json:"nickname"`
-	Password string `json:"password"`
+	Email    string `json:"email" example:"user@example.com"`
+	Username string `json:"username" example:"username123"`
+	Nickname string `json:"nickname" example:"nickname_123"`
+	Password string `json:"password" example:"secret_password_123"`
 }
 
 func (r *RegistrationRequest) Validate(v validator.Validator) error {
@@ -28,12 +28,12 @@ func (r *RegistrationRequest) Validate(v validator.Validator) error {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Username    string `json:"username" example:"username123"`
+	Password string `json:"password" example:"secret_password_123"`
 }
 
 func (r *LoginRequest) Validate(v validator.Validator) error {
-	if !v.IsValidEmail(r.Email) || r.Password == "" {
+	if r.Password == "" {
 		return ErrValidation
 	}
 
@@ -41,9 +41,9 @@ func (r *LoginRequest) Validate(v validator.Validator) error {
 }
 
 type UserResponse struct {
-	Email    string `json:"email"`
-	Username string `json:"username"`
-	Nickname string `json:"nickname"`
+	Email    string `json:"email" example:"user@example.com"`
+	Username string `json:"username" example:"username123"`
+	Nickname string `json:"nickname" example:"nickname_123"`
 }
 
 func ToUserResponse(user models.User) UserResponse {

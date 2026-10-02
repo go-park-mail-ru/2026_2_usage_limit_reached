@@ -1,39 +1,15 @@
 package validator
 
 import (
-	"regexp"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
 )
 
 type Validator struct {
-	MinUsernameLen       int
-	MaxUsernameLen       int
-	MaxNicknameLen       int
-	MinPasswordLen       int
-	MaxPasswordLen       int
-	MaxEmailLen          int
-	EmailRegexp          *regexp.Regexp
-	UsernameAllowedRunes map[rune]struct{}
+	config.ValidationConfig
 }
 
-func NewValidator(
-	minUsernameLen int,
-	maxUsernameLen int,
-	maxNicknameLen int,
-	minPasswordLen int,
-	maxPasswordLen int,
-	maxEmailLen int,
-	emailRegexp *regexp.Regexp,
-	usernameAllowedRunes map[rune]struct{}) Validator {
-	return Validator{
-		MinUsernameLen:       minUsernameLen,
-		MaxUsernameLen:       maxUsernameLen,
-		MaxNicknameLen:       maxNicknameLen,
-		MinPasswordLen:       minPasswordLen,
-		MaxPasswordLen:       maxPasswordLen,
-		MaxEmailLen:          maxEmailLen,
-		EmailRegexp:          emailRegexp,
-		UsernameAllowedRunes: usernameAllowedRunes,
-	}
+func NewValidator(valCfg config.ValidationConfig) Validator {
+	return Validator{valCfg}
 }
 
 func (v Validator) IsValidEmail(email string) bool {

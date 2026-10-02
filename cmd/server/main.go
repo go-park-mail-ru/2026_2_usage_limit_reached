@@ -27,13 +27,13 @@ func main() {
 	}
 
 	logger := cfg.Logger
-	tokens, err := token.NewJWTManager(cfg.JWT.Secret, cfg.JWT.TokenTTL)
+	tokens, err := token.NewJWTManager(cfg.JWT)
 	if err != nil {
 		log.Fatalf("token manager initialization error: %v", err)
 	}
 	repo := memory.NewUserRepository()
 	uc := usecase.NewUsecase(repo, tokens)
-	valid := validator.NewValidator(*cfg.Validation)
+	valid := validator.NewValidator(cfg.Validation)
 	authHandler := AuthHandlers.NewHandler(uc, valid, logger)
 	authMiddleware := middleware.AuthMiddleware(tokens)
 	r := mux.NewRouter()
@@ -44,10 +44,10 @@ func main() {
 	r.Use(
 		middleware.RecoverMiddleware(logger),
 		middleware.AccessLogMiddleware(logger),
-		middleware.CORSMiddleware(cfg.CORS.AllowedOrigins),
+		middleware.CORSMiddleware(cfg.CORS),
 	)
 
-	srv := httpserver.New(cfg.HTTP.Port, cfg.HTTP.Timeout, cfg.HTTP.ShutdownTimeout, logger)
+	srv := httpserver.New(cfg.HTTP, logger)
 	if err := srv.Run(r, authMiddleware); err != nil {
 		log.Fatalf("server error: %v", err)
 	}

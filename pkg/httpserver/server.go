@@ -12,6 +12,12 @@ import (
 	"github.com/gorilla/mux"
 )
 
+type HTTPConfig struct {
+	Port            string
+	Timeout         time.Duration
+	ShutdownTimeout time.Duration
+}
+
 type Server struct {
 	port            string
 	readTimeout     time.Duration
@@ -19,11 +25,11 @@ type Server struct {
 	logger          *slog.Logger
 }
 
-func New(port string, readTimeout, shutdownTimeout time.Duration, logger *slog.Logger) *Server {
+func New(cfg *HTTPConfig, logger *slog.Logger) *Server {
 	return &Server{
-		port:            port,
-		readTimeout:     readTimeout,
-		shutdownTimeout: shutdownTimeout,
+		port:            cfg.Port,
+		readTimeout:     cfg.Timeout,
+		shutdownTimeout: cfg.ShutdownTimeout,
 		logger:          logger,
 	}
 }

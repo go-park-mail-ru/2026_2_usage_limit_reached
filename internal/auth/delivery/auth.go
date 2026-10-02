@@ -5,8 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 )
@@ -33,32 +32,23 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := regReq.Validate(h.validator); err != nil {
-		h.handleError(r.Context(), w, "register", "validation error", err)
+		h.handleError(r.Context(), w, "register", "validation error", errBadRequest)
 		return
 	}
 
-	h.logger.InfoContext(r.Context(), "registering user",
-		slog.String("email", regReq.Email),
-	)
-
-	user, token, err := h.uc.Register(r.Context(), usecase.RegisterInput{
-		Email:    regReq.Email,
-		Username: regReq.Username,
-		Nickname: regReq.Nickname,
-		Password: regReq.Password,
-	})
+	user, token, err := h.uc.Register(r.Context(), regReq)
 	if err != nil {
 		h.handleError(r.Context(), w, "register", "register error", err)
 		return
 	}
 
 	h.logger.InfoContext(r.Context(), "user registered",
-		slog.String("userID", user.ID.String()),
+		slog.String("userID", user.Email),
 	)
 
 	h.setAuthCookie(w, token)
 
-	response.WriteJSON(w, http.StatusOK, dto.ToUserResponse(*user))
+	response.WriteJSON(w, http.StatusOK, user)
 }
 
 // Login аутентифицирует пользователя
@@ -84,26 +74,22 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := loginReq.Validate(h.validator); err != nil {
-		h.handleError(r.Context(), w, "login", "validation error", err)
+		h.handleError(r.Context(), w, "login", "validation error", errBadRequest)
 		return
 	}
 
-	h.logger.InfoContext(r.Context(), "logging in user",
-		slog.String("username", loginReq.Username),
-	)
-
-	user, token, err := h.uc.Login(r.Context(), loginReq.Username, loginReq.Email, loginReq.Password)
+	user, token, err := h.uc.Login(r.Context(), loginReq)
 	if err != nil {
 		h.handleError(r.Context(), w, "login", "login error", err)
 		return
 	}
 
 	h.logger.InfoContext(r.Context(), "user logged in",
-		slog.String("userID", user.ID.String()),
+		slog.String("userID", user.Email),
 	)
 
 	h.setAuthCookie(w, token)
-	response.WriteJSON(w, http.StatusOK, dto.ToUserResponse(*user))
+	response.WriteJSON(w, http.StatusOK, user)
 }
 
 // Logout деавторизует пользователя
@@ -123,5 +109,5 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		slog.String("userID", id.String()),
 	)
 	h.deleteAuthCookie(w)
-	response.WriteJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
+	w.WriteHeader(http.StatusOK)
 }

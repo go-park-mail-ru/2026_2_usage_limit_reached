@@ -7,12 +7,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -23,19 +21,18 @@ var (
 )
 
 type UseCase interface {
-	Register(ctx context.Context, regInput usecase.RegisterInput) (*models.User, string, error)
-	Login(ctx context.Context, username, email, password string) (*models.User, string, error)
-	GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error)
+	Register(ctx context.Context, regInput dto.RegistrationRequest) (*dto.UserResponse, string, error)
+	Login(ctx context.Context, loginInput dto.LoginRequest) (*dto.UserResponse, string, error)
 	TokenTTL() time.Duration
 }
 
 type Handler struct {
 	uc        UseCase
-	validator validator.Validator
+	validator *validator.Validator
 	logger    *slog.Logger
 }
 
-func NewHandler(uc UseCase, validator validator.Validator, logger *slog.Logger) *Handler {
+func NewHandler(uc UseCase, validator *validator.Validator, logger *slog.Logger) *Handler {
 	return &Handler{uc: uc, validator: validator, logger: logger}
 }
 
@@ -56,12 +53,8 @@ func (h *Handler) handleError(ctx context.Context, w http.ResponseWriter, handle
 		response.Error(w, http.StatusConflict, errBadRequest.Error())
 	case errors.Is(err, usecase.ErrLoginFailed):
 		response.Error(w, http.StatusUnauthorized, errUnauthorized.Error())
-	case errors.Is(err, dto.ErrValidation):
-		response.Error(w, http.StatusBadRequest, errBadRequest.Error())
 	case errors.Is(err, errBadRequest):
 		response.Error(w, http.StatusBadRequest, errBadRequest.Error())
-	case errors.Is(err, usecase.ErrInternal):
-		response.Error(w, http.StatusInternalServerError, errInternal.Error())
 	default:
 		response.Error(w, http.StatusInternalServerError, errInternal.Error())
 	}

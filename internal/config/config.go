@@ -9,23 +9,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/token"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 )
 
 type Config struct {
-	HTTP       *HTTPConfig
+	HTTP       *httpserver.HTTPConfig
 	JWT        *token.JWTConfig
 	CORS       *middleware.CORSConfig
 	Validation *validator.ValidationConfig
 	Logger     *slog.Logger
-}
-
-type HTTPConfig struct {
-	Port            string
-	Timeout         time.Duration
-	ShutdownTimeout time.Duration
 }
 
 const defaultUsernameAllowedRunes = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-="
@@ -59,7 +54,7 @@ func Load() (*Config, error) {
 	}, nil
 }
 
-func loadHTTP() (*HTTPConfig, error) {
+func loadHTTP() (*httpserver.HTTPConfig, error) {
 	timeoutStr := getEnv("HTTP_TIMEOUT", "5s")
 	timeout, err := time.ParseDuration(timeoutStr)
 	if err != nil {
@@ -74,7 +69,7 @@ func loadHTTP() (*HTTPConfig, error) {
 
 	port := ":" + getEnv("HTTP_PORT", "8080")
 
-	return &HTTPConfig{
+	return &httpserver.HTTPConfig{
 		Port:            port,
 		Timeout:         timeout,
 		ShutdownTimeout: shutdownTimeout,

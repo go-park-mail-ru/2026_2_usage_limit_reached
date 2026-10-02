@@ -59,20 +59,20 @@ type UserPayload struct {
 	Role   string    `json:"role"`
 }
 
-func NewJWTManager(secretKey string, ttl time.Duration) (*JWTManager, error) {
-	if len(secretKey) < minSecretKeyLen {
+func NewJWTManager(cfg *JWTConfig) (*JWTManager, error) {
+	if len(cfg.Secret) < minSecretKeyLen {
 		return nil, ErrInvalidSecretKey
 	}
-	if ttl <= 0 {
+	if cfg.TokenTTL <= 0 {
 		return nil, ErrInvalidTTL
 	}
-	return &JWTManager{secretKey: []byte(secretKey), ttl: ttl}, nil
+	return &JWTManager{secretKey: []byte(cfg.Secret), ttl: cfg.TokenTTL}, nil
 }
 
 func (m *JWTManager) Generate(payload any) (string, error) {
 	userPayload, ok := payload.(UserPayload)
 	if !ok {
-		return "", ErrInvalidUserID
+		return "", ErrInvalidUserID // пока только для UserPayload может работать
 	}
 	if userPayload.UserID == uuid.Nil {
 		return "", ErrInvalidUserID

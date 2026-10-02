@@ -16,11 +16,11 @@ type ValidationConfig struct {
 }
 
 type Validator struct {
-	ValidationConfig
+	*ValidationConfig // есть мысль, что стоит и тут аналогично другим пакетам неэкспортируемые поля написать
 }
 
-func NewValidator(valCfg ValidationConfig) Validator {
-	return Validator{valCfg}
+func NewValidator(valCfg *ValidationConfig) *Validator {
+	return &Validator{valCfg}
 }
 
 func (v Validator) IsValidEmail(email string) bool {

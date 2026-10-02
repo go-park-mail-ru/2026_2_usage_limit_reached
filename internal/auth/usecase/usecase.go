@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/token"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -25,13 +26,9 @@ type Repository interface {
 	GetUserByIdentifier(ctx context.Context, identifier string) (*models.User, error)
 }
 
-type UserPayload struct {
-	UserID uuid.UUID `json:"user_id"`
-	Role   string    `json:"role"`
-}
-
 type TokenManager interface {
-	Generate(payload UserPayload) (string, error)
+	Generate(payload any) (string, error)
+	TTL() time.Duration
 }
 
 type Usecase struct {
@@ -77,7 +74,7 @@ func (uc *Usecase) Register(ctx context.Context, regInput RegisterInput) (*model
 		return nil, "", fmt.Errorf("%w: %w", ErrInternal, err)
 	}
 
-	token, err := uc.tokenGenerator.Generate(UserPayload{UserID: user.ID, Role: "user"})
+	token, err := uc.tokenGenerator.Generate(token.UserPayload{UserID: user.ID, Role: "user"})
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %w", ErrInternal, err)
 	}
@@ -105,7 +102,7 @@ func (uc *Usecase) Login(ctx context.Context, username, email, password string) 
 		return nil, "", fmt.Errorf("%w: %w", ErrLoginFailed, err)
 	}
 
-	token, err := uc.tokenGenerator.Generate(UserPayload{UserID: user.ID, Role: "user"})
+	token, err := uc.tokenGenerator.Generate(token.UserPayload{UserID: user.ID, Role: "user"})
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %w", ErrInternal, err)
 	}
@@ -119,6 +116,10 @@ func (uc *Usecase) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User,
 		return nil, fmt.Errorf("%w: %w", ErrUserIDNotFound, err)
 	}
 	return user, nil
+}
+
+func (uc *Usecase) TokenTTL() time.Duration {
+	return uc.tokenGenerator.TTL()
 }
 
 func normalizeEmail(email string) string {

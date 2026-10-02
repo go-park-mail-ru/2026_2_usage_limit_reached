@@ -28,7 +28,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := json.NewDecoder(r.Body).Decode(&regReq); err != nil {
-		h.handleError(r.Context(), w, "register", "request body decode error", ErrBadRequest)
+		h.handleError(r.Context(), w, "register", "request body decode error", errBadRequest)
 		return
 	}
 
@@ -79,7 +79,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := json.NewDecoder(r.Body).Decode(&loginReq); err != nil {
-		h.handleError(r.Context(), w, "login", "request body decode error", ErrBadRequest)
+		h.handleError(r.Context(), w, "login", "request body decode error", errBadRequest)
 		return
 	}
 

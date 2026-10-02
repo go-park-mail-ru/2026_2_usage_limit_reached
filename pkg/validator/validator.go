@@ -1,14 +1,25 @@
 package validator
 
 import (
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
+	"regexp"
 )
 
-type Validator struct {
-	config.ValidationConfig
+type ValidationConfig struct {
+	MinUsernameLen       int
+	MaxUsernameLen       int
+	MaxNicknameLen       int
+	MinPasswordLen       int
+	MaxPasswordLen       int
+	MaxEmailLen          int
+	EmailRegexp          *regexp.Regexp
+	UsernameAllowedRunes map[rune]struct{}
 }
 
-func NewValidator(valCfg config.ValidationConfig) Validator {
+type Validator struct {
+	ValidationConfig
+}
+
+func NewValidator(valCfg ValidationConfig) Validator {
 	return Validator{valCfg}
 }
 

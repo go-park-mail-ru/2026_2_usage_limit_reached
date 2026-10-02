@@ -4,6 +4,10 @@ import (
 	"net/http"
 )
 
+type CORSConfig struct {
+	AllowedOrigins map[string]struct{}
+}
+
 func CORSMiddleware(allowedOrigins map[string]struct{}) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

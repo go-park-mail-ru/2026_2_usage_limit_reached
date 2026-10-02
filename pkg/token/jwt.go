@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/google/uuid"
 )
 
@@ -31,6 +30,11 @@ const (
 	minSecretKeyLen = 32
 )
 
+type JWTConfig struct {
+	Secret   string
+	TokenTTL time.Duration
+}
+
 type jwtClaims struct {
 	Subject   string `json:"sub"`
 	IssuedAt  int64  `json:"iat"`
@@ -50,6 +54,11 @@ type JWTManager struct {
 	ttl       time.Duration
 }
 
+type UserPayload struct {
+	UserID uuid.UUID `json:"user_id"`
+	Role   string    `json:"role"`
+}
+
 func NewJWTManager(secretKey string, ttl time.Duration) (*JWTManager, error) {
 	if len(secretKey) < minSecretKeyLen {
 		return nil, ErrInvalidSecretKey
@@ -60,8 +69,12 @@ func NewJWTManager(secretKey string, ttl time.Duration) (*JWTManager, error) {
 	return &JWTManager{secretKey: []byte(secretKey), ttl: ttl}, nil
 }
 
-func (m *JWTManager) Generate(payload usecase.UserPayload) (string, error) {
-	if payload.UserID == uuid.Nil {
+func (m *JWTManager) Generate(payload any) (string, error) {
+	userPayload, ok := payload.(UserPayload)
+	if !ok {
+		return "", ErrInvalidUserID
+	}
+	if userPayload.UserID == uuid.Nil {
 		return "", ErrInvalidUserID
 	}
 
@@ -73,8 +86,8 @@ func (m *JWTManager) Generate(payload usecase.UserPayload) (string, error) {
 	}
 
 	claims := jwtClaims{
-		Subject:   payload.UserID.String(),
-		Role:      payload.Role,
+		Subject:   userPayload.UserID.String(),
+		Role:      userPayload.Role,
 		IssuedAt:  now.Unix(),
 		NotBefore: now.Unix(),
 		ExpiresAt: now.Add(m.ttl).Unix(),
@@ -96,7 +109,7 @@ func (m *JWTManager) Generate(payload usecase.UserPayload) (string, error) {
 	return signingInput + "." + base64.RawURLEncoding.EncodeToString(sign), nil
 }
 
-func (m *JWTManager) Verify(tokenStr string) (*usecase.UserPayload, error) {
+func (m *JWTManager) Verify(tokenStr string) (*UserPayload, error) {
 	segments := strings.Split(tokenStr, ".")
 	if len(segments) != 3 {
 		return nil, ErrInvalidToken
@@ -131,7 +144,11 @@ func (m *JWTManager) Verify(tokenStr string) (*usecase.UserPayload, error) {
 		return nil, ErrInvalidToken
 	}
 
-	return &usecase.UserPayload{UserID: userID, Role: claims.Role}, nil
+	return &UserPayload{UserID: userID, Role: claims.Role}, nil
+}
+
+func (m *JWTManager) TTL() time.Duration {
+	return m.ttl
 }
 
 func (m *JWTManager) sign(data []byte) []byte {

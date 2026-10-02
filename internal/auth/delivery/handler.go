@@ -17,26 +17,26 @@ import (
 )
 
 var (
-	ErrInternal     = errors.New("internal server error")
-	ErrBadRequest   = errors.New("bad request")
-	ErrUnauthorized = errors.New("unauthorized")
+	errInternal     = errors.New("internal server error")
+	errBadRequest   = errors.New("bad request")
+	errUnauthorized = errors.New("unauthorized")
 )
 
 type UseCase interface {
 	Register(ctx context.Context, regInput usecase.RegisterInput) (*models.User, string, error)
 	Login(ctx context.Context, username, email, password string) (*models.User, string, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error)
+	TokenTTL() time.Duration
 }
 
 type Handler struct {
 	uc        UseCase
-	tokenTTL  time.Duration
 	validator validator.Validator
 	logger    *slog.Logger
 }
 
-func NewHandler(uc UseCase, tokenTTL time.Duration, validator validator.Validator, logger *slog.Logger) *Handler {
-	return &Handler{uc: uc, tokenTTL: tokenTTL, validator: validator, logger: logger}
+func NewHandler(uc UseCase, validator validator.Validator, logger *slog.Logger) *Handler {
+	return &Handler{uc: uc, validator: validator, logger: logger}
 }
 
 func (h *Handler) RegisterRoutes(public *mux.Router, private *mux.Router) {
@@ -53,17 +53,17 @@ func (h *Handler) handleError(ctx context.Context, w http.ResponseWriter, handle
 	)
 	switch {
 	case errors.Is(err, usecase.ErrRegistrationFailed):
-		response.Error(w, http.StatusConflict, ErrBadRequest.Error())
+		response.Error(w, http.StatusConflict, errBadRequest.Error())
 	case errors.Is(err, usecase.ErrLoginFailed):
-		response.Error(w, http.StatusUnauthorized, ErrUnauthorized.Error())
+		response.Error(w, http.StatusUnauthorized, errUnauthorized.Error())
 	case errors.Is(err, dto.ErrValidation):
-		response.Error(w, http.StatusBadRequest, ErrBadRequest.Error())
-	case errors.Is(err, ErrBadRequest):
-		response.Error(w, http.StatusBadRequest, ErrBadRequest.Error())
+		response.Error(w, http.StatusBadRequest, errBadRequest.Error())
+	case errors.Is(err, errBadRequest):
+		response.Error(w, http.StatusBadRequest, errBadRequest.Error())
 	case errors.Is(err, usecase.ErrInternal):
-		response.Error(w, http.StatusInternalServerError, ErrInternal.Error())
+		response.Error(w, http.StatusInternalServerError, errInternal.Error())
 	default:
-		response.Error(w, http.StatusInternalServerError, ErrInternal.Error())
+		response.Error(w, http.StatusInternalServerError, errInternal.Error())
 	}
 }
 
@@ -74,8 +74,8 @@ func (h *Handler) setAuthCookie(w http.ResponseWriter, jwtToken string) {
 		HttpOnly: true,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
-		Expires:  time.Now().Add(h.tokenTTL),
-		MaxAge:   int(h.tokenTTL.Seconds()),
+		Expires:  time.Now().Add(h.uc.TokenTTL()),
+		MaxAge:   int(h.uc.TokenTTL().Seconds()),
 	})
 }
 

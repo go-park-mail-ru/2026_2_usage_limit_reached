@@ -4,14 +4,13 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/token"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/token"
 	"github.com/google/uuid"
 )
 
 type TokenVerifier interface {
-	Verify(tokenString string) (*usecase.UserPayload, error)
+	Verify(tokenString string) (*token.UserPayload, error)
 }
 
 type ctxKey struct{}

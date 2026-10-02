@@ -21,8 +21,8 @@ var (
 
 type Repository interface {
 	CreateUser(ctx context.Context, user *models.User) (*models.User, error)
-	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error)
+	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
 }
 
 type TokenGenerator interface {
@@ -38,19 +38,26 @@ func NewUsecase(r Repository, t TokenGenerator) *Usecase {
 	return &Usecase{repo: r, tokenGenerator: t}
 }
 
-func (uc *Usecase) Register(ctx context.Context, email, username, nickname, password string) (*models.User, string, error) {
-	email = normalizeEmail(email)
+type RegisterInput struct {
+	Email    string
+	Username string
+	Nickname string
+	Password string
+}
 
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+func (uc *Usecase) Register(ctx context.Context, regInput RegisterInput) (*models.User, string, error) {
+	normalizedEmail := normalizeEmail(regInput.Email)
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(regInput.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %w", ErrInternal, err)
 	}
 
 	user := &models.User{
 		ID:           uuid.New(),
-		Email:        email,
-		Username:     username,
-		Nickname:     nickname,
+		Email:        normalizedEmail,
+		Username:     regInput.Username,
+		Nickname:     regInput.Nickname,
 		PasswordHash: string(passwordHash),
 		Status:       "active",
 		CreatedAt:    time.Now(),
@@ -73,9 +80,8 @@ func (uc *Usecase) Register(ctx context.Context, email, username, nickname, pass
 	return user, token, nil
 }
 
-func (uc *Usecase) Login(ctx context.Context, email, password string) (*models.User, string, error) {
-	email = normalizeEmail(email)
-	user, err := uc.repo.GetUserByEmail(ctx, email)
+func (uc *Usecase) Login(ctx context.Context, username, password string) (*models.User, string, error) {
+	user, err := uc.repo.GetUserByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, models.ErrUserNotFound) {
 			return nil, "", fmt.Errorf("%w: %w", ErrLoginFailed, err)

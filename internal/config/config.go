@@ -2,11 +2,14 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 )
 
 type Config struct {
@@ -14,11 +17,12 @@ type Config struct {
 	JWT        JWTConfig
 	CORS       CORSConfig
 	Validation ValidationConfig
+	Logger     *slog.Logger
 }
 
 type HTTPConfig struct {
-	Port    string
-	Timeout time.Duration
+	Port            string
+	Timeout         time.Duration
 	ShutdownTimeout time.Duration
 }
 
@@ -57,16 +61,19 @@ func Load() (*Config, error) {
 
 	CORScfg := loadCORS()
 
-	ValidationCfg, err := loadValidation()
+	validationCfg, err := loadValidation()
 	if err != nil {
 		return nil, err
 	}
+
+	logger := loadLogger()
 
 	return &Config{
 		HTTP:       HTTPcfg,
 		JWT:        JWTcfg,
 		CORS:       CORScfg,
-		Validation: ValidationCfg,
+		Validation: validationCfg,
+		Logger:     logger,
 	}, nil
 }
 
@@ -86,8 +93,8 @@ func loadHTTP() (HTTPConfig, error) {
 	port := ":" + getEnv("HTTP_PORT", "8080")
 
 	return HTTPConfig{
-		Port:    port,
-		Timeout: timeout,
+		Port:            port,
+		Timeout:         timeout,
 		ShutdownTimeout: shutdownTimeout,
 	}, nil
 }
@@ -179,6 +186,22 @@ func loadValidation() (ValidationConfig, error) {
 		EmailRegexp:          emailRegexp,
 		UsernameAllowedRunes: allowedRunes,
 	}, nil
+}
+
+func loadLogger() *slog.Logger {
+	var baseHandler slog.Handler
+	level := getEnv("LEVEL", "local")
+	switch level {
+	case "dev":
+		baseHandler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+	case "prod":
+		baseHandler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	default:
+		baseHandler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	}
+
+	handler := middleware.NewRequestIDHandler(baseHandler)
+	return slog.New(handler)
 }
 
 func getEnv(key, fallback string) string {

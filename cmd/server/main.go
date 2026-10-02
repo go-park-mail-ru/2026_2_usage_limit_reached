@@ -35,7 +35,7 @@ func main() {
 		log.Fatalf("config load error: %v", err)
 	}
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	logger := cfg.Logger
 	tokens, err := token.NewJWTManager(cfg.JWT.Secret, cfg.JWT.TokenTTL)
 	if err != nil {
 		log.Fatalf("token manager initialization error: %v", err)

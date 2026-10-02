@@ -19,6 +19,7 @@ type Config struct {
 type HTTPConfig struct {
 	Port    string
 	Timeout time.Duration
+	ShutdownTimeout time.Duration
 }
 
 type JWTConfig struct {
@@ -76,11 +77,18 @@ func loadHTTP() (HTTPConfig, error) {
 		return HTTPConfig{}, fmt.Errorf("invalid HTTP_TIMEOUT: %w", err)
 	}
 
+	shutdownTimeoutStr := getEnv("HTTP_SHUTDOWN", "25s")
+	shutdownTimeout, err := time.ParseDuration(shutdownTimeoutStr)
+	if err != nil {
+		return HTTPConfig{}, fmt.Errorf("invalid HTTP_SHUTDOWN: %w", err)
+	}
+
 	port := ":" + getEnv("HTTP_PORT", "8080")
 
 	return HTTPConfig{
 		Port:    port,
 		Timeout: timeout,
+		ShutdownTimeout: shutdownTimeout,
 	}, nil
 }
 

@@ -42,10 +42,10 @@ func NewHandler(uc UseCase, tokenTTL time.Duration, validator validator.Validato
 }
 
 func (h *Handler) RegisterRoutes(public *mux.Router, private *mux.Router) {
-	public.HandleFunc("/signup", h.Register).Methods(http.MethodPost)
-	public.HandleFunc("/login", h.Login).Methods(http.MethodPost)
+	public.HandleFunc("/signup", h.Register).Methods(http.MethodPost, http.MethodOptions)
+	public.HandleFunc("/login", h.Login).Methods(http.MethodPost, http.MethodOptions)
 
-	private.HandleFunc("/logout", h.Logout).Methods(http.MethodPost)
+	private.HandleFunc("/logout", h.Logout).Methods(http.MethodPost, http.MethodOptions)
 }
 
 // Register регистрирует нового пользователя

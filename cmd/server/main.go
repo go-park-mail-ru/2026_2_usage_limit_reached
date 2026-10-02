@@ -59,13 +59,15 @@ func main() {
 	private.Use(authMiddleware)
 	authHandler.RegisterRoutes(r, private)
 
-	handler := middleware.RecoverMiddleware(logger)(r)
-	handler = middleware.AccessLogMiddleware(logger)(handler)
-	handler = middleware.CORSMiddleware(cfg.CORS.AllowedOrigins)(handler)
+	r.Use(
+		middleware.RecoverMiddleware(logger),
+		middleware.AccessLogMiddleware(logger),
+		middleware.CORSMiddleware(cfg.CORS.AllowedOrigins),
+	)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Port,
-		Handler:           handler,
+		Handler:           r,
 		ReadHeaderTimeout: cfg.HTTP.Timeout,
 	}
 

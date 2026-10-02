@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	handlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/token"
@@ -16,7 +20,16 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// @title Patreon Clone API — Auth
+// @version 1.0
+// @description Регистрация, вход и выход.
+// @securityDefinitions.apikey CookieAuth
+// @in cookie
+// @name token
 func main() {
+	appCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("config load error: %v", err)
@@ -40,17 +53,49 @@ func main() {
 
 	authMiddleware := middleware.AuthMiddleware(tokens)
 	r := mux.NewRouter()
+	r.Use(
+		middleware.RecoverMiddleware(logger),
+		middleware.AccessLogMiddleware(logger),
+		middleware.CORSMiddleware(cfg.CORS.AllowedOrigins),
+	)
 	h.RegisterRoutes(r, authMiddleware)
-
-	handler := middleware.CORSMiddleware(cfg.CORS.AllowedOrigins)(r)
-	handler = middleware.AccessLogMiddleware(logger)(handler)
-	handler = middleware.RecoverMiddleware(logger)(handler)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Port,
-		Handler:           handler,
+		Handler:           r,
 		ReadHeaderTimeout: cfg.HTTP.Timeout,
 	}
-	logger.Info("server starting", slog.String("addr", cfg.HTTP.Port))
-	log.Fatal(srv.ListenAndServe())
+
+	serveErr := make(chan error, 1)
+	go func() {
+		logger.Info("server starting", slog.String("addr", cfg.HTTP.Port))
+		serveErr <- srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serveErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("server fatal error", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		return
+	case <-appCtx.Done():
+	}
+	stop()
+
+	logger.Info("shutting down server gracefully")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.HTTP.ShutdownTimeout)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Error("server forced to shutdown", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	if err := <-serveErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
+		logger.Error("server fatal error", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	logger.Info("server stopped gracefully")
 }

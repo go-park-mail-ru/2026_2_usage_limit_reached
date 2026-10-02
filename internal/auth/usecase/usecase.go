@@ -22,7 +22,7 @@ var (
 type Repository interface {
 	CreateUser(ctx context.Context, user *models.User) (*models.User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error)
-	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
+	GetUserByIdentifier(ctx context.Context, identifier string) (*models.User, error)
 }
 
 type UserPayload struct {
@@ -85,8 +85,14 @@ func (uc *Usecase) Register(ctx context.Context, regInput RegisterInput) (*model
 	return user, token, nil
 }
 
-func (uc *Usecase) Login(ctx context.Context, username, password string) (*models.User, string, error) {
-	user, err := uc.repo.GetUserByUsername(ctx, username)
+func (uc *Usecase) Login(ctx context.Context, username, email, password string) (*models.User, string, error) {
+	var identifier string
+	if strings.TrimSpace(username) != "" {
+		identifier = strings.TrimSpace(username)
+	} else {
+		identifier = normalizeEmail(email)
+	}
+	user, err := uc.repo.GetUserByIdentifier(ctx, identifier) // логиниться можно по email или username
 	if err != nil {
 		if errors.Is(err, models.ErrUserNotFound) {
 			return nil, "", fmt.Errorf("%w: %w", ErrLoginFailed, err)

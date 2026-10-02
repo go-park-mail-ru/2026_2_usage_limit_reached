@@ -26,7 +26,7 @@ var (
 
 type UseCase interface {
 	Register(ctx context.Context, regInput usecase.RegisterInput) (*models.User, string, error)
-	Login(ctx context.Context, username, password string) (*models.User, string, error)
+	Login(ctx context.Context, username, email, password string) (*models.User, string, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 }
 
@@ -129,7 +129,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		slog.String("username", loginReq.Username),
 	)
 
-	user, token, err := h.uc.Login(r.Context(), loginReq.Username, loginReq.Password)
+	user, token, err := h.uc.Login(r.Context(), loginReq.Username, loginReq.Email, loginReq.Password)
 	if err != nil {
 		h.handleError(r.Context(), w, "login", "login error", err)
 		return

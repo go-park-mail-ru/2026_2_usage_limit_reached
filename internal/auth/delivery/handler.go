@@ -41,11 +41,11 @@ func NewHandler(uc UseCase, tokenTTL time.Duration, validator validator.Validato
 	return &Handler{uc: uc, tokenTTL: tokenTTL, validator: validator, logger: logger}
 }
 
-func (h *Handler) RegisterRoutes(r *mux.Router, authMiddleware func(http.Handler) http.Handler) {
-	r.HandleFunc("/signup", h.Register).Methods("POST")
-	r.HandleFunc("/login", h.Login).Methods("POST")
+func (h *Handler) RegisterRoutes(public *mux.Router, private *mux.Router) {
+	public.HandleFunc("/signup", h.Register).Methods(http.MethodPost)
+	public.HandleFunc("/login", h.Login).Methods(http.MethodPost)
 
-	r.Handle("/logout", authMiddleware(http.HandlerFunc(h.Logout))).Methods(http.MethodPost)
+	private.HandleFunc("/logout", h.Logout).Methods(http.MethodPost)
 }
 
 // Register регистрирует нового пользователя
@@ -170,17 +170,17 @@ func (h *Handler) handleError(ctx context.Context, w http.ResponseWriter, handle
 	)
 	switch {
 	case errors.Is(err, usecase.ErrRegistrationFailed):
-		response.Error(w, http.StatusConflict, err.Error())
+		response.Error(w, http.StatusConflict, ErrBadRequest.Error())
 	case errors.Is(err, usecase.ErrLoginFailed):
-		response.Error(w, http.StatusUnauthorized, err.Error())
+		response.Error(w, http.StatusUnauthorized, ErrUnauthorized.Error())
 	case errors.Is(err, dto.ErrValidation):
-		response.Error(w, http.StatusBadRequest, err.Error())
+		response.Error(w, http.StatusBadRequest, ErrBadRequest.Error())
 	case errors.Is(err, ErrBadRequest):
-		response.Error(w, http.StatusBadRequest, err.Error())
+		response.Error(w, http.StatusBadRequest, ErrBadRequest.Error())
 	case errors.Is(err, usecase.ErrInternal):
-		response.Error(w, http.StatusInternalServerError, err.Error())
+		response.Error(w, http.StatusInternalServerError, ErrInternal.Error())
 	default:
-		response.Error(w, http.StatusInternalServerError, "internal server error")
+		response.Error(w, http.StatusInternalServerError, ErrInternal.Error())
 	}
 }
 

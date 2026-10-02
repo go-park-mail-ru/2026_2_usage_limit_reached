@@ -28,7 +28,7 @@ func (r *RegistrationRequest) Validate(v validator.Validator) error {
 }
 
 type LoginRequest struct {
-	Username    string `json:"username" example:"username123"`
+	Username string `json:"username" example:"username123"`
 	Password string `json:"password" example:"secret_password_123"`
 }
 

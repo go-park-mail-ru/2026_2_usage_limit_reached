@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	handlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery"
+	AuthHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/token"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
@@ -49,20 +49,20 @@ func main() {
 		cfg.Validation.EmailRegexp,
 		cfg.Validation.UsernameAllowedRunes,
 	)
-	h := handlers.NewHandler(uc, tokens.TTL(), valid, logger)
-
+	authHandler := AuthHandlers.NewHandler(uc, tokens.TTL(), valid, logger)
 	authMiddleware := middleware.AuthMiddleware(tokens)
 	r := mux.NewRouter()
-	r.Use(
-		middleware.RecoverMiddleware(logger),
-		middleware.AccessLogMiddleware(logger),
-		middleware.CORSMiddleware(cfg.CORS.AllowedOrigins),
-	)
-	h.RegisterRoutes(r, authMiddleware)
+	private := r.NewRoute().Subrouter()
+	private.Use(authMiddleware)
+	authHandler.RegisterRoutes(r, private)
+
+	handler := middleware.RecoverMiddleware(logger)(r)
+	handler = middleware.AccessLogMiddleware(logger)(handler)
+	handler = middleware.CORSMiddleware(cfg.CORS.AllowedOrigins)(handler)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Port,
-		Handler:           r,
+		Handler:           handler,
 		ReadHeaderTimeout: cfg.HTTP.Timeout,
 	}
 

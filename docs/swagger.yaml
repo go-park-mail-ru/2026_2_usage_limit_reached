@@ -1,0 +1,177 @@
+components:
+  schemas:
+    dto.LoginRequest:
+      properties:
+        password:
+          example: secret_password_123
+          type: string
+        login:
+          example: username123
+          type: string
+      type: object
+    dto.RegistrationRequest:
+      properties:
+        email:
+          example: user@example.com
+          type: string
+        nickname:
+          example: nickname_123
+          type: string
+        password:
+          example: secret_password_123
+          type: string
+        username:
+          example: username123
+          type: string
+      type: object
+    dto.UserResponse:
+      properties:
+        email:
+          example: user@example.com
+          type: string
+        nickname:
+          example: nickname_123
+          type: string
+        username:
+          example: username123
+          type: string
+      type: object
+    response.ErrorResponse:
+      properties:
+        error:
+          type: string
+      type: object
+  securitySchemes:
+    CookieAuth:
+      in: cookie
+      name: token
+      type: apiKey
+externalDocs:
+  description: ""
+  url: ""
+info:
+  description: Регистрация, вход и выход.
+  title: Patreon Clone API — Auth
+  version: "1.0"
+openapi: 3.1.0
+paths:
+  /login:
+    post:
+      description: Принимает учетные данные, проверяет их и выпускает токен
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.LoginRequest'
+              description: Учетные данные пользователя
+              summary: request
+        description: Учетные данные пользователя
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.UserResponse'
+          description: Успешная аутентификация
+          headers:
+            Set-Cookie:
+              description: token=JWT_TOKEN; Path=/; HttpOnly; SameSite=Lax
+              schema:
+                type: string
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный логин или пароль
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Аутентификация пользователя
+      tags:
+      - auth
+  /logout:
+    post:
+      description: Удаляет авторизационную cookie с токеном
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+          description: Успешный выход из системы
+          headers:
+            Set-Cookie:
+              description: token=; Path=/; Max-Age=-1
+              schema:
+                type: string
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Деавторизация пользователя
+      tags:
+      - auth
+  /signup:
+    post:
+      description: Принимает регистрационные данные, валидирует и создает новый аккаунт
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.RegistrationRequest'
+              description: Данные нового пользователя
+              summary: request
+        description: Данные нового пользователя
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.UserResponse'
+          description: Пользователь успешно зарегистрирован
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: 'Ошибка регистрации: пользователь с таким email / username
+            уже существует'
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Регистрация пользователя
+      tags:
+      - auth

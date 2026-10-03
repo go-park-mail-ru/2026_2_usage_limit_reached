@@ -43,7 +43,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.logger.InfoContext(r.Context(), "user registered",
-		slog.String("userID", user.Email),
+		slog.String("email", user.Email),
 	)
 
 	h.setAuthCookie(w, token)
@@ -85,7 +85,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.logger.InfoContext(r.Context(), "user logged in",
-		slog.String("userID", user.Email),
+		slog.String("email", user.Email),
 	)
 
 	h.setAuthCookie(w, token)

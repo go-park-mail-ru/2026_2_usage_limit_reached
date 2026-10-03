@@ -8,8 +8,8 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/repository/memory"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/token"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 	"github.com/gorilla/mux"
 )
@@ -27,7 +27,7 @@ func main() {
 	}
 
 	logger := cfg.Logger
-	tokens, err := token.NewJWTManager(cfg.JWT)
+	tokens, err := jwt.NewJWTManager(cfg.JWT)
 	if err != nil {
 		log.Fatalf("token manager initialization error: %v", err)
 	}

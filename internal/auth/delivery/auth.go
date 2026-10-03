@@ -27,12 +27,12 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := json.NewDecoder(r.Body).Decode(&regReq); err != nil {
-		h.handleError(r.Context(), w, "register", "request body decode error", errBadRequest)
+		h.handleError(r.Context(), w, "register", "request body decode error", response.ErrBadRequest)
 		return
 	}
 
 	if err := regReq.Validate(h.validator); err != nil {
-		h.handleError(r.Context(), w, "register", "validation error", errBadRequest)
+		h.handleError(r.Context(), w, "register", "validation error", response.ErrBadRequest)
 		return
 	}
 
@@ -69,12 +69,12 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := json.NewDecoder(r.Body).Decode(&loginReq); err != nil {
-		h.handleError(r.Context(), w, "login", "request body decode error", errBadRequest)
+		h.handleError(r.Context(), w, "login", "request body decode error", response.ErrBadRequest)
 		return
 	}
 
 	if err := loginReq.Validate(h.validator); err != nil {
-		h.handleError(r.Context(), w, "login", "validation error", errBadRequest)
+		h.handleError(r.Context(), w, "login", "validation error", response.ErrBadRequest)
 		return
 	}
 

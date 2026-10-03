@@ -14,12 +14,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-var (
-	errInternal     = errors.New("internal server error")
-	errBadRequest   = errors.New("bad request")
-	errUnauthorized = errors.New("unauthorized")
-)
-
 type UseCase interface {
 	Register(ctx context.Context, regInput dto.RegistrationRequest) (*dto.UserResponse, string, error)
 	Login(ctx context.Context, loginInput dto.LoginRequest) (*dto.UserResponse, string, error)
@@ -50,13 +44,13 @@ func (h *Handler) handleError(ctx context.Context, w http.ResponseWriter, handle
 	)
 	switch {
 	case errors.Is(err, usecase.ErrRegistrationFailed):
-		response.Error(w, http.StatusConflict, errBadRequest.Error())
+		response.Error(w, http.StatusConflict, response.ErrBadRequest.Error())
 	case errors.Is(err, usecase.ErrLoginFailed):
-		response.Error(w, http.StatusUnauthorized, errUnauthorized.Error())
-	case errors.Is(err, errBadRequest):
-		response.Error(w, http.StatusBadRequest, errBadRequest.Error())
+		response.Error(w, http.StatusUnauthorized, response.ErrUnauthorized.Error())
+	case errors.Is(err, response.ErrBadRequest):
+		response.Error(w, http.StatusBadRequest, response.ErrBadRequest.Error())
 	default:
-		response.Error(w, http.StatusInternalServerError, errInternal.Error())
+		response.Error(w, http.StatusInternalServerError, response.ErrInternal.Error())
 	}
 }
 

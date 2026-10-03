@@ -1,4 +1,4 @@
-package token
+package jwt
 
 import (
 	"crypto/hmac"
@@ -35,13 +35,12 @@ type JWTConfig struct {
 	TokenTTL time.Duration
 }
 
-type jwtClaims struct {
-	Subject   string `json:"sub"`
-	IssuedAt  int64  `json:"iat"`
-	NotBefore int64  `json:"nbf"`
-	ExpiresAt int64  `json:"exp"`
-
-	Role string `json:"role"`
+type JwtClaims struct {
+	Subject   string          `json:"sub"`
+	IssuedAt  int64           `json:"iat"`
+	NotBefore int64           `json:"nbf"`
+	ExpiresAt int64           `json:"exp"`
+	Payload   json.RawMessage `json:"payload,omitempty"`
 }
 
 type jwtHeader struct {
@@ -69,13 +68,14 @@ func NewJWTManager(cfg *JWTConfig) (*JWTManager, error) {
 	return &JWTManager{secretKey: []byte(cfg.Secret), ttl: cfg.TokenTTL}, nil
 }
 
-func (m *JWTManager) Generate(payload any) (string, error) {
-	userPayload, ok := payload.(UserPayload)
-	if !ok {
-		return "", ErrInvalidUserID // пока только для UserPayload может работать
-	}
-	if userPayload.UserID == uuid.Nil {
+func (m *JWTManager) Generate(ID uuid.UUID, payload any) (string, error) {
+	if ID == uuid.Nil {
 		return "", ErrInvalidUserID
+	}
+
+	rawPayload, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
 	}
 
 	now := time.Now()
@@ -85,12 +85,12 @@ func (m *JWTManager) Generate(payload any) (string, error) {
 		Type:      TokenTypeJWT,
 	}
 
-	claims := jwtClaims{
-		Subject:   userPayload.UserID.String(),
-		Role:      userPayload.Role,
+	claims := JwtClaims{
+		Subject:   ID.String(),
 		IssuedAt:  now.Unix(),
 		NotBefore: now.Unix(),
 		ExpiresAt: now.Add(m.ttl).Unix(),
+		Payload:   rawPayload,
 	}
 
 	encodedHeader, err := marshalAndEncodeToBase64(header)
@@ -109,7 +109,7 @@ func (m *JWTManager) Generate(payload any) (string, error) {
 	return signingInput + "." + base64.RawURLEncoding.EncodeToString(sign), nil
 }
 
-func (m *JWTManager) Verify(tokenStr string) (*UserPayload, error) {
+func (m *JWTManager) Verify(tokenStr string) (*JwtClaims, error) {
 	segments := strings.Split(tokenStr, ".")
 	if len(segments) != 3 {
 		return nil, ErrInvalidToken
@@ -123,7 +123,7 @@ func (m *JWTManager) Verify(tokenStr string) (*UserPayload, error) {
 		return nil, ErrInvalidSign
 	}
 
-	var claims jwtClaims
+	var claims JwtClaims
 	if err := decodeAndUnmarshal(encodedClaims, &claims); err != nil {
 		return nil, ErrInvalidToken
 	}
@@ -144,7 +144,7 @@ func (m *JWTManager) Verify(tokenStr string) (*UserPayload, error) {
 		return nil, ErrInvalidToken
 	}
 
-	return &UserPayload{UserID: userID, Role: claims.Role}, nil
+	return &claims, nil
 }
 
 func (m *JWTManager) TTL() time.Duration {

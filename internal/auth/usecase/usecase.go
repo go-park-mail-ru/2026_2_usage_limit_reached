@@ -12,12 +12,6 @@ import (
 var (
 	ErrRegistrationFailed = errors.New("registration failed")
 	ErrLoginFailed        = errors.New("login failed")
-	ErrAccountDisabled    = errors.New("account disabled")
-	ErrInternal           = errors.New("internal server error")
-	ErrUserIDNotFound     = errors.New("user with this userID was not found")
-	ErrPassHash           = errors.New("password hashing failed")
-	ErrDBAccess           = errors.New("database error") // пока вместо нормальных ошибок БД
-	ErrTokenGenFailed     = errors.New("token generation failed")
 )
 
 const (
@@ -32,7 +26,7 @@ type Repository interface {
 }
 
 type TokenManager interface {
-	Generate(payload any) (string, error)
+	Generate(ID uuid.UUID, payload any) (string, error)
 	TTL() time.Duration
 }
 

@@ -10,14 +10,14 @@ import (
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/token"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 )
 
 type Config struct {
 	HTTP       *httpserver.HTTPConfig
-	JWT        *token.JWTConfig
+	JWT        *jwt.JWTConfig
 	CORS       *middleware.CORSConfig
 	Validation *validator.ValidationConfig
 	Logger     *slog.Logger
@@ -76,7 +76,7 @@ func loadHTTP() (*httpserver.HTTPConfig, error) {
 	}, nil
 }
 
-func loadJWT() (*token.JWTConfig, error) {
+func loadJWT() (*jwt.JWTConfig, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		return nil, fmt.Errorf("JWT_SECRET is required")
@@ -88,7 +88,7 @@ func loadJWT() (*token.JWTConfig, error) {
 		return nil, fmt.Errorf("invalid JWT_TOKEN_TTL: %w", err)
 	}
 
-	return &token.JWTConfig{
+	return &jwt.JWTConfig{
 		Secret:   secret,
 		TokenTTL: ttl,
 	}, nil

@@ -2,7 +2,14 @@ package response
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+)
+
+var (
+	ErrInternal     = errors.New("internal server error")
+	ErrBadRequest   = errors.New("bad request")
+	ErrUnauthorized = errors.New("unauthorized")
 )
 
 type ErrorResponse struct {

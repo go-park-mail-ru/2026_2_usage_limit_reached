@@ -11,7 +11,7 @@ import (
 )
 
 type TokenVerifier interface {
-	Verify(tokenString string) (*jwt.JwtClaims, error)
+	Verify(tokenString string) (json.RawMessage, error)
 }
 
 type ctxKey struct{}
@@ -25,14 +25,14 @@ func AuthMiddleware(verifier TokenVerifier) func(http.Handler) http.Handler {
 				return
 			}
 
-			claims, err := verifier.Verify(cookie.Value)
+			rawPayload, err := verifier.Verify(cookie.Value)
 			if err != nil {
 				response.Error(w, http.StatusUnauthorized, "unauthorized")
 				return
 			}
 
 			var payload jwt.UserPayload
-			if err := json.Unmarshal(claims.Payload, &payload); err != nil {
+			if err := json.Unmarshal(rawPayload, &payload); err != nil {
 				response.Error(w, http.StatusUnauthorized, "unauthorized")
 				return
 			}

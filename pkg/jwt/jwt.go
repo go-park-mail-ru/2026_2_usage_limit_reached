@@ -35,7 +35,7 @@ type JWTConfig struct {
 	TokenTTL time.Duration
 }
 
-type JwtClaims struct {
+type jwtClaims struct {
 	Subject   string          `json:"sub"`
 	IssuedAt  int64           `json:"iat"`
 	NotBefore int64           `json:"nbf"`
@@ -85,7 +85,7 @@ func (m *JWTManager) Generate(ID uuid.UUID, payload any) (string, error) {
 		Type:      TokenTypeJWT,
 	}
 
-	claims := JwtClaims{
+	claims := jwtClaims{
 		Subject:   ID.String(),
 		IssuedAt:  now.Unix(),
 		NotBefore: now.Unix(),
@@ -109,7 +109,7 @@ func (m *JWTManager) Generate(ID uuid.UUID, payload any) (string, error) {
 	return signingInput + "." + base64.RawURLEncoding.EncodeToString(sign), nil
 }
 
-func (m *JWTManager) Verify(tokenStr string) (*JwtClaims, error) {
+func (m *JWTManager) Verify(tokenStr string) (json.RawMessage, error) {
 	segments := strings.Split(tokenStr, ".")
 	if len(segments) != 3 {
 		return nil, ErrInvalidToken
@@ -123,7 +123,7 @@ func (m *JWTManager) Verify(tokenStr string) (*JwtClaims, error) {
 		return nil, ErrInvalidSign
 	}
 
-	var claims JwtClaims
+	var claims jwtClaims
 	if err := decodeAndUnmarshal(encodedClaims, &claims); err != nil {
 		return nil, ErrInvalidToken
 	}
@@ -144,7 +144,7 @@ func (m *JWTManager) Verify(tokenStr string) (*JwtClaims, error) {
 		return nil, ErrInvalidToken
 	}
 
-	return &claims, nil
+	return claims.Payload, nil
 }
 
 func (m *JWTManager) TTL() time.Duration {

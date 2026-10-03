@@ -30,6 +30,10 @@ func ErrorUnauthorized(w http.ResponseWriter) {
 	write(w, http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
 }
 
+func ErrorNotFound(w http.ResponseWriter) {
+	write(w, http.StatusNotFound, ErrorResponse{Error: "not found"})
+}
+
 func write(w http.ResponseWriter, code int, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {

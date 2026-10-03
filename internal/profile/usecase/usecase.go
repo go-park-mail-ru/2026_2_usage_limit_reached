@@ -5,66 +5,60 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/domain"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
 	"github.com/google/uuid"
 )
 
-var ErrProfileNotFound = errors.New("profile not found")
+var (
+	ErrProfileNotFound     = errors.New("profile not found")
+	ErrProfileUserNotFound = errors.New("profile user not found")
+	ErrAuthorNotFound      = errors.New("author not found")
+)
 
-type UserRepository interface {
-	GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error)
+type UserInfoProvider interface {
+	GetProfileUserByID(ctx context.Context, userID uuid.UUID) (*models.ProfileUser, error)
 }
 
 type ProfileRepository interface {
-	GetAuthorByUserID(ctx context.Context, userID uuid.UUID) (*domain.Author, bool, error)
-	ListPostsByAuthorID(ctx context.Context, authorID uuid.UUID) ([]domain.Post, error)
+	GetAuthorByUserID(ctx context.Context, userID uuid.UUID) (*models.Author, error)
+	ListPostsByAuthorID(ctx context.Context, authorID uuid.UUID) ([]models.Post, error)
 }
 
 type ProfileUsecase struct {
-	users    UserRepository
+	users    UserInfoProvider
 	profiles ProfileRepository
 }
 
-func NewProfileUsecase(users UserRepository, profiles ProfileRepository) *ProfileUsecase {
+func NewProfileUsecase(users UserInfoProvider, profiles ProfileRepository) *ProfileUsecase {
 	return &ProfileUsecase{users: users, profiles: profiles}
 }
 
-func (uc *ProfileUsecase) GetMyProfile(ctx context.Context, userID uuid.UUID) (*domain.Profile, error) {
-	user, err := uc.users.GetUserByID(ctx, userID)
+func (uc *ProfileUsecase) GetMyProfile(ctx context.Context, userID uuid.UUID) (*dto.ProfileResponse, error) {
+	userProfile, err := uc.users.GetProfileUserByID(ctx, userID)
 	if err != nil {
-		if errors.Is(err, models.ErrUserNotFound) {
-			return nil, fmt.Errorf("%w: %w", ErrProfileNotFound, err)
+		if errors.Is(err, ErrProfileUserNotFound) {
+			return nil, fmt.Errorf("get user: %w", ErrProfileNotFound)
 		}
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
-	profile := &domain.Profile{
-		User: domain.ProfileUser{
-			ID:        user.ID,
-			Username:  user.Username,
-			Nickname:  user.Nickname,
-			Email:     user.Email,
-			AvatarKey: user.AvatarKey,
-			CreatedAt: user.CreatedAt,
-		},
-		Posts: []domain.Post{},
+	author, err := uc.profiles.GetAuthorByUserID(ctx, userID)
+	if errors.Is(err, ErrAuthorNotFound) {
+		return dto.ToProfileResponse(userProfile, nil), nil
 	}
-	author, found, err := uc.profiles.GetAuthorByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get author: %w", err)
 	}
 
-	if !found {
-		return profile, nil
-	}
+	return dto.ToProfileResponse(userProfile, author), nil
+}
 
-	profile.Author = &domain.Author{Bio: author.Bio, Category: author.Category}
+func (uc *ProfileUsecase) GetMyPosts(ctx context.Context, userID uuid.UUID) (*dto.ProfilePostsResponse, error) {
 	posts, err := uc.profiles.ListPostsByAuthorID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list author posts: %w", err)
 	}
 
-	profile.Posts = posts
-	return profile, nil
+	return dto.ToProfilePostsResponse(userID, posts), nil
 }

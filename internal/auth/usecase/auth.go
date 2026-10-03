@@ -76,6 +76,18 @@ func (uc *Usecase) Login(ctx context.Context, logReq dto.LoginRequest) (*dto.Use
 	return response, token, nil
 }
 
+func (uc *Usecase) FindUserByID(ctx context.Context, userID uuid.UUID) (*dto.UserInfo, error) {
+	user, err := uc.repo.GetUserByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, models.ErrUserNotFound) {
+			return nil, fmt.Errorf("find user: %w", ErrUserNotFound)
+		}
+		return nil, fmt.Errorf("find user: %w", err)
+	}
+
+	return dto.ToUserInfo(user), nil
+}
+
 func (uc *Usecase) findUserByLogin(ctx context.Context, login string) (*models.User, error) {
 	if strings.ContainsRune(login, '@') {
 		return uc.repo.GetUserByEmail(ctx, login)

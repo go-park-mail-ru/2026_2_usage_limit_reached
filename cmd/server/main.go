@@ -7,6 +7,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/memory"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/adapters"
 	ProfileHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery"
 	ProfileRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/memory"
 	ProfileUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
@@ -42,7 +43,8 @@ func main() {
 	authMiddleware := middleware.AuthMiddleware(tokens)
 
 	profileRepo := ProfileRepo.NewProfileRepository()
-	profileUc := ProfileUsecase.NewProfileUsecase(repo, profileRepo)
+	profileUsers := adapters.NewUserInfoRepositoryAdapter(uc)
+	profileUc := ProfileUsecase.NewProfileUsecase(profileUsers, profileRepo)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, logger)
 
 	r := mux.NewRouter()

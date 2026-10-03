@@ -12,6 +12,7 @@ import (
 var (
 	ErrRegistrationFailed = errors.New("registration failed")
 	ErrLoginFailed        = errors.New("login failed")
+	ErrUserNotFound       = errors.New("user not found")
 )
 
 const (

@@ -31,5 +31,9 @@ type ProfileUserResponse struct {
 type ProfileResponse struct {
 	User   ProfileUserResponse `json:"user"`
 	Author *AuthorResponse     `json:"author,omitempty"`
-	Posts  []PostResponse      `json:"posts"`
+}
+
+type ProfilePostsResponse struct {
+	UserID uuid.UUID      `json:"user_id" example:"00000000-0000-4000-8000-000000000001"`
+	Posts  []PostResponse `json:"posts"`
 }

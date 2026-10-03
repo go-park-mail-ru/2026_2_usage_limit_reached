@@ -1,4 +1,4 @@
-package domain
+package models
 
 import (
 	"time"
@@ -6,17 +6,17 @@ import (
 	"github.com/google/uuid"
 )
 
+type PostStatus string
+
 const (
 	PostStatusDraft     PostStatus = "draft"
 	PostStatusPublished PostStatus = "published"
 )
 
 type Author struct {
-	Bio             string
-	Category        string
+	Bio      string
+	Category string
 }
-
-type PostStatus string
 
 type Post struct {
 	ID          uuid.UUID
@@ -35,10 +35,4 @@ type ProfileUser struct {
 	Email     string
 	AvatarKey string
 	CreatedAt time.Time
-}
-
-type Profile struct {
-	User   ProfileUser
-	Author *Author
-	Posts  []Post
 }

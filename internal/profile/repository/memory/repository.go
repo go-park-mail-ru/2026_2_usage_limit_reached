@@ -4,49 +4,50 @@ import (
 	"cmp"
 	"context"
 	"slices"
+	"sync"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/domain"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
+	profileusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
 	"github.com/google/uuid"
 )
 
 type ProfileRepository struct {
-	authors map[uuid.UUID]domain.Author
-	posts   map[uuid.UUID]domain.Post
+	mu      sync.RWMutex
+	authors map[uuid.UUID]models.Author
+	posts   map[uuid.UUID]models.Post
 }
 
 func NewProfileRepository() *ProfileRepository {
 	return &ProfileRepository{
-		authors: make(map[uuid.UUID]domain.Author),
-		posts:   make(map[uuid.UUID]domain.Post),
+		authors: make(map[uuid.UUID]models.Author),
+		posts:   make(map[uuid.UUID]models.Post),
 	}
 }
 
-func (r *ProfileRepository) GetAuthorByUserID(ctx context.Context, userID uuid.UUID) (*domain.Author, bool, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, false, err
-	}
+func (r *ProfileRepository) GetAuthorByUserID(ctx context.Context, userID uuid.UUID) (*models.Author, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	author, ok := r.authors[userID]
 	if !ok {
-		return nil, false, nil
+		return nil, profileusecase.ErrAuthorNotFound
 	}
 
-	return &author, ok, nil
+	return &author, nil
 }
 
-func (r *ProfileRepository) ListPostsByAuthorID(ctx context.Context, authorID uuid.UUID) ([]domain.Post, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
+func (r *ProfileRepository) ListPostsByAuthorID(ctx context.Context, authorID uuid.UUID) ([]models.Post, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
-	posts := make([]domain.Post, 0)
+	posts := make([]models.Post, 0)
 	for _, post := range r.posts {
 		if post.AuthorID == authorID {
 			posts = append(posts, post)
 		}
 	}
 
-	slices.SortFunc(posts, func(a, b domain.Post) int {
+	slices.SortFunc(posts, func(a, b models.Post) int {
 		if c := b.CreatedAt.Compare(a.CreatedAt); c != 0 {
 			return c
 		}

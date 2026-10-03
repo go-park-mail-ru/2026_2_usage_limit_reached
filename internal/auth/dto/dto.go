@@ -6,6 +6,8 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
+	"github.com/google/uuid"
+	"time"
 )
 
 var errValidation = errors.New("validation error")
@@ -46,6 +48,29 @@ type UserResponse struct {
 	Email    string `json:"email" example:"user@example.com"`
 	Username string `json:"username" example:"username123"`
 	Nickname string `json:"nickname" example:"nickname_123"`
+}
+
+type UserInfo struct {
+	ID        uuid.UUID
+	Email     string
+	Username  string
+	Nickname  string
+	AvatarKey string
+	CreatedAt time.Time
+}
+
+func ToUserInfo(user *models.User) *UserInfo {
+	if user == nil {
+		return nil
+	}
+	return &UserInfo{
+		ID:        user.ID,
+		Email:     user.Email,
+		Username:  user.Username,
+		Nickname:  user.Nickname,
+		AvatarKey: user.AvatarKey,
+		CreatedAt: user.CreatedAt,
+	}
 }
 
 func ToUserResponse(user *models.User) *UserResponse {

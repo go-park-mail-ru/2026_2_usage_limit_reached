@@ -2,6 +2,7 @@ package validator
 
 import (
 	"regexp"
+	"strings"
 )
 
 type ValidationConfig struct {
@@ -31,6 +32,10 @@ func (v Validator) IsValidEmail(email string) bool {
 }
 
 func (v Validator) IsValidUsername(username string) bool {
+	if strings.TrimSpace(username) == "" {
+		return false
+	}
+
 	length := len([]rune(username))
 	if length < v.MinUsernameLen || length > v.MaxUsernameLen {
 		return false

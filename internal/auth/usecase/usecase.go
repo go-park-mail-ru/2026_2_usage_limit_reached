@@ -12,6 +12,7 @@ import (
 var (
 	ErrRegistrationFailed = errors.New("registration failed")
 	ErrLoginFailed        = errors.New("login failed")
+	ErrAccountDisabled    = errors.New("account disabled")
 	ErrInternal           = errors.New("internal server error")
 	ErrUserIDNotFound     = errors.New("user with this userID was not found")
 	ErrPassHash           = errors.New("password hashing failed")
@@ -26,7 +27,8 @@ const (
 type Repository interface {
 	CreateUser(ctx context.Context, user *models.User) (*models.User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error)
-	GetUserByIdentifier(ctx context.Context, identifier string) (*models.User, error)
+	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
+	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
 }
 
 type TokenManager interface {

@@ -5,7 +5,7 @@ components:
         password:
           example: secret_password_123
           type: string
-        username:
+        login:
           example: username123
           type: string
       type: object

@@ -15,8 +15,6 @@ import (
 )
 
 func (uc *Usecase) Register(ctx context.Context, regInput dto.RegistrationRequest) (*dto.UserResponse, string, error) {
-	normalizedEmail := normalizeEmail(regInput.Email)
-
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(regInput.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %w", ErrPassHash, err)
@@ -24,8 +22,8 @@ func (uc *Usecase) Register(ctx context.Context, regInput dto.RegistrationReques
 
 	user := &models.User{
 		ID:           uuid.New(),
-		Email:        normalizedEmail,
-		Username:     regInput.Username,
+		Email:        normalize(regInput.Email),
+		Username:     normalize(regInput.Username),
 		Nickname:     regInput.Nickname,
 		PasswordHash: string(passwordHash),
 		Status:       statusActive,
@@ -51,13 +49,8 @@ func (uc *Usecase) Register(ctx context.Context, regInput dto.RegistrationReques
 }
 
 func (uc *Usecase) Login(ctx context.Context, logReq dto.LoginRequest) (*dto.UserResponse, string, error) {
-	var identifier string
-	if strings.TrimSpace(logReq.Username) != "" {
-		identifier = strings.TrimSpace(logReq.Username)
-	} else {
-		identifier = normalizeEmail(logReq.Email)
-	}
-	user, err := uc.repo.GetUserByIdentifier(ctx, identifier) // логиниться можно по email или username
+	user, err := uc.findUserByLogin(ctx, normalize(logReq.Login))
+
 	if err != nil {
 		if errors.Is(err, models.ErrUserNotFound) {
 			return nil, "", fmt.Errorf("%w: %w", ErrLoginFailed, err)
@@ -70,6 +63,10 @@ func (uc *Usecase) Login(ctx context.Context, logReq dto.LoginRequest) (*dto.Use
 		return nil, "", fmt.Errorf("%w: %w", ErrLoginFailed, err)
 	}
 
+	if user.Status != statusActive {
+		return nil, "", fmt.Errorf("%w: %w", ErrLoginFailed, ErrAccountDisabled)
+	}
+
 	token, err := uc.tokenGenerator.Generate(token.UserPayload{UserID: user.ID, Role: "user"})
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %w", ErrTokenGenFailed, err)
@@ -79,10 +76,18 @@ func (uc *Usecase) Login(ctx context.Context, logReq dto.LoginRequest) (*dto.Use
 	return response, token, nil
 }
 
+func (uc *Usecase) findUserByLogin(ctx context.Context, login string) (*models.User, error) {
+	if strings.ContainsRune(login, '@') {
+		return uc.repo.GetUserByEmail(ctx, login)
+	}
+
+	return uc.repo.GetUserByUsername(ctx, login)
+}
+
 func (uc *Usecase) TokenTTL() time.Duration {
 	return uc.tokenGenerator.TTL()
 }
 
-func normalizeEmail(email string) string {
-	return strings.ToLower(strings.TrimSpace(email))
+func normalize(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
 }

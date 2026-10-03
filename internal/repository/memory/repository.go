@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -84,15 +83,4 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 	}
 
 	return &user, nil
-}
-
-func (r *UserRepository) GetUserByIdentifier(ctx context.Context, identifier string) (*models.User, error) {
-	if isEmail(identifier) {
-		return r.GetUserByEmail(ctx, identifier)
-	}
-	return r.GetUserByUsername(ctx, identifier)
-}
-
-func isEmail(s string) bool {
-	return strings.Contains(s, "@")
 }

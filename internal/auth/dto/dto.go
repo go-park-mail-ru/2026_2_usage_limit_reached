@@ -2,6 +2,7 @@ package dto
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
@@ -28,13 +29,13 @@ func (r *RegistrationRequest) Validate(v *validator.Validator) error {
 }
 
 type LoginRequest struct {
-	Username string `json:"username" example:"username123"`
-	Email    string `json:"email" example:"user@example.com"`
+	// Email или username пользователя
+	Login    string `json:"login" example:"username123"`
 	Password string `json:"password" example:"secret_password_123"`
 }
 
 func (r *LoginRequest) Validate(v *validator.Validator) error {
-	if r.Password == "" {
+	if strings.TrimSpace(r.Login) == "" || strings.TrimSpace(r.Password) == "" {
 		return errValidation
 	}
 

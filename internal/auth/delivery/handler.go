@@ -44,13 +44,11 @@ func (h *Handler) handleError(ctx context.Context, w http.ResponseWriter, handle
 	)
 	switch {
 	case errors.Is(err, usecase.ErrRegistrationFailed):
-		response.Error(w, http.StatusConflict, response.ErrBadRequest.Error())
+		response.ErrorBadRequest(w)
 	case errors.Is(err, usecase.ErrLoginFailed):
-		response.Error(w, http.StatusUnauthorized, response.ErrUnauthorized.Error())
-	case errors.Is(err, response.ErrBadRequest):
-		response.Error(w, http.StatusBadRequest, response.ErrBadRequest.Error())
+		response.ErrorUnauthorized(w)
 	default:
-		response.Error(w, http.StatusInternalServerError, response.ErrInternal.Error())
+		response.ErrorInternal(w)
 	}
 }
 

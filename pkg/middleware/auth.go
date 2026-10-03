@@ -21,19 +21,19 @@ func AuthMiddleware(verifier TokenVerifier) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(jwt.CookieName)
 			if err != nil {
-				response.Error(w, http.StatusUnauthorized, "unauthorized")
+				response.ErrorUnauthorized(w)
 				return
 			}
 
 			rawPayload, err := verifier.Verify(cookie.Value)
 			if err != nil {
-				response.Error(w, http.StatusUnauthorized, "unauthorized")
+				response.ErrorUnauthorized(w)
 				return
 			}
 
 			var payload jwt.UserPayload
 			if err := json.Unmarshal(rawPayload, &payload); err != nil {
-				response.Error(w, http.StatusUnauthorized, "unauthorized")
+				response.ErrorUnauthorized(w)
 				return
 			}
 

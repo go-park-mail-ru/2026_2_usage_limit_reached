@@ -13,7 +13,7 @@ func RecoverMiddleware(log *slog.Logger) func(http.Handler) http.Handler {
 			defer func() {
 				if err := recover(); err != nil {
 					log.ErrorContext(r.Context(), "panic recovered", slog.Any("error", err))
-					response.Error(w, http.StatusInternalServerError, "internal server error")
+					response.ErrorInternal(w)
 				}
 			}()
 			next.ServeHTTP(w, r)

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 )
@@ -27,12 +28,12 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := json.NewDecoder(r.Body).Decode(&regReq); err != nil {
-		h.handleError(r.Context(), w, "register", "request body decode error", response.ErrBadRequest)
+		h.handleError(r.Context(), w, "register", "request body decode error", usecase.ErrRegistrationFailed)
 		return
 	}
 
 	if err := regReq.Validate(h.validator); err != nil {
-		h.handleError(r.Context(), w, "register", "validation error", response.ErrBadRequest)
+		h.handleError(r.Context(), w, "register", "validation error", usecase.ErrRegistrationFailed)
 		return
 	}
 
@@ -69,12 +70,12 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := json.NewDecoder(r.Body).Decode(&loginReq); err != nil {
-		h.handleError(r.Context(), w, "login", "request body decode error", response.ErrBadRequest)
+		h.handleError(r.Context(), w, "login", "request body decode error", usecase.ErrLoginFailed)
 		return
 	}
 
 	if err := loginReq.Validate(h.validator); err != nil {
-		h.handleError(r.Context(), w, "login", "validation error", response.ErrBadRequest)
+		h.handleError(r.Context(), w, "login", "validation error", usecase.ErrLoginFailed)
 		return
 	}
 

@@ -2,14 +2,7 @@ package response
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
-)
-
-var (
-	ErrInternal     = errors.New("internal server error")
-	ErrBadRequest   = errors.New("bad request")
-	ErrUnauthorized = errors.New("unauthorized")
 )
 
 type ErrorResponse struct {
@@ -25,14 +18,22 @@ func WriteJSON(w http.ResponseWriter, code int, payload any) {
 	write(w, code, payload)
 }
 
-func Error(w http.ResponseWriter, code int, msg string) {
-	write(w, code, ErrorResponse{Error: msg})
+func ErrorInternal(w http.ResponseWriter) {
+	write(w, http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+}
+
+func ErrorBadRequest(w http.ResponseWriter) {
+	write(w, http.StatusBadRequest, ErrorResponse{Error: "bad request"})
+}
+
+func ErrorUnauthorized(w http.ResponseWriter) {
+	write(w, http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
 }
 
 func write(w http.ResponseWriter, code int, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "internal server error")
+		ErrorInternal(w)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)

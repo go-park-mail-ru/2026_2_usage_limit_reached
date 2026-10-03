@@ -4,9 +4,9 @@ import (
 	"log"
 
 	AuthHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/memory"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/repository/memory"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"

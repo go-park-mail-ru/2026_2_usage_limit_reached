@@ -45,7 +45,7 @@ func (h *ProfileHandler) RegisterRoutes(public *mux.Router, private *mux.Router)
 func (h *ProfileHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	id, ok := middleware.UserIDFromContext(r.Context())
 	if !ok || id == uuid.Nil {
-		h.handleError(r.Context(), w, "get my profile", response.ErrUnauthorized)
+		response.ErrorUnauthorized(w)
 		return
 	}
 
@@ -64,9 +64,9 @@ func (h *ProfileHandler) handleError(ctx context.Context, w http.ResponseWriter,
 	)
 
 	switch {
-	case errors.Is(err, profileusecase.ErrProfileNotFound), errors.Is(err, response.ErrUnauthorized):
-		response.Error(w, http.StatusUnauthorized, response.ErrUnauthorized.Error())
+	case errors.Is(err, profileusecase.ErrProfileNotFound):
+		response.ErrorUnauthorized(w)
 	default:
-		response.Error(w, http.StatusInternalServerError, response.ErrInternal.Error())
+		response.ErrorInternal(w)
 	}
 }

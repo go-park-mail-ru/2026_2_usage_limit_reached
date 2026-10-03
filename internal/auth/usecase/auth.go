@@ -39,7 +39,7 @@ func (uc *Usecase) Register(ctx context.Context, regInput dto.RegistrationReques
 		return nil, "", fmt.Errorf("failed to create user: %w", err) // типа ошибка похода в базу
 	}
 
-	token, err := uc.tokenGenerator.Generate(user.ID, jwt.UserPayload{Role: "user"})
+	token, err := uc.tokenGenerator.Generate(user.ID, jwt.UserPayload{UserID: user.ID, Role: "user"})
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -67,7 +67,7 @@ func (uc *Usecase) Login(ctx context.Context, logReq dto.LoginRequest) (*dto.Use
 		return nil, "", fmt.Errorf("%w: account disabled", ErrLoginFailed)
 	}
 
-	token, err := uc.tokenGenerator.Generate(user.ID, jwt.UserPayload{Role: "user"})
+	token, err := uc.tokenGenerator.Generate(user.ID, jwt.UserPayload{UserID: user.ID, Role: "user"})
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to generate token: %w", err)
 	}

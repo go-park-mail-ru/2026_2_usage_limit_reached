@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/domain"
 	"github.com/google/uuid"
 )

@@ -1,0 +1,44 @@
+package domain
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+const (
+	PostStatusDraft     PostStatus = "draft"
+	PostStatusPublished PostStatus = "published"
+)
+
+type Author struct {
+	Bio             string
+	Category        string
+}
+
+type PostStatus string
+
+type Post struct {
+	ID          uuid.UUID
+	AuthorID    uuid.UUID
+	Title       string
+	Body        string
+	Status      PostStatus
+	PublishedAt *time.Time
+	CreatedAt   time.Time
+}
+
+type ProfileUser struct {
+	ID        uuid.UUID
+	Username  string
+	Nickname  string
+	Email     string
+	AvatarKey string
+	CreatedAt time.Time
+}
+
+type Profile struct {
+	User   ProfileUser
+	Author *Author
+	Posts  []Post
+}

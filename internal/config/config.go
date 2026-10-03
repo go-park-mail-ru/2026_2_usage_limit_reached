@@ -23,7 +23,7 @@ type Config struct {
 	Logger     *slog.Logger
 }
 
-const defaultUsernameAllowedRunes = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%^&*()_+-="
+const defaultUsernameAllowedRunes = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_"
 
 func Load() (*Config, error) {
 	HTTPcfg, err := loadHTTP()

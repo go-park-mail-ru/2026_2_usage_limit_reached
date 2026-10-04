@@ -6,18 +6,19 @@ import (
 	"fmt"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/dto"
+	authdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
+	authuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
 	"github.com/google/uuid"
 )
 
 var (
 	ErrProfileNotFound     = errors.New("profile not found")
-	ErrProfileUserNotFound = errors.New("profile user not found")
 	ErrAuthorNotFound      = errors.New("author not found")
 )
 
 type UserInfoProvider interface {
-	GetProfileUserByID(ctx context.Context, userID uuid.UUID) (*models.ProfileUser, error)
+	FindUserByID(ctx context.Context, userID uuid.UUID) (*authdto.UserInfo, error)
 }
 
 type ProfileRepository interface {
@@ -26,24 +27,24 @@ type ProfileRepository interface {
 }
 
 type ProfileUsecase struct {
-	users    UserInfoProvider
-	profiles ProfileRepository
+	usersRepo    UserInfoProvider
+	profilesRepo ProfileRepository
 }
 
 func NewProfileUsecase(users UserInfoProvider, profiles ProfileRepository) *ProfileUsecase {
-	return &ProfileUsecase{users: users, profiles: profiles}
+	return &ProfileUsecase{usersRepo: users, profilesRepo: profiles}
 }
 
 func (uc *ProfileUsecase) GetMyProfile(ctx context.Context, userID uuid.UUID) (*dto.ProfileResponse, error) {
-	userProfile, err := uc.users.GetProfileUserByID(ctx, userID)
+	userProfile, err := uc.usersRepo.FindUserByID(ctx, userID)
 	if err != nil {
-		if errors.Is(err, ErrProfileUserNotFound) {
+		if errors.Is(err, authuc.ErrUserNotFound) {
 			return nil, fmt.Errorf("get user: %w", ErrProfileNotFound)
 		}
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
-	author, err := uc.profiles.GetAuthorByUserID(ctx, userID)
+	author, err := uc.profilesRepo.GetAuthorByUserID(ctx, userID)
 	if errors.Is(err, ErrAuthorNotFound) {
 		return dto.ToProfileResponse(userProfile, nil), nil
 	}
@@ -55,7 +56,7 @@ func (uc *ProfileUsecase) GetMyProfile(ctx context.Context, userID uuid.UUID) (*
 }
 
 func (uc *ProfileUsecase) GetMyPosts(ctx context.Context, userID uuid.UUID) (*dto.ProfilePostsResponse, error) {
-	posts, err := uc.profiles.ListPostsByAuthorID(ctx, userID)
+	posts, err := uc.profilesRepo.ListPostsByAuthorID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list author posts: %w", err)
 	}

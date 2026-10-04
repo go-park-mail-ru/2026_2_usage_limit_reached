@@ -27,12 +27,3 @@ type Post struct {
 	PublishedAt *time.Time
 	CreatedAt   time.Time
 }
-
-type ProfileUser struct {
-	ID        uuid.UUID
-	Username  string
-	Nickname  string
-	Email     string
-	AvatarKey string
-	CreatedAt time.Time
-}

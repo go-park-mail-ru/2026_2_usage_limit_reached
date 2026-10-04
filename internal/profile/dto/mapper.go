@@ -2,10 +2,11 @@ package dto
 
 import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
+	authdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
 	"github.com/google/uuid"
 )
 
-func ToProfileResponse(user *models.ProfileUser, author *models.Author) *ProfileResponse {
+func ToProfileResponse(user *authdto.UserInfo, author *models.Author) *ProfileResponse {
 
 	return &ProfileResponse{
 		User:   toUserResponse(*user),
@@ -25,7 +26,7 @@ func ToProfilePostsResponse(userID uuid.UUID, posts []models.Post) *ProfilePosts
 	}
 }
 
-func toUserResponse(user models.ProfileUser) ProfileUserResponse {
+func toUserResponse(user authdto.UserInfo) ProfileUserResponse {
 	return ProfileUserResponse{
 		ID:        user.ID,
 		Username:  user.Username,

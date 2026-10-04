@@ -1,8 +1,13 @@
 package validator
 
 import (
+	"errors"
 	"regexp"
 	"strings"
+)
+
+var (
+	ErrValidation = errors.New("validation error")
 )
 
 type ValidationConfig struct {

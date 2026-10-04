@@ -9,6 +9,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 )
 
 // Register регистрирует нового пользователя
@@ -33,7 +34,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := regReq.Validate(h.validator); err != nil {
-		h.handleError(r.Context(), w, "register", "validation error", usecase.ErrRegistrationFailed)
+		h.handleError(r.Context(), w, "register", "validation error", validator.ErrValidation)
 		return
 	}
 
@@ -75,7 +76,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := loginReq.Validate(h.validator); err != nil {
-		h.handleError(r.Context(), w, "login", "validation error", usecase.ErrLoginFailed)
+		h.handleError(r.Context(), w, "login", "validation error", validator.ErrValidation)
 		return
 	}
 

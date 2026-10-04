@@ -12,8 +12,10 @@ import (
 )
 
 type ProfileRepository struct {
-	mu      sync.RWMutex
-	authors map[uuid.UUID]models.Author
+	authorsMu sync.RWMutex
+	authors  map[uuid.UUID]models.Author
+
+	postsMu sync.RWMutex
 	posts   map[uuid.UUID]models.Post
 }
 
@@ -25,8 +27,8 @@ func NewProfileRepository() *ProfileRepository {
 }
 
 func (r *ProfileRepository) GetAuthorByUserID(ctx context.Context, userID uuid.UUID) (*models.Author, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.authorsMu.RLock()
+	defer r.authorsMu.RUnlock()
 
 	author, ok := r.authors[userID]
 	if !ok {
@@ -37,8 +39,8 @@ func (r *ProfileRepository) GetAuthorByUserID(ctx context.Context, userID uuid.U
 }
 
 func (r *ProfileRepository) ListPostsByAuthorID(ctx context.Context, authorID uuid.UUID) ([]models.Post, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.postsMu.RLock()
+	defer r.postsMu.RUnlock()
 
 	posts := make([]models.Post, 0)
 	for _, post := range r.posts {

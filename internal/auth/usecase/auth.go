@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -74,6 +74,18 @@ func (uc *Usecase) Login(ctx context.Context, logReq dto.LoginRequest) (*dto.Use
 
 	response := dto.ToUserResponse(user)
 	return response, token, nil
+}
+
+func (uc *Usecase) FindUserByID(ctx context.Context, userID uuid.UUID) (*dto.UserInfo, error) {
+	user, err := uc.repo.GetUserByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, models.ErrUserNotFound) {
+			return nil, fmt.Errorf("find user: %w", ErrUserNotFound)
+		}
+		return nil, fmt.Errorf("find user: %w", err)
+	}
+
+	return dto.ToUserInfo(user), nil
 }
 
 func (uc *Usecase) findUserByLogin(ctx context.Context, login string) (*models.User, error) {

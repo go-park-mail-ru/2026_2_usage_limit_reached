@@ -100,7 +100,9 @@ func loadCORS() *middleware.CORSConfig {
 	for origin := range strings.SplitSeq(raw, ",") {
 		origins[strings.TrimSpace(origin)] = struct{}{}
 	}
-	return &middleware.CORSConfig{AllowedOrigins: origins}
+	headers := getEnv("CORS_ALLOWED_HEADERS", "Content-Type, Authorization")
+	methods := getEnv("CORS_ALLOWED_METHODS", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+	return &middleware.CORSConfig{AllowedOrigins: origins, AllowedHeaders: headers, AllowedMethods: methods}
 }
 
 func loadValidation() (*validator.ValidationConfig, error) {

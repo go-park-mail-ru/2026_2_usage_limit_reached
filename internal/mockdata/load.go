@@ -35,6 +35,7 @@ func Load() (*authmemory.UserRepository, *profilememory.ProfileRepository, error
 	}
 
 	publishedAt := time.Date(2026, time.September, 3, 12, 0, 0, 0, time.UTC)
+	secondPublishedAt := time.Date(2026, time.September, 2, 12, 0, 0, 0, time.UTC)
 	profiles, err := profilememory.NewProfileRepositoryWithMockData(
 		map[uuid.UUID]profilemodels.Author{
 			authorID:      {Bio: "Пишу о книгах и творчестве.", Category: "Искусство"},
@@ -51,12 +52,13 @@ func Load() (*authmemory.UserRepository, *profilememory.ProfileRepository, error
 				CreatedAt:   publishedAt,
 			},
 			{
-				ID:        uuid.MustParse("00000000-0000-4000-8000-000000000102"),
-				AuthorID:  authorID,
-				Title:     "Черновик следующего выпуска",
-				Body:      "Текст ещё редактируется.",
-				Status:    profilemodels.PostStatusDraft,
-				CreatedAt: time.Date(2026, time.September, 2, 12, 0, 0, 0, time.UTC),
+				ID:          uuid.MustParse("00000000-0000-4000-8000-000000000102"),
+				AuthorID:    authorID,
+				Title:       "Следующий выпуск",
+				Body:        "Новый пост",
+				Status:      profilemodels.PostStatusPublished,
+				PublishedAt: &secondPublishedAt,
+				CreatedAt:   secondPublishedAt,
 			},
 		},
 	)

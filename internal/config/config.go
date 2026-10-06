@@ -21,6 +21,7 @@ type Config struct {
 	CORS       *middleware.CORSConfig
 	Validation *validator.ValidationConfig
 	Logger     *slog.Logger
+	Seed       bool
 }
 
 const defaultUsernameAllowedRunes = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_"
@@ -45,12 +46,18 @@ func Load() (*Config, error) {
 
 	logger := loadLogger()
 
+	seed, err := strconv.ParseBool(getEnv("SEED", "false"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid SEED: %w", err)
+	}
+
 	return &Config{
 		HTTP:       HTTPcfg,
 		JWT:        JWTcfg,
 		CORS:       CORScfg,
 		Validation: validationCfg,
 		Logger:     logger,
+		Seed:       seed,
 	}, nil
 }
 

@@ -9,12 +9,14 @@ import (
 
 func NewProfileRepositoryWithMockData(authors map[uuid.UUID]models.Author, posts []models.Post) (*ProfileRepository, error) {
 	repo := NewProfileRepository()
+
 	for userID, author := range authors {
 		if userID == uuid.Nil {
 			return nil, fmt.Errorf("mock author has an empty user ID")
 		}
 		repo.authors[userID] = author
 	}
+
 	for _, post := range posts {
 		if post.ID == uuid.Nil {
 			return nil, fmt.Errorf("mock post has an empty ID")
@@ -27,5 +29,6 @@ func NewProfileRepositoryWithMockData(authors map[uuid.UUID]models.Author, posts
 		}
 		repo.posts[post.ID] = post
 	}
+
 	return repo, nil
 }

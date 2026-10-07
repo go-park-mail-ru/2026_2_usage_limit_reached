@@ -29,7 +29,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := json.NewDecoder(r.Body).Decode(&regReq); err != nil {
-		h.handleError(r.Context(), w, "register", "request body decode error", usecase.ErrRegistrationFailed)
+		h.handleError(r.Context(), w, "register", "request body decode error", validator.ErrValidation)
 		return
 	}
 

@@ -1,4 +1,4 @@
-package memory_test
+package memory
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/memory"
 	profileusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -23,26 +22,27 @@ var (
 	repoTime          = time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
 )
 
+func TestNewProfileRepository(t *testing.T) {
+	t.Parallel()
+
+	repo := NewProfileRepository()
+	ivanID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	author, err := repo.GetAuthorByUserID(context.Background(), ivanID)
+	require.NoError(t, err)
+	require.Equal(t, "Технологии", author.Category)
+	posts, err := repo.ListPostsByAuthorID(context.Background(), ivanID)
+	require.NoError(t, err)
+	require.Len(t, posts, 2)
+}
+
 func TestProfileRepository_GetAuthorByUserID_Success(t *testing.T) {
 	t.Parallel()
 
 	author := models.Author{Bio: "Пишу о книгах", Category: "Книги"}
-	tests := []struct {
-		name string
-		want *models.Author
-	}{
-		{name: "known author", want: &author},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			repo, err := memory.NewProfileRepositoryWithMockData(map[uuid.UUID]models.Author{repoAuthorID: author}, nil)
-			require.NoError(t, err)
-			got, err := repo.GetAuthorByUserID(context.Background(), repoAuthorID)
-			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
-		})
-	}
+	repo := &ProfileRepository{authors: map[uuid.UUID]models.Author{repoAuthorID: author}}
+	got, err := repo.GetAuthorByUserID(context.Background(), repoAuthorID)
+	require.NoError(t, err)
+	require.Equal(t, &author, got)
 }
 
 func TestProfileRepository_GetAuthorByUserID_Errors(t *testing.T) {
@@ -59,7 +59,7 @@ func TestProfileRepository_GetAuthorByUserID_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			repo := memory.NewProfileRepository()
+			repo := &ProfileRepository{}
 			got, err := repo.GetAuthorByUserID(context.Background(), tt.userID)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
@@ -77,27 +77,22 @@ func TestProfileRepository_ListPostsByAuthorID_Success(t *testing.T) {
 	tests := []struct {
 		name     string
 		authorID uuid.UUID
-		posts    []models.Post
+		posts    map[uuid.UUID]models.Post
 		want     []models.Post
 	}{
-		{name: "own posts sorted by date and ID", authorID: repoAuthorID, posts: []models.Post{older, newerSecond, other, newerFirst}, want: []models.Post{newerFirst, newerSecond, older}},
-		{name: "author without posts", authorID: repoOtherAuthorID, posts: []models.Post{older, newerSecond, newerFirst}, want: []models.Post{}},
-		{name: "unknown author has no posts", authorID: repoUnknownID, posts: []models.Post{older, newerSecond, other, newerFirst}, want: []models.Post{}},
+		{name: "own posts sorted by date and ID", authorID: repoAuthorID, posts: map[uuid.UUID]models.Post{older.ID: older, newerSecond.ID: newerSecond, other.ID: other, newerFirst.ID: newerFirst}, want: []models.Post{newerFirst, newerSecond, older}},
+		{name: "author without posts", authorID: repoOtherAuthorID, posts: map[uuid.UUID]models.Post{older.ID: older, newerSecond.ID: newerSecond, newerFirst.ID: newerFirst}, want: []models.Post{}},
+		{name: "unknown author has no posts", authorID: repoUnknownID, posts: map[uuid.UUID]models.Post{older.ID: older, newerSecond.ID: newerSecond, other.ID: other, newerFirst.ID: newerFirst}, want: []models.Post{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			repo, err := memory.NewProfileRepositoryWithMockData(map[uuid.UUID]models.Author{
+			repo := &ProfileRepository{authors: map[uuid.UUID]models.Author{
 				repoAuthorID: {}, repoOtherAuthorID: {},
-			}, tt.posts)
-			require.NoError(t, err)
+			}, posts: tt.posts}
 			got, err := repo.ListPostsByAuthorID(context.Background(), tt.authorID)
 			require.NoError(t, err)
-			require.NotNil(t, got)
 			require.Equal(t, tt.want, got)
-			if len(tt.want) == 0 {
-				require.Empty(t, got)
-			}
 		})
 	}
 }

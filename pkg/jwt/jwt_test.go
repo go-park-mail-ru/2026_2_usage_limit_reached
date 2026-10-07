@@ -68,7 +68,6 @@ func TestNewJWTManager_Errors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			manager, err := jwt.NewJWTManager(&tt.cfg)
 			require.Nil(t, manager)
 			require.ErrorIs(t, err, tt.wantErr)

@@ -34,7 +34,7 @@ func New(cfg *HTTPConfig, logger *slog.Logger) *Server {
 	}
 }
 
-func (s *Server) Run(r *mux.Router, authMiddleware mux.MiddlewareFunc) error {
+func (s *Server) Run(r *mux.Router) error {
 	appCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 

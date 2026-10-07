@@ -4,7 +4,7 @@ import (
 	"log"
 
 	AuthHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/memory"
+	AuthRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/memory"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
 	ProfileHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery"
@@ -35,13 +35,14 @@ func main() {
 		log.Fatalf("token manager initialization error: %v", err)
 	}
 
-	repo := memory.NewUserRepository()
-	uc := usecase.NewUsecase(repo, tokens)
+	userRepo := AuthRepo.NewUserRepository()
+	profileRepo := ProfileRepo.NewProfileRepository()
+
+	uc := usecase.NewUsecase(userRepo, tokens)
 	valid := validator.NewValidator(cfg.Validation)
 	authHandler := AuthHandlers.NewHandler(uc, valid, logger)
 	authMiddleware := middleware.AuthMiddleware(tokens)
 
-	profileRepo := ProfileRepo.NewProfileRepository()
 	profileUc := ProfileUsecase.NewProfileUsecase(uc, profileRepo)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, logger)
 
@@ -57,7 +58,7 @@ func main() {
 	)
 
 	srv := httpserver.New(cfg.HTTP, logger)
-	if err := srv.Run(r, authMiddleware); err != nil {
+	if err := srv.Run(r); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }

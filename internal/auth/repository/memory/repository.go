@@ -23,39 +23,39 @@ func NewUserRepository() *UserRepository {
 	petrID := uuid.MustParse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
 
 	createdAt := time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
-	const passwordHash = "$2b$10$/AesN2sVYvp4.KICRTYjZuGlIA49n6QuSgRXD7tw3p3teR7ghsdeC"
+	const passwordHash = "$2b$10$/AesN2sVYvp4.KICRTYjZuGlIA49n6QuSgRXD7tw3p3teR7ghsdeC" // DemoPassword123!
 
 	return &UserRepository{
 		users: map[uuid.UUID]models.User{
 			ivanID: {
-				ID: ivanID,
-				Username: "ivan001",
-				Nickname: "Иван",
-				Email: "ivan@gmail.com",
+				ID:           ivanID,
+				Username:     "ivan001",
+				Nickname:     "Иван",
+				Email:        "ivan@gmail.com",
 				PasswordHash: passwordHash,
-				Status: "active",
-				CreatedAt: createdAt,
-				UpdatedAt: createdAt,
+				Status:       "active",
+				CreatedAt:    createdAt,
+				UpdatedAt:    createdAt,
 			},
 			alexandraID: {
-				ID: alexandraID,
-				Username: "alexandra",
-				Nickname: "Александра",
-				Email: "sasha@gmail.com",
+				ID:           alexandraID,
+				Username:     "alexandra",
+				Nickname:     "Александра",
+				Email:        "sasha@gmail.com",
 				PasswordHash: passwordHash,
-				Status: "active",
-				CreatedAt: createdAt,
-				UpdatedAt: createdAt,
+				Status:       "active",
+				CreatedAt:    createdAt,
+				UpdatedAt:    createdAt,
 			},
 			petrID: {
-				ID: petrID,
-				Username: "petr",
-				Nickname: "Петр",
-				Email: "petr@gmail.com",
+				ID:           petrID,
+				Username:     "petr",
+				Nickname:     "Петр",
+				Email:        "petr@gmail.com",
 				PasswordHash: passwordHash,
-				Status: "active",
-				CreatedAt: createdAt,
-				UpdatedAt: createdAt,
+				Status:       "active",
+				CreatedAt:    createdAt,
+				UpdatedAt:    createdAt,
 			},
 		},
 
@@ -64,7 +64,7 @@ func NewUserRepository() *UserRepository {
 			"sasha@gmail.com": alexandraID,
 			"petr@gmail.com":  petrID,
 		},
-		
+
 		byUsername: map[string]uuid.UUID{
 			"ivan001":   ivanID,
 			"alexandra": alexandraID,

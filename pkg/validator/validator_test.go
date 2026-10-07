@@ -1,34 +1,15 @@
 package validator_test
 
 import (
-	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/testutils"
+	"github.com/stretchr/testify/require"
 )
 
-func createTestValidator() *validator.Validator {
-	allowedRunes := map[rune]struct{}{
-		'a': {}, 'b': {}, 'c': {}, '1': {}, '2': {}, '_': {},
-	}
-
-	cfg := &validator.ValidationConfig{
-		MinUsernameLen:       3,
-		MaxUsernameLen:       32,
-		MaxNicknameLen:       32,
-		MinPasswordLen:       8,
-		MaxPasswordLen:       32,
-		MaxEmailLen:          32,
-		EmailRegexp:          regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`),
-		UsernameAllowedRunes: allowedRunes,
-	}
-
-	return validator.NewValidator(cfg)
-}
-
 func TestValidator_IsValidEmail(t *testing.T) {
-	v := createTestValidator()
+	v := testutils.SetupValidator()
 
 	tests := []struct {
 		name     string
@@ -54,15 +35,14 @@ func TestValidator_IsValidEmail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := v.IsValidEmail(tt.email); got != tt.expected {
-				t.Errorf("IsValidEmail(%q) = %v, expected %v", tt.email, got, tt.expected)
-			}
+			got := v.IsValidEmail(tt.email)
+			require.Equal(t, got, tt.expected)
 		})
 	}
 }
 
 func TestValidator_IsValidUsername(t *testing.T) {
-	v := createTestValidator()
+	v := testutils.SetupValidator()
 
 	tests := []struct {
 		name     string
@@ -98,15 +78,14 @@ func TestValidator_IsValidUsername(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := v.IsValidUsername(tt.username); got != tt.expected {
-				t.Errorf("IsValidUsername(%q) = %v, expected %v", tt.username, got, tt.expected)
-			}
+			got := v.IsValidUsername(tt.username)
+			require.Equal(t, tt.expected, got, "IsValidUsername(%q) = %v, expected %v", tt.username, got, tt.expected)
 		})
 	}
 }
 
 func TestValidator_IsValidNickname(t *testing.T) {
-	v := createTestValidator()
+	v := testutils.SetupValidator()
 
 	tests := []struct {
 		name     string
@@ -132,15 +111,14 @@ func TestValidator_IsValidNickname(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := v.IsValidNickname(tt.nickname); got != tt.expected {
-				t.Errorf("IsValidNickname(%q) = %v, expected %v", tt.nickname, got, tt.expected)
-			}
+			got := v.IsValidNickname(tt.nickname)
+			require.Equal(t, tt.expected, got, "IsValidNickname(%q) = %v, expected %v", tt.nickname, got, tt.expected)
 		})
 	}
 }
 
 func TestValidator_IsValidPassword(t *testing.T) {
-	v := createTestValidator()
+	v := testutils.SetupValidator()
 
 	tests := []struct {
 		name     string
@@ -166,9 +144,8 @@ func TestValidator_IsValidPassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := v.IsValidPassword(tt.password); got != tt.expected {
-				t.Errorf("IsValidPassword(%q) = %v, expected %v", tt.password, got, tt.expected)
-			}
+			got := v.IsValidPassword(tt.password)
+			require.Equal(t, tt.expected, got, "IsValidPassword(%q) = %v, expected %v", tt.password, got, tt.expected)
 		})
 	}
 }

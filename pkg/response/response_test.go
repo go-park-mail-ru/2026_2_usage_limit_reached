@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDecodeJSON(t *testing.T) {
@@ -22,12 +23,8 @@ func TestDecodeJSON(t *testing.T) {
 
 		var payload Payload
 		err := response.DecodeJSON(w, req, &payload)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if payload.Name != "john" {
-			t.Errorf("expected 'john', got %s", payload.Name)
-		}
+		require.NoError(t, err, "unexpected error: %v", err)
+		require.Equal(t, "john", payload.Name, "expected 'john', got %s", payload.Name)
 	})
 
 	t.Run("Invalid JSON error", func(t *testing.T) {
@@ -37,9 +34,7 @@ func TestDecodeJSON(t *testing.T) {
 
 		var payload Payload
 		err := response.DecodeJSON(w, req, &payload)
-		if err == nil {
-			t.Fatalf("expected error on invalid JSON, got nil")
-		}
+		require.Error(t, err)
 	})
 }
 
@@ -50,20 +45,15 @@ func TestWriteJSON(t *testing.T) {
 
 		response.WriteJSON(w, http.StatusAccepted, payload)
 
-		if w.Code != http.StatusAccepted {
-			t.Errorf("expected status %d, got %d", http.StatusAccepted, w.Code)
-		}
-		if contentType := w.Header().Get("Content-Type"); contentType != "application/json" {
-			t.Errorf("expected Content-Type application/json, got %s", contentType)
-		}
+		require.Equal(t, http.StatusAccepted, w.Code)
+
+		contentType := w.Header().Get("Content-Type")
+		require.Equal(t, "application/json", contentType)
 
 		var res map[string]string
-		if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
-			t.Fatalf("failed to parse json: %v", err)
-		}
-		if res["message"] != "success" {
-			t.Errorf("expected body message 'success', got %s", res["message"])
-		}
+		err := json.Unmarshal(w.Body.Bytes(), &res)
+		require.NoError(t, err)
+		require.Equal(t, "success", res["message"], "expected body message 'success', got %s", res["message"])
 	})
 
 	t.Run("Unmarshalable payload", func(t *testing.T) {
@@ -72,9 +62,7 @@ func TestWriteJSON(t *testing.T) {
 
 		response.WriteJSON(w, http.StatusOK, unmarshalable)
 
-		if w.Code != http.StatusInternalServerError {
-			t.Errorf("expected status 500 on marshal error, got %d", w.Code)
-		}
+		require.Equal(t, http.StatusInternalServerError, w.Code)
 	})
 }
 
@@ -122,20 +110,15 @@ func TestErrorResponses(t *testing.T) {
 			w := httptest.NewRecorder()
 			tt.invoke(w)
 
-			if w.Code != tt.expectedStatus {
-				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
-			if contentType := w.Header().Get("Content-Type"); contentType != "application/json" {
-				t.Errorf("expected Content-Type application/json, got %s", contentType)
-			}
+			require.Equal(t, tt.expectedStatus, w.Code)
+
+			contentType := w.Header().Get("Content-Type")
+			require.Equal(t, "application/json", contentType)
 
 			var resp response.ErrorResponse
-			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-				t.Fatalf("failed to decode response: %v", err)
-			}
-			if resp.Error != tt.expectedError {
-				t.Errorf("expected error message %q, got %q", tt.expectedError, resp.Error)
-			}
+			err := json.Unmarshal(w.Body.Bytes(), &resp)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedError, resp.Error, "expected error message %q, got %q", tt.expectedError, resp.Error)
 		})
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 type MockTokenVerifier struct {
@@ -24,7 +25,6 @@ func (m *MockTokenVerifier) Verify(tokenString string) (json.RawMessage, error) 
 	return nil, nil
 }
 
-// Tests for auth mw
 func TestAuthMiddleware(t *testing.T) {
 	expectedUserID := uuid.New()
 	validPayload, _ := json.Marshal(jwt.UserPayload{UserID: expectedUserID})
@@ -91,12 +91,8 @@ func TestAuthMiddleware(t *testing.T) {
 				nextCalled = true
 
 				extractedID, ok := middleware.UserIDFromContext(r.Context())
-				if !ok {
-					t.Errorf("expected UserID in context")
-				}
-				if extractedID != expectedUserID {
-					t.Errorf("expected UserID %v, got %v", expectedUserID, extractedID)
-				}
+				require.True(t, ok)
+				require.Equal(t, expectedUserID, extractedID, "expected UserID %v, got %v", expectedUserID, extractedID)
 
 				w.WriteHeader(http.StatusOK)
 			})
@@ -109,12 +105,8 @@ func TestAuthMiddleware(t *testing.T) {
 
 			mw(nextHandler).ServeHTTP(w, req)
 
-			if w.Code != tt.expectedStatus {
-				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
-			if nextCalled != tt.expectNextCall {
-				t.Errorf("expected nextHandler called=%v, got %v", tt.expectNextCall, nextCalled)
-			}
+			require.Equal(t, tt.expectedStatus, w.Code)
+			require.Equal(t, tt.expectNextCall, nextCalled)
 		})
 	}
 }
@@ -123,15 +115,10 @@ func TestUserIDFromContext_NotFound(t *testing.T) {
 	ctx := context.Background()
 	id, ok := middleware.UserIDFromContext(ctx)
 
-	if ok {
-		t.Errorf("expected ok=false for empty context, got true")
-	}
-	if id != uuid.Nil {
-		t.Errorf("expected uuid.Nil, got %v", id)
-	}
+	require.False(t, ok)
+	require.Equal(t, uuid.Nil, id, "expected uuid.Nil, got %v", id)
 }
 
-// Tests for CORS
 func TestCORSMiddleware(t *testing.T) {
 	cfg := &middleware.CORSConfig{
 		AllowedOrigins: map[string]struct{}{
@@ -145,52 +132,52 @@ func TestCORSMiddleware(t *testing.T) {
 	mw := middleware.CORSMiddleware(cfg)
 
 	tests := []struct {
-		name               string
-		method             string
-		originHeader       string
-		expectedStatus     int
-		expectCORSHeaders  bool
-		expectNextCalled   bool
+		name              string
+		method            string
+		originHeader      string
+		expectedStatus    int
+		expectCORSHeaders bool
+		expectNextCalled  bool
 	}{
 		{
-			name:               "Allowed origin - Standard GET request",
-			method:             http.MethodGet,
-			originHeader:       "http://localhost:3000",
-			expectedStatus:     http.StatusOK,
-			expectCORSHeaders:  true,
-			expectNextCalled:   true,
+			name:              "Allowed origin - Standard GET request",
+			method:            http.MethodGet,
+			originHeader:      "http://localhost:3000",
+			expectedStatus:    http.StatusOK,
+			expectCORSHeaders: true,
+			expectNextCalled:  true,
 		},
 		{
-			name:               "Allowed origin - Preflight OPTIONS request",
-			method:             http.MethodOptions,
-			originHeader:       "https://example.com",
-			expectedStatus:     http.StatusOK,
-			expectCORSHeaders:  true,
-			expectNextCalled:   false,
+			name:              "Allowed origin - Preflight OPTIONS request",
+			method:            http.MethodOptions,
+			originHeader:      "https://example.com",
+			expectedStatus:    http.StatusOK,
+			expectCORSHeaders: true,
+			expectNextCalled:  false,
 		},
 		{
-			name:               "Disallowed origin - Standard POST request",
-			method:             http.MethodPost,
-			originHeader:       "http://evil-site.com",
-			expectedStatus:     http.StatusOK,
-			expectCORSHeaders:  false,
-			expectNextCalled:   true,
+			name:              "Disallowed origin - Standard POST request",
+			method:            http.MethodPost,
+			originHeader:      "http://evil-site.com",
+			expectedStatus:    http.StatusOK,
+			expectCORSHeaders: false,
+			expectNextCalled:  true,
 		},
 		{
-			name:               "Disallowed origin - Preflight OPTIONS request",
-			method:             http.MethodOptions,
-			originHeader:       "http://evil-site.com",
-			expectedStatus:     http.StatusOK,
-			expectCORSHeaders:  false,
-			expectNextCalled:   false,
+			name:              "Disallowed origin - Preflight OPTIONS request",
+			method:            http.MethodOptions,
+			originHeader:      "http://evil-site.com",
+			expectedStatus:    http.StatusOK,
+			expectCORSHeaders: false,
+			expectNextCalled:  false,
 		},
 		{
-			name:               "No Origin header provided",
-			method:             http.MethodGet,
-			originHeader:       "",
-			expectedStatus:     http.StatusOK,
-			expectCORSHeaders:  false,
-			expectNextCalled:   true,
+			name:              "No Origin header provided",
+			method:            http.MethodGet,
+			originHeader:      "",
+			expectedStatus:    http.StatusOK,
+			expectCORSHeaders: false,
+			expectNextCalled:  true,
 		},
 	}
 
@@ -210,32 +197,17 @@ func TestCORSMiddleware(t *testing.T) {
 
 			mw(nextHandler).ServeHTTP(w, req)
 
-			if w.Code != tt.expectedStatus {
-				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
-
-			if nextCalled != tt.expectNextCalled {
-				t.Errorf("expected nextCalled=%v, got %v", tt.expectNextCalled, nextCalled)
-			}
+			require.Equal(t, tt.expectedStatus, w.Code)
+			require.Equal(t, tt.expectNextCalled, nextCalled)
 
 			corsOrigin := w.Header().Get("Access-Control-Allow-Origin")
 			if tt.expectCORSHeaders {
-				if corsOrigin != tt.originHeader {
-					t.Errorf("expected Access-Control-Allow-Origin %q, got %q", tt.originHeader, corsOrigin)
-				}
-				if w.Header().Get("Access-Control-Allow-Credentials") != "true" {
-					t.Errorf("expected Access-Control-Allow-Credentials to be 'true'")
-				}
-				if w.Header().Get("Access-Control-Allow-Methods") != cfg.AllowedMethods {
-					t.Errorf("expected methods %q, got %q", cfg.AllowedMethods, w.Header().Get("Access-Control-Allow-Methods"))
-				}
-				if w.Header().Get("Access-Control-Allow-Headers") != cfg.AllowedHeaders {
-					t.Errorf("expected headers %q, got %q", cfg.AllowedHeaders, w.Header().Get("Access-Control-Allow-Headers"))
-				}
+				require.Equal(t, tt.originHeader, corsOrigin, "expected Access-Control-Allow-Origin %q, got %q", tt.originHeader, corsOrigin)
+				require.Equal(t, "true", w.Header().Get("Access-Control-Allow-Credentials"), "expected Access-Control-Allow-Credentials to be 'true'")
+				require.Equal(t, cfg.AllowedMethods, w.Header().Get("Access-Control-Allow-Methods"), "expected methods %q, got %q", cfg.AllowedMethods, w.Header().Get("Access-Control-Allow-Methods"))
+				require.Equal(t, cfg.AllowedHeaders, w.Header().Get("Access-Control-Allow-Headers"), "expected headers %q, got %q", cfg.AllowedHeaders, w.Header().Get("Access-Control-Allow-Headers"))
 			} else {
-				if corsOrigin != "" {
-					t.Errorf("expected no CORS headers, but got origin %q", corsOrigin)
-				}
+				require.Empty(t, corsOrigin, "expected no CORS headers, but got origin %q", corsOrigin)
 			}
 		})
 	}

@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -17,10 +18,58 @@ type UserRepository struct {
 }
 
 func NewUserRepository() *UserRepository {
+	ivanID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	alexandraID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	petrID := uuid.MustParse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
+
+	createdAt := time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
+	const passwordHash = "$2b$10$/AesN2sVYvp4.KICRTYjZuGlIA49n6QuSgRXD7tw3p3teR7ghsdeC"
+
 	return &UserRepository{
-		users:      make(map[uuid.UUID]models.User),
-		byEmail:    make(map[string]uuid.UUID),
-		byUsername: make(map[string]uuid.UUID),
+		users: map[uuid.UUID]models.User{
+			ivanID: {
+				ID: ivanID,
+				Username: "ivan001",
+				Nickname: "Иван",
+				Email: "ivan@gmail.com",
+				PasswordHash: passwordHash,
+				Status: "active",
+				CreatedAt: createdAt,
+				UpdatedAt: createdAt,
+			},
+			alexandraID: {
+				ID: alexandraID,
+				Username: "alexandra",
+				Nickname: "Александра",
+				Email: "sasha@gmail.com",
+				PasswordHash: passwordHash,
+				Status: "active",
+				CreatedAt: createdAt,
+				UpdatedAt: createdAt,
+			},
+			petrID: {
+				ID: petrID,
+				Username: "petr",
+				Nickname: "Петр",
+				Email: "petr@gmail.com",
+				PasswordHash: passwordHash,
+				Status: "active",
+				CreatedAt: createdAt,
+				UpdatedAt: createdAt,
+			},
+		},
+
+		byEmail: map[string]uuid.UUID{
+			"ivan@gmail.com":  ivanID,
+			"sasha@gmail.com": alexandraID,
+			"petr@gmail.com":  petrID,
+		},
+		
+		byUsername: map[string]uuid.UUID{
+			"ivan001":   ivanID,
+			"alexandra": alexandraID,
+			"petr":      petrID,
+		},
 	}
 }
 

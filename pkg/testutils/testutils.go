@@ -8,7 +8,7 @@ import (
 
 func SetupValidator() *validator.Validator {
 	allowedRunes := make(map[rune]struct{})
-	for _, r := range "abcdefghijklmnopqrstuvwxyz0123456789" {
+	for _, r := range "abcdefghijklmnopqrstuvwxyz0123456789_" {
 		allowedRunes[r] = struct{}{}
 	}
 

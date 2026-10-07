@@ -21,28 +21,45 @@ var (
 	profileTime   = time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
 )
 
-type userInfoStub struct {
-	user *authdto.UserInfo
-	err  error
+type userInfoMock struct {
+	users map[uuid.UUID]authdto.UserInfo
+	err   error
 }
 
-func (s userInfoStub) FindUserByID(context.Context, uuid.UUID) (*authdto.UserInfo, error) {
-	return s.user, s.err
+func (s userInfoMock) FindUserByID(_ context.Context, id uuid.UUID) (*authdto.UserInfo, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	user, ok := s.users[id]
+	if !ok {
+		return nil, authuc.ErrUserNotFound
+	}
+	return &user, nil
 }
 
-type profileRepositoryStub struct {
-	author    *models.Author
+type profileRepositoryMock struct {
+	authors   map[uuid.UUID]models.Author
 	authorErr error
-	posts     []models.Post
+	posts     map[uuid.UUID][]models.Post
 	postsErr  error
 }
 
-func (s profileRepositoryStub) GetAuthorByUserID(context.Context, uuid.UUID) (*models.Author, error) {
-	return s.author, s.authorErr
+func (s profileRepositoryMock) GetAuthorByUserID(_ context.Context, id uuid.UUID) (*models.Author, error) {
+	if s.authorErr != nil {
+		return nil, s.authorErr
+	}
+	author, ok := s.authors[id]
+	if !ok {
+		return nil, profileusecase.ErrAuthorNotFound
+	}
+	return &author, nil
 }
 
-func (s profileRepositoryStub) ListPostsByAuthorID(context.Context, uuid.UUID) ([]models.Post, error) {
-	return s.posts, s.postsErr
+func (s profileRepositoryMock) ListPostsByAuthorID(_ context.Context, id uuid.UUID) ([]models.Post, error) {
+	if s.postsErr != nil {
+		return nil, s.postsErr
+	}
+	return s.posts[id], nil
 }
 
 func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
@@ -51,10 +68,9 @@ func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 	user := &authdto.UserInfo{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarKey: "avatars/ivan.png", CreatedAt: profileTime}
 	author := &models.Author{Bio: "Пишу о технологиях", Category: "Технологии"}
 	tests := []struct {
-		name      string
-		author    *models.Author
-		authorErr error
-		want      *profiledto.ProfileResponse
+		name   string
+		author *models.Author
+		want   *profiledto.ProfileResponse
 	}{
 		{
 			name:   "author profile",
@@ -65,8 +81,7 @@ func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 			},
 		},
 		{
-			name:      "reader has no author profile",
-			authorErr: profileusecase.ErrAuthorNotFound,
+			name: "reader has no author profile",
 			want: &profiledto.ProfileResponse{
 				User: profiledto.ProfileUserResponse{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarKey: "avatars/ivan.png", CreatedAt: profileTime},
 			},
@@ -75,13 +90,17 @@ func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			uc := profileusecase.NewProfileUsecase(userInfoStub{user: user}, profileRepositoryStub{author: tt.author, authorErr: tt.authorErr})
+			authors := make(map[uuid.UUID]models.Author)
+			if tt.author != nil {
+				authors[profileUserID] = *tt.author
+			}
+			uc := profileusecase.NewProfileUsecase(
+				userInfoMock{users: map[uuid.UUID]authdto.UserInfo{profileUserID: *user}},
+				profileRepositoryMock{authors: authors},
+			)
 			got, err := uc.GetMyProfile(context.Background(), profileUserID)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
-			if tt.want.Author == nil {
-				require.Nil(t, got.Author)
-			}
 		})
 	}
 }
@@ -105,7 +124,11 @@ func TestProfileUsecase_GetMyProfile_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			uc := profileusecase.NewProfileUsecase(userInfoStub{user: tt.user, err: tt.userErr}, profileRepositoryStub{authorErr: tt.authorErr})
+			users := make(map[uuid.UUID]authdto.UserInfo)
+			if tt.user != nil {
+				users[profileUserID] = *tt.user
+			}
+			uc := profileusecase.NewProfileUsecase(userInfoMock{users: users, err: tt.userErr}, profileRepositoryMock{authorErr: tt.authorErr})
 			got, err := uc.GetMyProfile(context.Background(), profileUserID)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
@@ -137,14 +160,10 @@ func TestProfileUsecase_GetMyPosts_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			uc := profileusecase.NewProfileUsecase(userInfoStub{}, profileRepositoryStub{posts: tt.posts})
+			uc := profileusecase.NewProfileUsecase(userInfoMock{}, profileRepositoryMock{posts: map[uuid.UUID][]models.Post{profileUserID: tt.posts}})
 			got, err := uc.GetMyPosts(context.Background(), profileUserID)
 			require.NoError(t, err)
-			require.NotNil(t, got.Posts)
 			require.Equal(t, tt.want, got)
-			if len(tt.want.Posts) == 0 {
-				require.Empty(t, got.Posts)
-			}
 		})
 	}
 }
@@ -163,7 +182,7 @@ func TestProfileUsecase_GetMyPosts_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			uc := profileusecase.NewProfileUsecase(userInfoStub{}, profileRepositoryStub{postsErr: tt.postsErr})
+			uc := profileusecase.NewProfileUsecase(userInfoMock{}, profileRepositoryMock{postsErr: tt.postsErr})
 			got, err := uc.GetMyPosts(context.Background(), profileUserID)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log"
 
 	AuthHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery"
@@ -36,17 +35,8 @@ func main() {
 		log.Fatalf("token manager initialization error: %v", err)
 	}
 
-	var userRepo *AuthRepo.UserRepository
-	var profileRepo *ProfileRepo.ProfileRepository
-	if cfg.Seed {
-		userRepo, profileRepo, err = newSeededRepos(context.Background())
-		if err != nil {
-			log.Fatalf("load mock data: %v", err)
-		}
-	} else {
-		userRepo = AuthRepo.NewUserRepository()
-		profileRepo = ProfileRepo.NewProfileRepository()
-	}
+	userRepo := AuthRepo.NewUserRepository()
+	profileRepo := ProfileRepo.NewProfileRepository()
 
 	uc := usecase.NewUsecase(userRepo, tokens)
 	valid := validator.NewValidator(cfg.Validation)

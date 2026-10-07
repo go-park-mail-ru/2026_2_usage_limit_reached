@@ -1,0 +1,8 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${HTTP_PORT}:${HTTP_PORT}"
+    env_file:
+      - .env
+    restart: unless-stopped

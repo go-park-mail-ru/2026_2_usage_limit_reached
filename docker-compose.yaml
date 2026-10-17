@@ -1,8 +1,49 @@
 services:
+  db:
+    build:
+      context: .
+      dockerfile: database/Dockerfile.db
+    container_name: postgres
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${DB_PORT}:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  db_migrate:
+    image: migrate/migrate
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./database/migrations:/migrations
+    command: ["-path=/migrations", "-database=${MIGRATE_DATABASE_URL}", "up"]
+    restart: "no"
+      
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "${HTTP_PORT}:${HTTP_PORT}"
     env_file:
       - .env
+    depends_on:
+      db_migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
+
+volumes:
+    pgdata:

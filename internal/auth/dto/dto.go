@@ -4,10 +4,11 @@ import (
 	"errors"
 	"strings"
 
+	"time"
+
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 	"github.com/google/uuid"
-	"time"
 )
 
 var errValidation = errors.New("validation error")
@@ -45,9 +46,13 @@ func (r *LoginRequest) Validate(v *validator.Validator) error {
 }
 
 type UserResponse struct {
-	Email    string `json:"email" example:"user@example.com"`
-	Username string `json:"username" example:"username123"`
-	Nickname string `json:"nickname" example:"nickname_123"`
+	Email     string    `json:"email" example:"user@example.com"`
+	Username  string    `json:"username" example:"username123"`
+	Nickname  string    `json:"nickname" example:"nickname_123"`
+	AvatarKey string    `json:"avatar_key" example:"AKIAIOSFODNN7EXAMPLE"`
+	Status    string    `json:"status" example:"active"`
+	CreatedAt time.Time `json:"created_at" example:"2025-06-15T14:30:45.123456789Z"`
+	UpdatedAt time.Time `json:"updated_at" example:"2025-06-15T14:30:45.123456789Z"`
 }
 
 type UserInfo struct {
@@ -78,8 +83,12 @@ func ToUserResponse(user *models.User) *UserResponse {
 		return nil
 	}
 	return &UserResponse{
-		Email:    user.Email,
-		Username: user.Username,
-		Nickname: user.Nickname,
+		Email:     user.Email,
+		Username:  user.Username,
+		Nickname:  user.Nickname,
+		AvatarKey: user.AvatarKey,
+		Status:    user.Status,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
 	}
 }

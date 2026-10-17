@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -13,9 +14,11 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Config struct {
+	PgxPool    *pgxpool.Pool
 	HTTP       *httpserver.HTTPConfig
 	JWT        *jwt.JWTConfig
 	CORS       *middleware.CORSConfig
@@ -26,6 +29,11 @@ type Config struct {
 const defaultUsernameAllowedRunes = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_"
 
 func Load() (*Config, error) {
+	pool, err := loadPgxPool()
+	if err != nil {
+		return nil, err
+	}
+
 	HTTPcfg, err := loadHTTP()
 	if err != nil {
 		return nil, err
@@ -46,12 +54,26 @@ func Load() (*Config, error) {
 	logger := loadLogger()
 
 	return &Config{
+		PgxPool:    pool,
 		HTTP:       HTTPcfg,
 		JWT:        JWTcfg,
 		CORS:       CORScfg,
 		Validation: validationCfg,
 		Logger:     logger,
 	}, nil
+}
+
+func loadPgxPool() (*pgxpool.Pool, error) {
+	databaseURL := getEnv(
+		"APP_DATABASE_URL",
+		"postgres://app_user:app_secret_password@postgres:5432/patreon?sslmode=disable",
+	)
+	fmt.Printf("DB URL: %s", databaseURL)
+	pool, err := pgxpool.New(context.Background(), databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("Database pool error: %w", err)
+	}
+	return pool, nil
 }
 
 func loadHTTP() (*httpserver.HTTPConfig, error) {

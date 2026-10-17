@@ -4,7 +4,8 @@ import (
 	"log"
 
 	AuthHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery"
-	AuthRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/postgres"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/postgres"
+	AuthRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/user"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
 	ProfileHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery"
@@ -35,7 +36,10 @@ func main() {
 		log.Fatalf("token manager initialization error: %v", err)
 	}
 
-	userRepo := AuthRepo.NewUserRepository(cfg.PgxPool)
+	postgresCli := postgres.NewClient(cfg.PgxPool)
+	defer postgresCli.Close()
+
+	userRepo := AuthRepo.NewUserRepository(postgresCli.Pool)
 	profileRepo := ProfileRepo.NewProfileRepository()
 
 	uc := usecase.NewUsecase(userRepo, tokens)

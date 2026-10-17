@@ -1,43 +1,51 @@
-package postgres
+package user
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/postgres"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
-	searchID       = "id"
-	searchEmail    = "email"
-	searchUsername = "username"
+	IDField       = "id"
+	EmailField    = "email"
+	UsernameField = "username"
+	getQuery      = `
+		SELECT id, username, nickname, email, password_hash, COALESCE(avatar_key, '') AS avatar_key, status, created_at, updated_at
+		FROM "user"
+		WHERE %s = $1
+	`
 )
 
-type UserRepository struct {
-	pool *pgxpool.Pool
+type PgxCliPool interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
+type UserRepository struct {
+	pool PgxCliPool
+}
+
+func NewUserRepository(pool PgxCliPool) *UserRepository {
 	return &UserRepository{pool: pool}
 }
 
 func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*models.User, error) {
 	const query = `
-		INSERT INTO "user" (username, nickname, email, password_hash)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO "user" (username, nickname, email, password_hash, created_at)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id
 	`
 	var id uuid.UUID
-	err := r.pool.QueryRow(ctx, query, u.Username, u.Nickname, u.Email, u.PasswordHash).Scan(&id)
+	err := r.pool.QueryRow(ctx, query, u.Username, u.Nickname, u.Email, u.PasswordHash, time.Now()).Scan(&id)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		if postgres.IsUniqueViolation(err) {
 			return nil, models.ErrUserExists
 		}
 		return nil, fmt.Errorf("Create user error: %w", err)
@@ -47,41 +55,28 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*model
 }
 
 func (r *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
-	const query = `
-		SELECT id, username, nickname, email, password_hash, COALESCE(avatar_key, '') AS avatar_key, status, created_at, updated_at
-		FROM "user"
-		WHERE id = $1
-	`
-	return r.getUser(ctx, query, searchID, id)
+	return r.getUser(ctx, IDField, id)
 }
 
 func (r *UserRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
-	const query = `
-		SELECT id, username, nickname, email, password_hash, COALESCE(avatar_key, '') AS avatar_key, status, created_at, updated_at
-		FROM "user"
-		WHERE username = $1
-	`
-	return r.getUser(ctx, query, searchUsername, username)
+	return r.getUser(ctx, UsernameField, username)
 }
 
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
-	const query = `
-		SELECT id, username, nickname, email, password_hash, COALESCE(avatar_key, '') AS avatar_key, status, created_at, updated_at
-		FROM "user"
-		WHERE email = $1
-	`
-	return r.getUser(ctx, query, searchEmail, email)
+	return r.getUser(ctx, EmailField, email)
 }
 
-func (r *UserRepository) getUser(ctx context.Context, query, field string, v any) (*models.User, error) {
+func (r *UserRepository) getUser(ctx context.Context, field string, v any) (*models.User, error) {
 	switch field {
-	case "id":
+	case IDField:
 		v = v.(uuid.UUID)
-	case "email", "username":
+	case EmailField, UsernameField:
 		v = v.(string)
 	default:
 		return nil, fmt.Errorf("Invalid search field")
 	}
+	query := fmt.Sprintf(getQuery, field)
+
 	var user models.User
 	err := r.pool.QueryRow(ctx, query, v).Scan(
 		&user.ID,

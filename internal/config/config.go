@@ -68,8 +68,10 @@ func loadPgxPool() (*pgxpool.Pool, error) {
 		"APP_DATABASE_URL",
 		"postgres://app_user:app_secret_password@postgres:5432/patreon?sslmode=disable",
 	)
-	fmt.Printf("DB URL: %s", databaseURL)
-	pool, err := pgxpool.New(context.Background(), databaseURL)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("Database pool error: %w", err)
 	}

@@ -28,7 +28,6 @@ func (uc *Usecase) Register(ctx context.Context, regInput dto.RegistrationReques
 		PasswordHash: string(passwordHash),
 		Status:       statusActive,
 		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
 	}
 
 	user, err = uc.repo.CreateUser(ctx, user)

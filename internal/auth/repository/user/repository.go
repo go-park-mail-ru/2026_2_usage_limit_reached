@@ -17,11 +17,6 @@ const (
 	IDField       = "id"
 	EmailField    = "email"
 	UsernameField = "username"
-	getQuery      = `
-		SELECT id, username, nickname, email, password_hash, COALESCE(avatar_key, '') AS avatar_key, status, created_at, updated_at
-		FROM "user"
-		WHERE %s = $1
-	`
 )
 
 type PgxCliPool interface {
@@ -40,10 +35,14 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*model
 	const query = `
 		INSERT INTO "user" (username, nickname, email, password_hash, created_at)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id
+		RETURNING id, status, updated_at
 	`
-	var id uuid.UUID
-	err := r.pool.QueryRow(ctx, query, u.Username, u.Nickname, u.Email, u.PasswordHash, time.Now()).Scan(&id)
+	var (
+		id        uuid.UUID
+		status    string
+		updatedAt time.Time
+	)
+	err := r.pool.QueryRow(ctx, query, u.Username, u.Nickname, u.Email, u.PasswordHash, u.CreatedAt).Scan(&id, &status, &updatedAt)
 	if err != nil {
 		if postgres.IsUniqueViolation(err) {
 			return nil, models.ErrUserExists
@@ -51,6 +50,8 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*model
 		return nil, fmt.Errorf("Create user error: %w", err)
 	}
 	u.ID = id
+	u.Status = status
+	u.UpdatedAt = updatedAt
 	return u, nil
 }
 
@@ -67,6 +68,12 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 }
 
 func (r *UserRepository) getUser(ctx context.Context, field string, v any) (*models.User, error) {
+	const getQuery = `
+		SELECT id, username, nickname, email, password_hash, avatar_key, status, created_at, updated_at
+		FROM "user"
+		WHERE %s = $1
+	`
+
 	switch field {
 	case IDField:
 		v = v.(uuid.UUID)

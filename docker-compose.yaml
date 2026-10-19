@@ -1,8 +1,6 @@
 services:
   db:
-    build:
-      context: .
-      dockerfile: database/Dockerfile.db
+    image: postgres:16-alpine
     container_name: postgres
     env_file:
       - .env
@@ -11,12 +9,14 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 60s
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./scripts/postgres:/docker-entrypoint-initdb.d:ro
 
   db_migrate:
     image: migrate/migrate

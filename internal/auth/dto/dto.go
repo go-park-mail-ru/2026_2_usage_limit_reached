@@ -73,7 +73,7 @@ func ToUserInfo(user *models.User) *UserInfo {
 		Email:     user.Email,
 		Username:  user.Username,
 		Nickname:  user.Nickname,
-		AvatarKey: user.AvatarKey,
+		AvatarKey: processEmptyAvatar(user.AvatarKey),
 		CreatedAt: user.CreatedAt,
 	}
 }
@@ -86,9 +86,19 @@ func ToUserResponse(user *models.User) *UserResponse {
 		Email:     user.Email,
 		Username:  user.Username,
 		Nickname:  user.Nickname,
-		AvatarKey: user.AvatarKey,
+		AvatarKey: processEmptyAvatar(user.AvatarKey),
 		Status:    user.Status,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 	}
+}
+
+func processEmptyAvatar(userAvatar *string) string {
+	var avatarKey string
+	if userAvatar == nil {
+		avatarKey = ""
+	} else {
+		avatarKey = *userAvatar
+	}
+	return avatarKey
 }

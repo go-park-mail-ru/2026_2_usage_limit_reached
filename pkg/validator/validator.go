@@ -2,6 +2,7 @@ package validator
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -11,29 +12,41 @@ var (
 )
 
 type ValidationConfig struct {
-	MinUsernameLen       int
-	MaxUsernameLen       int
-	MaxNicknameLen       int
-	MinPasswordLen       int
-	MaxPasswordLen       int
-	MaxEmailLen          int
-	EmailRegexp          *regexp.Regexp
-	UsernameAllowedRunes map[rune]struct{}
+	MinUsernameLen       int    `mapstructure:"minusernamelen"`
+	MaxUsernameLen       int    `mapstructure:"maxusernamelen"`
+	MaxNicknameLen       int    `mapstructure:"maxnicknamelen"`
+	MinPasswordLen       int    `mapstructure:"minpasswordlen"`
+	MaxPasswordLen       int    `mapstructure:"maxpasswordlen"`
+	MaxEmailLen          int    `mapstructure:"maxemaillen"`
+	EmailRegexp          string `mapstructure:"email_regexp"`
+	UsernameAllowedRunes string `mapstructure:"username_allowed_chars"`
 }
 
 type Validator struct {
 	*ValidationConfig // есть мысль, что стоит и тут аналогично другим пакетам неэкспортируемые поля написать
+	emailRegexp       *regexp.Regexp
+	allowedRunes      map[rune]struct{}
 }
 
-func NewValidator(valCfg *ValidationConfig) *Validator {
-	return &Validator{valCfg}
+func NewValidator(valCfg *ValidationConfig) (*Validator, error) {
+	emailRegexp, err := regexp.Compile(valCfg.EmailRegexp)
+	if err != nil {
+		return nil, fmt.Errorf("invalid email regexp: %w", err)
+	}
+
+	allowedRunes := make(map[rune]struct{}, len(valCfg.UsernameAllowedRunes))
+	for _, r := range valCfg.UsernameAllowedRunes {
+		allowedRunes[r] = struct{}{}
+	}
+
+	return &Validator{valCfg, emailRegexp, allowedRunes}, nil
 }
 
 func (v Validator) IsValidEmail(email string) bool {
 	if len(email) > v.MaxEmailLen {
 		return false
 	}
-	return v.EmailRegexp.MatchString(email)
+	return v.emailRegexp.MatchString(email)
 }
 
 func (v Validator) IsValidUsername(username string) bool {
@@ -46,7 +59,7 @@ func (v Validator) IsValidUsername(username string) bool {
 		return false
 	}
 	for _, r := range []rune(username) {
-		if _, ok := v.UsernameAllowedRunes[r]; !ok {
+		if _, ok := v.allowedRunes[r]; !ok {
 			return false
 		}
 	}

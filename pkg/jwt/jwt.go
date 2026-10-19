@@ -31,8 +31,8 @@ const (
 )
 
 type JWTConfig struct {
-	Secret   string
-	TokenTTL time.Duration
+	Secret   string        `mapstructure:"secret"`
+	TokenTTL time.Duration `mapstructure:"token_ttl"`
 }
 
 type jwtClaims struct {

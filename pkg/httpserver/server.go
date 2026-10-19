@@ -13,9 +13,9 @@ import (
 )
 
 type HTTPConfig struct {
-	Port            string
-	Timeout         time.Duration
-	ShutdownTimeout time.Duration
+	Port            string        `mapstructure:"port"`
+	Timeout         time.Duration `mapstructure:"timeout"`
+	ShutdownTimeout time.Duration `mapstructure:"shutdown"`
 }
 
 type Server struct {
@@ -27,7 +27,7 @@ type Server struct {
 
 func New(cfg *HTTPConfig, logger *slog.Logger) *Server {
 	return &Server{
-		port:            cfg.Port,
+		port:            ":" + cfg.Port,
 		readTimeout:     cfg.Timeout,
 		shutdownTimeout: cfg.ShutdownTimeout,
 		logger:          logger,

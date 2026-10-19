@@ -39,7 +39,10 @@ func main() {
 	profileRepo := ProfileRepo.NewProfileRepository()
 
 	uc := usecase.NewUsecase(userRepo, tokens)
-	valid := validator.NewValidator(cfg.Validation)
+	valid, err := validator.NewValidator(cfg.Validation)
+	if err != nil {
+		log.Fatalf("validator initialization error: %v", err)
+	}
 	authHandler := AuthHandlers.NewHandler(uc, valid, logger)
 	authMiddleware := middleware.AuthMiddleware(tokens)
 

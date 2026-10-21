@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -11,7 +13,45 @@ type CORSConfig struct {
 	AllowedHeaders string   `mapstructure:"allowed_headers"`
 }
 
-func CORSMiddleware(cfg *CORSConfig) func(http.Handler) http.Handler {
+func DefaultCORSConfig() CORSConfig {
+	return CORSConfig{
+		AllowedHeaders: "Content-Type, Authorization",
+		AllowedMethods: "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+	}
+}
+
+func (c CORSConfig) Validate() error {
+	var errs []error
+	if len(c.AllowedOrigins) == 0 {
+		errs = append(errs, errors.New("cors: allowed_origins must not be empty"))
+	}
+
+	for _, origin := range c.AllowedOrigins {
+		if strings.TrimSpace(origin) == "" {
+			errs = append(errs, errors.New("cors: allowed_origins must not contain empty values"))
+			break
+		}
+	}
+
+	if strings.TrimSpace(c.AllowedMethods) == "" {
+		errs = append(errs, errors.New("cors: allowed_methods must not be empty"))
+	}
+	if strings.TrimSpace(c.AllowedHeaders) == "" {
+		errs = append(errs, errors.New("cors: allowed_headers must not be empty"))
+	}
+
+	return errors.Join(errs...)
+}
+
+func (c CORSConfig) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Any("allowed_origins", c.AllowedOrigins),
+		slog.String("allowed_methods", c.AllowedMethods),
+		slog.String("allowed_headers", c.AllowedHeaders),
+	)
+}
+
+func CORSMiddleware(cfg CORSConfig) func(http.Handler) http.Handler {
 	allowedOrigins := make(map[string]struct{}, len(cfg.AllowedOrigins))
 	for _, origin := range cfg.AllowedOrigins {
 		if origin = strings.TrimSpace(origin); origin != "" {

@@ -5,15 +5,18 @@ import (
 )
 
 func SetupValidator() *validator.Validator {
-	v, err := validator.NewValidator(&validator.ValidationConfig{
-		MinUsernameLen:       3,
-		MaxUsernameLen:       32,
-		MaxNicknameLen:       32,
-		MinPasswordLen:       8,
-		MaxPasswordLen:       32,
-		MaxEmailLen:          32,
-		EmailRegexp:          `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`,
-		UsernameAllowedRunes: "abcdefghijklmnopqrstuvwxyz0123456789_",
+	v, err := validator.NewValidator(validator.ValidationConfig{
+		Username: validator.UsernameRules{
+			MinLen:       3,
+			MaxLen:       32,
+			AllowedRunes: "abcdefghijklmnopqrstuvwxyz0123456789_",
+		},
+		Nickname: validator.NicknameRules{MaxLen: 32},
+		Password: validator.PasswordRules{MinLen: 8, MaxLen: 32},
+		Email: validator.EmailRules{
+			MaxLen: 32,
+			Regexp: `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`,
+		},
 	})
 	if err != nil {
 		panic(err)

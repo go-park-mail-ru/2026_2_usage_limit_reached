@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -35,6 +37,34 @@ type JWTConfig struct {
 	TokenTTL time.Duration `mapstructure:"token_ttl"`
 }
 
+func DefaultConfig() JWTConfig {
+	return JWTConfig{
+		TokenTTL: 24 * time.Hour,
+	}
+}
+
+func (c JWTConfig) Validate() error {
+	var errs []error
+	if len(c.Secret) < minSecretKeyLen {
+		errs = append(errs, fmt.Errorf("jwt: %w, got %d", ErrInvalidSecretKey, len(c.Secret)))
+	}
+	if c.TokenTTL <= 0 {
+		errs = append(errs, fmt.Errorf("jwt: %w, got %s", ErrInvalidTTL, c.TokenTTL))
+	}
+	return errors.Join(errs...)
+}
+
+func (c JWTConfig) LogValue() slog.Value {
+	secret := ""
+	if c.Secret != "" {
+		secret = "***"
+	}
+	return slog.GroupValue(
+		slog.String("secret", secret),
+		slog.String("token_ttl", c.TokenTTL.String()),
+	)
+}
+
 type jwtClaims struct {
 	Subject   string          `json:"sub"`
 	IssuedAt  int64           `json:"iat"`
@@ -58,12 +88,9 @@ type UserPayload struct {
 	Role   string    `json:"role"`
 }
 
-func NewJWTManager(cfg *JWTConfig) (*JWTManager, error) {
-	if len(cfg.Secret) < minSecretKeyLen {
-		return nil, ErrInvalidSecretKey
-	}
-	if cfg.TokenTTL <= 0 {
-		return nil, ErrInvalidTTL
+func NewJWTManager(cfg JWTConfig) (*JWTManager, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 	return &JWTManager{secretKey: []byte(cfg.Secret), ttl: cfg.TokenTTL}, nil
 }

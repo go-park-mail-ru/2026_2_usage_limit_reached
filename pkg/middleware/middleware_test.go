@@ -120,7 +120,7 @@ func TestUserIDFromContext_NotFound(t *testing.T) {
 }
 
 func TestCORSMiddleware(t *testing.T) {
-	cfg := &middleware.CORSConfig{
+	cfg := middleware.CORSConfig{
 		AllowedOrigins: []string{"http://localhost:3000", "https://example.com"},
 		AllowedMethods: "GET, POST, OPTIONS",
 		AllowedHeaders: "Content-Type, Authorization",

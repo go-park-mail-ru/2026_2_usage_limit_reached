@@ -1,7 +1,9 @@
 package main
 
 import (
+	"flag"
 	"log"
+	"log/slog"
 
 	AuthHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery"
 	AuthRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/memory"
@@ -12,6 +14,7 @@ import (
 	ProfileUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 	"github.com/gorilla/mux"
@@ -24,12 +27,16 @@ import (
 // @in cookie
 // @name token
 func main() {
-	cfg, err := config.Load()
+	configPath := flag.String("config-file", "", "path to yaml config (default configs/dev.yaml)")
+	flag.Parse()
+
+	cfg, err := config.Load(*configPath)
 	if err != nil {
 		log.Fatalf("config load error: %v", err)
 	}
 
-	logger := cfg.Logger
+	appLogger := logger.New(cfg.Log)
+	appLogger.Info("config loaded", slog.Any("config", cfg))
 	tokens, err := jwt.NewJWTManager(cfg.JWT)
 	if err != nil {
 		log.Fatalf("token manager initialization error: %v", err)
@@ -43,11 +50,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("validator initialization error: %v", err)
 	}
-	authHandler := AuthHandlers.NewHandler(uc, valid, logger)
+	authHandler := AuthHandlers.NewHandler(uc, valid, appLogger)
 	authMiddleware := middleware.AuthMiddleware(tokens)
 
 	profileUc := ProfileUsecase.NewProfileUsecase(uc, profileRepo)
-	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, logger)
+	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, appLogger)
 
 	r := mux.NewRouter()
 	private := r.NewRoute().Subrouter()
@@ -55,12 +62,15 @@ func main() {
 	authHandler.RegisterRoutes(r, private)
 	profileHandler.RegisterRoutes(r, private)
 	r.Use(
-		middleware.RecoverMiddleware(logger),
-		middleware.AccessLogMiddleware(logger),
+		middleware.RecoverMiddleware(appLogger),
+		middleware.AccessLogMiddleware(appLogger),
 		middleware.CORSMiddleware(cfg.CORS),
 	)
 
-	srv := httpserver.New(cfg.HTTP, logger)
+	srv, err := httpserver.New(cfg.HTTP, appLogger)
+	if err != nil {
+		log.Fatalf("http server initialization error: %v", err)
+	}
 	if err := srv.Run(r); err != nil {
 		log.Fatalf("server error: %v", err)
 	}

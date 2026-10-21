@@ -3,9 +3,11 @@ package httpserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -13,25 +15,58 @@ import (
 )
 
 type HTTPConfig struct {
-	Port            string        `mapstructure:"port"`
-	Timeout         time.Duration `mapstructure:"timeout"`
-	ShutdownTimeout time.Duration `mapstructure:"shutdown"`
+	Port              string        `mapstructure:"port"`
+	ReadHeaderTimeout time.Duration `mapstructure:"read_header_timeout"`
+	ShutdownTimeout   time.Duration `mapstructure:"shutdown_timeout"`
+}
+
+func DefaultConfig() HTTPConfig {
+	return HTTPConfig{
+		Port:              "8080",
+		ReadHeaderTimeout: 5 * time.Second,
+		ShutdownTimeout:   5 * time.Second,
+	}
+}
+
+func (c HTTPConfig) Validate() error {
+	var errs []error
+	if port, err := strconv.Atoi(c.Port); err != nil || port < 1 || port > 65535 {
+		errs = append(errs, fmt.Errorf("httpserver: port must be a number from 1 to 65535, got %q", c.Port))
+	}
+	if c.ReadHeaderTimeout <= 0 {
+		errs = append(errs, fmt.Errorf("httpserver: read_header_timeout must be positive, got %s", c.ReadHeaderTimeout))
+	}
+	if c.ShutdownTimeout <= 0 {
+		errs = append(errs, fmt.Errorf("httpserver: shutdown_timeout must be positive, got %s", c.ShutdownTimeout))
+	}
+	return errors.Join(errs...)
+}
+
+func (c HTTPConfig) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("port", c.Port),
+		slog.String("read_header_timeout", c.ReadHeaderTimeout.String()),
+		slog.String("shutdown_timeout", c.ShutdownTimeout.String()),
+	)
 }
 
 type Server struct {
-	port            string
-	readTimeout     time.Duration
-	shutdownTimeout time.Duration
-	logger          *slog.Logger
+	port              string
+	readHeaderTimeout time.Duration
+	shutdownTimeout   time.Duration
+	logger            *slog.Logger
 }
 
-func New(cfg *HTTPConfig, logger *slog.Logger) *Server {
-	return &Server{
-		port:            ":" + cfg.Port,
-		readTimeout:     cfg.Timeout,
-		shutdownTimeout: cfg.ShutdownTimeout,
-		logger:          logger,
+func New(cfg HTTPConfig, logger *slog.Logger) (*Server, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
+	return &Server{
+		port:              ":" + cfg.Port,
+		readHeaderTimeout: cfg.ReadHeaderTimeout,
+		shutdownTimeout:   cfg.ShutdownTimeout,
+		logger:            logger,
+	}, nil
 }
 
 func (s *Server) Run(r *mux.Router) error {
@@ -41,7 +76,7 @@ func (s *Server) Run(r *mux.Router) error {
 	srv := &http.Server{
 		Addr:              s.port,
 		Handler:           r,
-		ReadHeaderTimeout: s.readTimeout,
+		ReadHeaderTimeout: s.readHeaderTimeout,
 	}
 
 	serveErr := make(chan error, 1)

@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/postgres"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -44,7 +44,8 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*model
 	)
 	err := r.pool.QueryRow(ctx, query, u.Username, u.Nickname, u.Email, u.PasswordHash, u.CreatedAt).Scan(&id, &status, &updatedAt)
 	if err != nil {
-		if postgres.IsUniqueViolation(err) {
+		err = postgres.ParseError(err)
+		if errors.Is(postgres.ErrUniqViolation, err) {
 			return nil, models.ErrUserExists
 		}
 		return nil, fmt.Errorf("Create user error: %w", err)

@@ -19,7 +19,7 @@ type User struct {
 	Nickname     string
 	Email        string
 	PasswordHash string
-	AvatarKey    *string // NULLABLE
+	AvatarKey    *string
 	Status       string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time

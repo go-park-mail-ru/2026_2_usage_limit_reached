@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -13,12 +12,12 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Config struct {
-	PgxPool    *pgxpool.Pool
+	Postgres   *postgres.PostgresConfig
 	HTTP       *httpserver.HTTPConfig
 	JWT        *jwt.JWTConfig
 	CORS       *middleware.CORSConfig
@@ -29,7 +28,7 @@ type Config struct {
 const defaultUsernameAllowedRunes = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_"
 
 func Load() (*Config, error) {
-	pool, err := loadPgxPool()
+	postgresCfg, err := loadPostgres()
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +53,7 @@ func Load() (*Config, error) {
 	logger := loadLogger()
 
 	return &Config{
-		PgxPool:    pool,
+		Postgres:   postgresCfg,
 		HTTP:       HTTPcfg,
 		JWT:        JWTcfg,
 		CORS:       CORScfg,
@@ -63,19 +62,37 @@ func Load() (*Config, error) {
 	}, nil
 }
 
-func loadPgxPool() (*pgxpool.Pool, error) {
+func loadPostgres() (*postgres.PostgresConfig, error) {
 	databaseURL := getEnv(
-		"APP_DATABASE_URL",
-		"postgres://app_user:app_secret_password@postgres:5432/patreon?sslmode=disable",
+		"DATABASE_URL",
+		"postgres://patreon:database_password@postgres:5432/patreon?sslmode=disable",
 	)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
-	pool, err := pgxpool.New(ctx, databaseURL)
+	minConns, err := strconv.Atoi(getEnv("DB_MIN_CONNS", "0"))
 	if err != nil {
-		return nil, fmt.Errorf("Database pool error: %w", err)
+		return nil, fmt.Errorf("Invalid DB_MIN_CONNS parameter: %w", err)
 	}
-	return pool, nil
+	maxConns, err := strconv.Atoi(getEnv("DB_MAX_CONNS", "10"))
+	if err != nil {
+		return nil, fmt.Errorf("Invalid DB_MAX_CONNS parameter: %w", err)
+	}
+	maxConnLifetime, err := time.ParseDuration(getEnv("DB_MAX_CONN_LIFETIME", "1h"))
+	if err != nil {
+		return nil, fmt.Errorf("Invalid DB_MAX_CONNS parameter: %w", err)
+	}
+	maxConnIdleTime, err := time.ParseDuration(getEnv("DB_MAX_CONN_IDLE_LIFETIME", "30m"))
+	if err != nil {
+		return nil, fmt.Errorf("Invalid DB_MAX_CONNS parameter: %w", err)
+	}
+
+	cfg := &postgres.PostgresConfig{
+		DSN:             databaseURL,
+		MinConns:        minConns,
+		MaxConns:        maxConns,
+		MaxConnLifetime: maxConnLifetime,
+		MaxConnIdleTime: maxConnIdleTime,
+	}
+	return cfg, nil
 }
 
 func loadHTTP() (*httpserver.HTTPConfig, error) {

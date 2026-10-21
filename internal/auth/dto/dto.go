@@ -49,7 +49,7 @@ type UserResponse struct {
 	Email     string    `json:"email" example:"user@example.com"`
 	Username  string    `json:"username" example:"username123"`
 	Nickname  string    `json:"nickname" example:"nickname_123"`
-	AvatarKey string    `json:"avatar_key" example:"AKIAIOSFODNN7EXAMPLE"`
+	AvatarKey *string   `json:"avatar_key,omitempty" example:"AKIAIOSFODNN7EXAMPLE"`
 	Status    string    `json:"status" example:"active"`
 	CreatedAt time.Time `json:"created_at" example:"2025-06-15T14:30:45.123456789Z"`
 	UpdatedAt time.Time `json:"updated_at" example:"2025-06-15T14:30:45.123456789Z"`
@@ -60,7 +60,7 @@ type UserInfo struct {
 	Email     string
 	Username  string
 	Nickname  string
-	AvatarKey string
+	AvatarKey *string
 	CreatedAt time.Time
 }
 
@@ -73,7 +73,7 @@ func ToUserInfo(user *models.User) *UserInfo {
 		Email:     user.Email,
 		Username:  user.Username,
 		Nickname:  user.Nickname,
-		AvatarKey: processEmptyAvatar(user.AvatarKey),
+		AvatarKey: user.AvatarKey,
 		CreatedAt: user.CreatedAt,
 	}
 }
@@ -86,19 +86,9 @@ func ToUserResponse(user *models.User) *UserResponse {
 		Email:     user.Email,
 		Username:  user.Username,
 		Nickname:  user.Nickname,
-		AvatarKey: processEmptyAvatar(user.AvatarKey),
+		AvatarKey: user.AvatarKey,
 		Status:    user.Status,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 	}
-}
-
-func processEmptyAvatar(userAvatar *string) string {
-	var avatarKey string
-	if userAvatar == nil {
-		avatarKey = ""
-	} else {
-		avatarKey = *userAvatar
-	}
-	return avatarKey
 }

@@ -16,7 +16,6 @@ services:
       start_period: 60s
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./scripts/postgres:/docker-entrypoint-initdb.d:ro
 
   db_migrate:
     image: migrate/migrate

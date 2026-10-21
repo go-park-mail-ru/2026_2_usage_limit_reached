@@ -65,7 +65,9 @@ func (s profileRepositoryMock) ListPostsByAuthorID(_ context.Context, id uuid.UU
 func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 	t.Parallel()
 
-	user := &authdto.UserInfo{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarKey: "avatars/ivan.png", CreatedAt: profileTime}
+	path := "avatars/ivan.png"
+	avatar := &path
+	user := &authdto.UserInfo{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarKey: avatar, CreatedAt: profileTime}
 	author := &models.Author{Bio: "Пишу о технологиях", Category: "Технологии"}
 	tests := []struct {
 		name   string
@@ -76,14 +78,14 @@ func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 			name:   "author profile",
 			author: author,
 			want: &profiledto.ProfileResponse{
-				User:   profiledto.ProfileUserResponse{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarKey: "avatars/ivan.png", CreatedAt: profileTime},
+				User:   profiledto.ProfileUserResponse{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarKey: avatar, CreatedAt: profileTime},
 				Author: &profiledto.AuthorResponse{Bio: "Пишу о технологиях", Category: "Технологии"},
 			},
 		},
 		{
 			name: "reader has no author profile",
 			want: &profiledto.ProfileResponse{
-				User: profiledto.ProfileUserResponse{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarKey: "avatars/ivan.png", CreatedAt: profileTime},
+				User: profiledto.ProfileUserResponse{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarKey: avatar, CreatedAt: profileTime},
 			},
 		},
 	}

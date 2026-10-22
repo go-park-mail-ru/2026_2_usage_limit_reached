@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"log"
-	"log/slog"
 
 	AuthHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery"
 	AuthRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/memory"
@@ -37,7 +36,6 @@ func main() {
 	}
 
 	appLogger := logger.New(cfg.Log)
-	appLogger.Info("config loaded", slog.Any("config", cfg))
 	tokens, err := jwt.NewJWTManager(cfg.JWT)
 	if err != nil {
 		log.Fatalf("token manager initialization error: %v", err)

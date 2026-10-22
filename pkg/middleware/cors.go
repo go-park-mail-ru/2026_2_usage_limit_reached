@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -41,14 +40,6 @@ func (c CORSConfig) Validate() error {
 	}
 
 	return errors.Join(errs...)
-}
-
-func (c CORSConfig) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.Any("allowed_origins", c.AllowedOrigins),
-		slog.String("allowed_methods", c.AllowedMethods),
-		slog.String("allowed_headers", c.AllowedHeaders),
-	)
 }
 
 func CORSMiddleware(cfg CORSConfig) func(http.Handler) http.Handler {

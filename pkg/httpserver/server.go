@@ -42,14 +42,6 @@ func (c HTTPConfig) Validate() error {
 	return errors.Join(errs...)
 }
 
-func (c HTTPConfig) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.String("port", c.Port),
-		slog.String("read_header_timeout", c.ReadHeaderTimeout.String()),
-		slog.String("shutdown_timeout", c.ShutdownTimeout.String()),
-	)
-}
-
 type Server struct {
 	port              string
 	readHeaderTimeout time.Duration

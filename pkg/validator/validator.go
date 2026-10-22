@@ -3,7 +3,6 @@ package validator
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"regexp"
 	"strings"
 )
@@ -91,25 +90,6 @@ func (c ValidationConfig) Validate() error {
 	}
 
 	return errors.Join(errs...)
-}
-
-func (c ValidationConfig) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.Group("username",
-			slog.Int("min_len", c.Username.MinLen),
-			slog.Int("max_len", c.Username.MaxLen),
-			slog.String("allowed_runes", c.Username.AllowedRunes),
-		),
-		slog.Group("nickname", slog.Int("max_len", c.Nickname.MaxLen)),
-		slog.Group("password",
-			slog.Int("min_len", c.Password.MinLen),
-			slog.Int("max_len", c.Password.MaxLen),
-		),
-		slog.Group("email",
-			slog.Int("max_len", c.Email.MaxLen),
-			slog.String("regexp", c.Email.Regexp),
-		),
-	)
 }
 
 type Validator struct {

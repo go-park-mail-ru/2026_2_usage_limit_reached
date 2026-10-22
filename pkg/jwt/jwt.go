@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -52,17 +51,6 @@ func (c JWTConfig) Validate() error {
 		errs = append(errs, fmt.Errorf("jwt: %w, got %s", ErrInvalidTTL, c.TokenTTL))
 	}
 	return errors.Join(errs...)
-}
-
-func (c JWTConfig) LogValue() slog.Value {
-	secret := ""
-	if c.Secret != "" {
-		secret = "***"
-	}
-	return slog.GroupValue(
-		slog.String("secret", secret),
-		slog.String("token_ttl", c.TokenTTL.String()),
-	)
 }
 
 type jwtClaims struct {

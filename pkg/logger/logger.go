@@ -35,13 +35,6 @@ func (c LoggerConfig) Validate() error {
 	return errors.Join(errs...)
 }
 
-func (c LoggerConfig) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.String("level", c.Level),
-		slog.String("format", c.Format),
-	)
-}
-
 func New(cfg LoggerConfig) *slog.Logger {
 	opts := &slog.HandlerOptions{Level: levels[cfg.Level]}
 

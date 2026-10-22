@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
@@ -56,14 +55,4 @@ func Load(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
-}
-
-func (c Config) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.Any("log", c.Log),
-		slog.Any("http", c.HTTP),
-		slog.Any("jwt", c.JWT),
-		slog.Any("cors", c.CORS),
-		slog.Any("validation", c.Validation),
-	)
 }

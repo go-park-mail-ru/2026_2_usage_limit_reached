@@ -1,0 +1,18 @@
+# Читается по умолчанию, если не задан флаг --config-file
+# Значения по умолчанию заданы в коде, здесь только переопределения
+# Продовый конфиг содержит такие же ключи, но в репозиторий не коммитится
+
+log:
+  # debug | info | warn | error
+  level: debug
+  # text | json
+  format: text
+
+jwt:
+  # пример секрета
+  secret: dev-secret-string-with-at-least-32-symbols
+
+cors:
+  # обязательный параметр, дефолта у него нет
+  allowed_origins:
+    - http://localhost:3000

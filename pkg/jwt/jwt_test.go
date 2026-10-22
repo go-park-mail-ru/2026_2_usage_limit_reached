@@ -17,7 +17,7 @@ var testUserID = uuid.MustParse("00000000-0000-4000-8000-000000000001")
 
 func newTestManager(t *testing.T, secret string) *jwt.JWTManager {
 	t.Helper()
-	manager, err := jwt.NewJWTManager(&jwt.JWTConfig{Secret: secret, TokenTTL: time.Hour})
+	manager, err := jwt.NewJWTManager(jwt.JWTConfig{Secret: secret, TokenTTL: time.Hour})
 	require.NoError(t, err)
 	return manager
 }
@@ -47,7 +47,7 @@ func TestNewJWTManager_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			manager, err := jwt.NewJWTManager(&jwt.JWTConfig{Secret: testSecret, TokenTTL: tt.ttl})
+			manager, err := jwt.NewJWTManager(jwt.JWTConfig{Secret: testSecret, TokenTTL: tt.ttl})
 			require.NoError(t, err)
 			require.Equal(t, tt.want, manager.TTL())
 		})
@@ -68,7 +68,7 @@ func TestNewJWTManager_Errors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			manager, err := jwt.NewJWTManager(&tt.cfg)
+			manager, err := jwt.NewJWTManager(tt.cfg)
 			require.Nil(t, manager)
 			require.ErrorIs(t, err, tt.wantErr)
 		})

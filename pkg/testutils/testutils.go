@@ -1,25 +1,25 @@
 package testutils
 
 import (
-	"regexp"
-
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 )
 
 func SetupValidator() *validator.Validator {
-	allowedRunes := make(map[rune]struct{})
-	for _, r := range "abcdefghijklmnopqrstuvwxyz0123456789_" {
-		allowedRunes[r] = struct{}{}
-	}
-
-	return validator.NewValidator(&validator.ValidationConfig{
-		MinUsernameLen:       3,
-		MaxUsernameLen:       32,
-		MaxNicknameLen:       32,
-		MinPasswordLen:       8,
-		MaxPasswordLen:       32,
-		MaxEmailLen:          32,
-		EmailRegexp:          regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`),
-		UsernameAllowedRunes: allowedRunes,
+	v, err := validator.NewValidator(validator.ValidationConfig{
+		Username: validator.UsernameRules{
+			MinLen:       3,
+			MaxLen:       32,
+			AllowedRunes: "abcdefghijklmnopqrstuvwxyz0123456789_",
+		},
+		Nickname: validator.NicknameRules{MaxLen: 32},
+		Password: validator.PasswordRules{MinLen: 8, MaxLen: 32},
+		Email: validator.EmailRules{
+			MaxLen: 32,
+			Regexp: `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`,
+		},
 	})
+	if err != nil {
+		panic(err)
+	}
+	return v
 }

@@ -33,16 +33,16 @@ func NewUserRepository(pool PgxCliPool) *UserRepository {
 
 func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*models.User, error) {
 	const query = `
-		INSERT INTO "user" (username, nickname, email, password_hash, created_at)
+		INSERT INTO "user" (username, nickname, email, password_hash, status)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, status, updated_at
+		RETURNING id, created_at, updated_at
 	`
 	var (
 		id        uuid.UUID
-		status    string
+		createdAt time.Time
 		updatedAt time.Time
 	)
-	err := r.pool.QueryRow(ctx, query, u.Username, u.Nickname, u.Email, u.PasswordHash, u.CreatedAt).Scan(&id, &status, &updatedAt)
+	err := r.pool.QueryRow(ctx, query, u.Username, u.Nickname, u.Email, u.PasswordHash, u.Status).Scan(&id, &createdAt, &updatedAt)
 	if err != nil {
 		err = postgres.ParseError(err)
 		if errors.Is(postgres.ErrUniqViolation, err) {
@@ -51,7 +51,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*model
 		return nil, fmt.Errorf("Create user error: %w", err)
 	}
 	u.ID = id
-	u.Status = status
+	u.CreatedAt = createdAt
 	u.UpdatedAt = updatedAt
 	return u, nil
 }

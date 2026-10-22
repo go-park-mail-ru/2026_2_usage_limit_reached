@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-const defaultConfigPath = "configs/dev.yaml"
+const DefaultConfigPath = "configs/dev.yaml"
 
 type Config struct {
 	Log        logger.LoggerConfig        `mapstructure:"log"`
@@ -26,10 +26,6 @@ type Config struct {
 
 func Load(path string) (*Config, error) {
 	v := viper.NewWithOptions(viper.ExperimentalBindStruct())
-
-	if path == "" {
-		path = defaultConfigPath
-	}
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("read config file %s: %w", path, err)

@@ -27,10 +27,11 @@ import (
 // @in cookie
 // @name token
 func main() {
-	configPath := flag.String("config-file", "", "path to yaml config (default configs/dev.yaml)")
+	var configPath string
+	flag.StringVar(&configPath, "config-file", config.DefaultConfigPath, "path to yaml config")
 	flag.Parse()
 
-	cfg, err := config.Load(*configPath)
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		log.Fatalf("config load error: %v", err)
 	}

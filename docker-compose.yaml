@@ -33,6 +33,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    command: ["--config-file", "/etc/app/config.yaml"]
     ports:
       - "${HTTP_PORT}:${HTTP_PORT}"
     env_file:
@@ -40,6 +41,8 @@ services:
     depends_on:
       db_migrate:
         condition: service_completed_successfully
+    volumes:
+      - ./configs/prod.yaml:/etc/app/config.yaml:ro
     restart: unless-stopped
 
 volumes:

@@ -24,7 +24,7 @@ type ProfileUserResponse struct {
 	Username  string    `json:"username" example:"username123"`
 	Nickname  string    `json:"nickname" example:"nickname_123"`
 	Email     string    `json:"email" example:"user@example.com"`
-	AvatarKey string    `json:"avatar_key" example:"avatars/user-1.png"`
+	AvatarKey *string   `json:"avatar_key,omitempty" example:"avatars/user-1.png"`
 	CreatedAt time.Time `json:"created_at" example:"2026-08-01T12:00:00Z"`
 }
 

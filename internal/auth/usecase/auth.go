@@ -27,8 +27,6 @@ func (uc *Usecase) Register(ctx context.Context, regInput dto.RegistrationReques
 		Nickname:     regInput.Nickname,
 		PasswordHash: string(passwordHash),
 		Status:       statusActive,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
 	}
 
 	user, err = uc.repo.CreateUser(ctx, user)
@@ -36,7 +34,7 @@ func (uc *Usecase) Register(ctx context.Context, regInput dto.RegistrationReques
 		if errors.Is(err, models.ErrUserExists) {
 			return nil, "", fmt.Errorf("%w: %w", ErrRegistrationFailed, err)
 		}
-		return nil, "", fmt.Errorf("failed to create user: %w", err) // типа ошибка похода в базу
+		return nil, "", fmt.Errorf("failed to create user: %w", err)
 	}
 
 	token, err := uc.tokenGenerator.Generate(user.ID, jwt.UserPayload{UserID: user.ID, Role: "user"})

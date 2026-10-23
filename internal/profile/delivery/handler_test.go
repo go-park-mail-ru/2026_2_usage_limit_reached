@@ -82,9 +82,11 @@ func requestProfile(router http.Handler, path, token string) *httptest.ResponseR
 func TestProfileHandler_GetMe_Success(t *testing.T) {
 	t.Parallel()
 
+	path := "avatars/ivan.png"
+	avatar := &path
 	user := dto.ProfileUserResponse{
 		ID: testUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test",
-		AvatarKey: "avatars/ivan.png", CreatedAt: testTime,
+		AvatarKey: avatar, CreatedAt: testTime,
 	}
 	tests := []struct {
 		name     string

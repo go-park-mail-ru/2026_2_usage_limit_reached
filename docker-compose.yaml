@@ -1,11 +1,49 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: postgres
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  db_migrate:
+    image: migrate/migrate
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./database/migrations:/migrations
+    command: ["-path=/migrations", "-database=${MIGRATE_DATABASE_URL}", "up"]
+    restart: "no"
+      
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: ["--config-file", "/etc/app/config.yaml"]
     ports:
       - "${HTTP_PORT}:${HTTP_PORT}"
     env_file:
       - .env
+    depends_on:
+      db_migrate:
+        condition: service_completed_successfully
     volumes:
       - ./configs/prod.yaml:/etc/app/config.yaml:ro
     restart: unless-stopped
+
+volumes:
+    pgdata:

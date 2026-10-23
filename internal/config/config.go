@@ -9,6 +9,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 	"github.com/spf13/viper"
 )
@@ -16,6 +17,7 @@ import (
 const DefaultConfigPath = "configs/dev.yaml"
 
 type Config struct {
+	Postgres   postgres.PostgresConfig    `mapstructure:"postgres"`
 	Log        logger.LoggerConfig        `mapstructure:"log"`
 	HTTP       httpserver.HTTPConfig      `mapstructure:"http"`
 	JWT        jwt.JWTConfig              `mapstructure:"jwt"`
@@ -34,6 +36,7 @@ func Load(path string) (*Config, error) {
 	v.AutomaticEnv()
 
 	cfg := Config{
+		Postgres:   postgres.DefaultConfig(),
 		Log:        logger.DefaultConfig(),
 		HTTP:       httpserver.DefaultConfig(),
 		JWT:        jwt.DefaultConfig(),
@@ -45,6 +48,7 @@ func Load(path string) (*Config, error) {
 	}
 
 	if err := errors.Join(
+		cfg.Postgres.Validate(),
 		cfg.Log.Validate(),
 		cfg.HTTP.Validate(),
 		cfg.JWT.Validate(),

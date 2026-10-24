@@ -11,6 +11,7 @@ RUN CGO_ENABLED=0 go build -o /app/server ./cmd/server
 
 FROM alpine:3.20
 
+WORKDIR /app
 COPY --from=builder /app/server /app/server
 
 ENTRYPOINT ["/app/server"]

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -31,8 +32,25 @@ const (
 )
 
 type JWTConfig struct {
-	Secret   string
-	TokenTTL time.Duration
+	Secret   string        `mapstructure:"secret"`
+	TokenTTL time.Duration `mapstructure:"token_ttl"`
+}
+
+func DefaultConfig() JWTConfig {
+	return JWTConfig{
+		TokenTTL: 24 * time.Hour,
+	}
+}
+
+func (c JWTConfig) Validate() error {
+	var errs []error
+	if len(c.Secret) < minSecretKeyLen {
+		errs = append(errs, fmt.Errorf("jwt: %w, got %d", ErrInvalidSecretKey, len(c.Secret)))
+	}
+	if c.TokenTTL <= 0 {
+		errs = append(errs, fmt.Errorf("jwt: %w, got %s", ErrInvalidTTL, c.TokenTTL))
+	}
+	return errors.Join(errs...)
 }
 
 type jwtClaims struct {
@@ -58,12 +76,9 @@ type UserPayload struct {
 	Role   string    `json:"role"`
 }
 
-func NewJWTManager(cfg *JWTConfig) (*JWTManager, error) {
-	if len(cfg.Secret) < minSecretKeyLen {
-		return nil, ErrInvalidSecretKey
-	}
-	if cfg.TokenTTL <= 0 {
-		return nil, ErrInvalidTTL
+func NewJWTManager(cfg JWTConfig) (*JWTManager, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 	return &JWTManager{secretKey: []byte(cfg.Secret), ttl: cfg.TokenTTL}, nil
 }

@@ -1,0 +1,27 @@
+# Читается по умолчанию, если не задан флаг --config-file
+# Значения по умолчанию заданы в коде, здесь только переопределения
+# Продовый конфиг содержит такие же ключи, но в репозиторий не коммитится
+
+postgres:
+  host: postgres
+  port: 5432
+  sslmode: disable
+  min_conns: 0
+  max_conns: 10
+  max_conn_lifetime: 1h
+  max_conn_idle_time: 30m
+
+log:
+  # debug | info | warn | error
+  level: debug
+  # text | json
+  format: text
+
+jwt:
+  # пример секрета
+  secret: dev-secret-string-with-at-least-32-symbols
+
+cors:
+  # обязательный параметр, дефолта у него нет
+  allowed_origins:
+    - http://localhost:3000

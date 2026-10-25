@@ -11,6 +11,9 @@ postgres:
   max_conn_lifetime: 1h
   max_conn_idle_time: 30m
 
+s3:
+  public_url: http://localhost:8333/media
+
 log:
   # debug | info | warn | error
   level: debug

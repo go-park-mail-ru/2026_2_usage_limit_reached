@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	ErrUniqViolation = errors.New("unique constraint violation")
-	ErrFKViolation   = errors.New("foreign key violation")
+	ErrUniqViolation  = errors.New("unique constraint violation")
+	ErrFKViolation    = errors.New("foreign key violation")
+	ErrCheckViolation = errors.New("check constraint violation")
 )
 
 type PostgresConfig struct {
@@ -129,6 +130,8 @@ func ParseError(err error) error {
 		return ErrUniqViolation
 	case errors.As(err, &pgErr) && pgErr.Code == "23503":
 		return ErrFKViolation
+	case errors.As(err, &pgErr) && pgErr.Code == "23514":
+		return ErrCheckViolation
 	default:
 		return fmt.Errorf("postgres error: %w", err)
 	}

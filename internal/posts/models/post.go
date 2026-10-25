@@ -9,7 +9,10 @@ import (
 
 var (
 	ErrInvalidAuthorID = errors.New("invalid author id")
+	ErrForbidden       = errors.New("forbidden")
 	ErrPostNotFound    = errors.New("post not found")
+	ErrPostConflict    = errors.New("post was already updated")
+	ErrPostValidation  = errors.New("invalid post fields")
 )
 
 type Post struct {

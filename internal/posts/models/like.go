@@ -1,10 +1,13 @@
 package models
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+var ErrLikeNotFound = errors.New("like not found")
 
 type PostLike struct {
 	ID        uuid.UUID

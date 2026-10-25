@@ -6,10 +6,9 @@ import (
 	"github.com/google/uuid"
 )
 
-func ToProfileResponse(user *authdto.UserInfo, author *models.Author) *ProfileResponse {
-
+func ToProfileResponse(user *authdto.UserInfo, author *models.Author, avatarURL *string) *ProfileResponse {
 	return &ProfileResponse{
-		User:   toUserResponse(*user),
+		User:   toUserResponse(*user, avatarURL),
 		Author: toAuthorResponse(author),
 	}
 }
@@ -26,13 +25,17 @@ func ToProfilePostsResponse(userID uuid.UUID, posts []models.Post) *ProfilePosts
 	}
 }
 
-func toUserResponse(user authdto.UserInfo) ProfileUserResponse {
+func ToAvatarResponse(avatarURL string) *AvatarResponse {
+	return &AvatarResponse{AvatarURL: avatarURL}
+}
+
+func toUserResponse(user authdto.UserInfo, avatarURL *string) ProfileUserResponse {
 	return ProfileUserResponse{
 		ID:        user.ID,
 		Username:  user.Username,
 		Nickname:  user.Nickname,
 		Email:     user.Email,
-		AvatarKey: user.AvatarKey,
+		AvatarURL: avatarURL,
 		CreatedAt: user.CreatedAt,
 	}
 }

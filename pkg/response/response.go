@@ -38,6 +38,14 @@ func ErrorNotFound(w http.ResponseWriter) {
 	write(w, http.StatusNotFound, ErrorResponse{Error: "not found"})
 }
 
+func ErrorPayloadTooLarge(w http.ResponseWriter) {
+	write(w, http.StatusRequestEntityTooLarge, ErrorResponse{Error: "payload too large"})
+}
+
+func ErrorUnsupportedMediaType(w http.ResponseWriter) {
+	write(w, http.StatusUnsupportedMediaType, ErrorResponse{Error: "unsupported media type"})
+}
+
 func write(w http.ResponseWriter, code int, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {

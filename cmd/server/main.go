@@ -10,12 +10,14 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
 	ProfileHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery"
 	ProfileRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/memory"
+	ProfilePostgresRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/postgres"
 	ProfileUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/s3"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 	"github.com/gorilla/mux"
 )
@@ -48,8 +50,17 @@ func main() {
 	}
 	defer postgresCli.Close()
 
+	s3Cli, err := s3.NewClient(cfg.S3)
+	if err != nil {
+		log.Fatalf("s3 client initialization error: %v", err)
+	}
+
 	userRepo := AuthRepo.NewUserRepository(postgresCli.Pool)
-	profileRepo := ProfileRepo.NewProfileRepository()
+	// TODO: заменить на один репозиторий после перевода профиля на postgres
+	profileRepo := struct {
+		*ProfileRepo.ProfileRepository
+		*ProfilePostgresRepo.AvatarKeyRepository
+	}{ProfileRepo.NewProfileRepository(), ProfilePostgresRepo.NewAvatarKeyRepository(postgresCli.Pool)}
 
 	uc := usecase.NewUsecase(userRepo, tokens)
 	valid, err := validator.NewValidator(cfg.Validation)
@@ -59,7 +70,7 @@ func main() {
 	authHandler := AuthHandlers.NewHandler(uc, valid, appLogger)
 	authMiddleware := middleware.AuthMiddleware(tokens)
 
-	profileUc := ProfileUsecase.NewProfileUsecase(uc, profileRepo)
+	profileUc := ProfileUsecase.NewProfileUsecase(uc, profileRepo, s3Cli, cfg.S3.PublicURL, appLogger)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, appLogger)
 
 	r := mux.NewRouter()

@@ -1,0 +1,13 @@
+{
+  "identities": [
+    {
+      "name": "app",
+      "credentials": [{"accessKey": "s3_access_key", "secretKey": "s3_secret_key"}],
+      "actions": ["Read:media", "Write:media", "List:media"]
+    },
+    {
+      "name": "anonymous",
+      "actions": ["Read:media/avatars/*"]
+    }
+  ]
+}

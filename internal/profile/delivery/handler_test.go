@@ -48,6 +48,14 @@ func (s profileUsecaseMock) GetMyPosts(_ context.Context, id uuid.UUID) (*dto.Pr
 	return s.posts[id], nil
 }
 
+func (s profileUsecaseMock) UploadAvatar(context.Context, uuid.UUID, io.ReadSeeker, int64) (string, error) {
+	return "", nil
+}
+
+func (s profileUsecaseMock) DeleteAvatar(context.Context, uuid.UUID) error {
+	return nil
+}
+
 type tokenVerifierMock struct {
 	userID uuid.UUID
 }
@@ -82,11 +90,11 @@ func requestProfile(router http.Handler, path, token string) *httptest.ResponseR
 func TestProfileHandler_GetMe_Success(t *testing.T) {
 	t.Parallel()
 
-	path := "avatars/ivan.png"
-	avatar := &path
+	url := "http://localhost:9000/media/avatars/ivan.png"
+	avatar := &url
 	user := dto.ProfileUserResponse{
 		ID: testUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test",
-		AvatarKey: avatar, CreatedAt: testTime,
+		AvatarURL: avatar, CreatedAt: testTime,
 	}
 	tests := []struct {
 		name     string
@@ -96,12 +104,12 @@ func TestProfileHandler_GetMe_Success(t *testing.T) {
 		{
 			name:     "author profile",
 			response: &dto.ProfileResponse{User: user, Author: &dto.AuthorResponse{Bio: "Пишу о книгах", Category: "Книги"}},
-			wantJSON: `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","avatar_key":"avatars/ivan.png","created_at":"2026-09-01T12:00:00Z"},"author":{"bio":"Пишу о книгах","category":"Книги"}}`,
+			wantJSON: `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","avatar_url":"http://localhost:9000/media/avatars/ivan.png","created_at":"2026-09-01T12:00:00Z"},"author":{"bio":"Пишу о книгах","category":"Книги"}}`,
 		},
 		{
 			name:     "reader profile",
 			response: &dto.ProfileResponse{User: user},
-			wantJSON: `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","avatar_key":"avatars/ivan.png","created_at":"2026-09-01T12:00:00Z"}}`,
+			wantJSON: `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","avatar_url":"http://localhost:9000/media/avatars/ivan.png","created_at":"2026-09-01T12:00:00Z"}}`,
 		},
 	}
 	for _, tt := range tests {

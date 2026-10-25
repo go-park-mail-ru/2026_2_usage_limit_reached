@@ -9,6 +9,12 @@ components:
           example: Cars
           type: string
       type: object
+    dto.AvatarResponse:
+      properties:
+        avatar_url:
+          example: http://localhost:8333/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          type: string
+      type: object
     dto.LoginRequest:
       properties:
         login:
@@ -57,8 +63,8 @@ components:
       type: object
     dto.ProfileUserResponse:
       properties:
-        avatar_key:
-          example: avatars/user-1.png
+        avatar_url:
+          example: http://localhost:8333/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
           type: string
         created_at:
           example: "2026-08-01T12:00:00Z"
@@ -93,11 +99,23 @@ components:
       type: object
     dto.UserResponse:
       properties:
+        avatar_key:
+          example: AKIAIOSFODNN7EXAMPLE
+          type: string
+        created_at:
+          example: "2025-06-15T14:30:45.123456789Z"
+          type: string
         email:
           example: user@example.com
           type: string
         nickname:
           example: nickname_123
+          type: string
+        status:
+          example: active
+          type: string
+        updated_at:
+          example: "2025-06-15T14:30:45.123456789Z"
           type: string
         username:
           example: username123
@@ -233,6 +251,100 @@ paths:
       security:
       - CookieAuth: []
       summary: Получение профиля текущего пользователя
+      tags:
+      - profile
+  /profile/me/avatar:
+    delete:
+      description: Удаляет текущий аватар. Если аватара нет, тоже возвращает 204
+      responses:
+        "204":
+          description: Аватар удален
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Удаление аватара текущего пользователя
+      tags:
+      - profile
+    put:
+      description: Принимает изображение jpeg, png или webp до 5 МБ в поле avatar
+        и заменяет им текущий аватар. Формат определяется по содержимому файла
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                avatar:
+                  description: Изображение аватара
+                  format: binary
+                  type: string
+              required:
+              - avatar
+              type: object
+        description: Изображение аватара
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.AvatarResponse'
+          description: Аватар загружен
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Запрос не multipart/form-data или в нем нет файла
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Файл больше 5 МБ
+        "415":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неподдерживаемый формат изображения
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Загрузка аватара текущего пользователя
       tags:
       - profile
   /profile/me/posts:

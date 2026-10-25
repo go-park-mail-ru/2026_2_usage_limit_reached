@@ -24,7 +24,7 @@ type ProfileUserResponse struct {
 	Username  string    `json:"username" example:"username123"`
 	Nickname  string    `json:"nickname" example:"nickname_123"`
 	Email     string    `json:"email" example:"user@example.com"`
-	AvatarKey *string   `json:"avatar_key,omitempty" example:"avatars/user-1.png"`
+	AvatarURL *string   `json:"avatar_url,omitempty" example:"http://localhost:8333/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png"`
 	CreatedAt time.Time `json:"created_at" example:"2026-08-01T12:00:00Z"`
 }
 
@@ -36,4 +36,8 @@ type ProfileResponse struct {
 type ProfilePostsResponse struct {
 	UserID uuid.UUID      `json:"user_id" example:"00000000-0000-4000-8000-000000000001"`
 	Posts  []PostResponse `json:"posts"`
+}
+
+type AvatarResponse struct {
+	AvatarURL string `json:"avatar_url" example:"http://localhost:8333/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png"`
 }

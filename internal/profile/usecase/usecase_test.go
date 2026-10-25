@@ -3,6 +3,8 @@ package profileusecase_test
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -19,7 +21,10 @@ var (
 	profileUserID = uuid.MustParse("00000000-0000-4000-8000-000000000001")
 	profilePostID = uuid.MustParse("00000000-0000-4000-8000-000000000101")
 	profileTime   = time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
+	testLogger    = slog.New(slog.NewTextHandler(io.Discard, nil))
 )
+
+const testAvatarBaseURL = "http://localhost:9000/media"
 
 type userInfoMock struct {
 	users map[uuid.UUID]authdto.UserInfo
@@ -62,11 +67,25 @@ func (s profileRepositoryMock) ListPostsByAuthorID(_ context.Context, id uuid.UU
 	return s.posts[id], nil
 }
 
+func (profileRepositoryMock) UpdateAvatarKey(context.Context, uuid.UUID, *string) (*string, error) {
+	return nil, nil
+}
+
+type avatarStorageMock struct{}
+
+func (avatarStorageMock) Put(context.Context, string, io.Reader, int64, string) error {
+	return nil
+}
+
+func (avatarStorageMock) Delete(context.Context, string) error { return nil }
+
 func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 	t.Parallel()
 
 	path := "avatars/ivan.png"
 	avatar := &path
+	url := "http://localhost:9000/media/avatars/ivan.png"
+	avatarURL := &url
 	user := &authdto.UserInfo{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarKey: avatar, CreatedAt: profileTime}
 	author := &models.Author{Bio: "Пишу о технологиях", Category: "Технологии"}
 	tests := []struct {
@@ -78,14 +97,14 @@ func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 			name:   "author profile",
 			author: author,
 			want: &profiledto.ProfileResponse{
-				User:   profiledto.ProfileUserResponse{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarKey: avatar, CreatedAt: profileTime},
+				User:   profiledto.ProfileUserResponse{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarURL: avatarURL, CreatedAt: profileTime},
 				Author: &profiledto.AuthorResponse{Bio: "Пишу о технологиях", Category: "Технологии"},
 			},
 		},
 		{
 			name: "reader has no author profile",
 			want: &profiledto.ProfileResponse{
-				User: profiledto.ProfileUserResponse{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarKey: avatar, CreatedAt: profileTime},
+				User: profiledto.ProfileUserResponse{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarURL: avatarURL, CreatedAt: profileTime},
 			},
 		},
 	}
@@ -99,6 +118,9 @@ func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 			uc := profileusecase.NewProfileUsecase(
 				userInfoMock{users: map[uuid.UUID]authdto.UserInfo{profileUserID: *user}},
 				profileRepositoryMock{authors: authors},
+				avatarStorageMock{},
+				testAvatarBaseURL,
+				testLogger,
 			)
 			got, err := uc.GetMyProfile(context.Background(), profileUserID)
 			require.NoError(t, err)
@@ -130,7 +152,7 @@ func TestProfileUsecase_GetMyProfile_Errors(t *testing.T) {
 			if tt.user != nil {
 				users[profileUserID] = *tt.user
 			}
-			uc := profileusecase.NewProfileUsecase(userInfoMock{users: users, err: tt.userErr}, profileRepositoryMock{authorErr: tt.authorErr})
+			uc := profileusecase.NewProfileUsecase(userInfoMock{users: users, err: tt.userErr}, profileRepositoryMock{authorErr: tt.authorErr}, avatarStorageMock{}, testAvatarBaseURL, testLogger)
 			got, err := uc.GetMyProfile(context.Background(), profileUserID)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
@@ -162,7 +184,7 @@ func TestProfileUsecase_GetMyPosts_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			uc := profileusecase.NewProfileUsecase(userInfoMock{}, profileRepositoryMock{posts: map[uuid.UUID][]models.Post{profileUserID: tt.posts}})
+			uc := profileusecase.NewProfileUsecase(userInfoMock{}, profileRepositoryMock{posts: map[uuid.UUID][]models.Post{profileUserID: tt.posts}}, avatarStorageMock{}, testAvatarBaseURL, testLogger)
 			got, err := uc.GetMyPosts(context.Background(), profileUserID)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
@@ -184,7 +206,7 @@ func TestProfileUsecase_GetMyPosts_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			uc := profileusecase.NewProfileUsecase(userInfoMock{}, profileRepositoryMock{postsErr: tt.postsErr})
+			uc := profileusecase.NewProfileUsecase(userInfoMock{}, profileRepositoryMock{postsErr: tt.postsErr}, avatarStorageMock{}, testAvatarBaseURL, testLogger)
 			got, err := uc.GetMyPosts(context.Background(), profileUserID)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)

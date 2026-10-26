@@ -1,4 +1,4 @@
-package usecase
+package postusecase
 
 import (
 	"context"
@@ -79,9 +79,9 @@ func paginate[C any](items []*dto.PostInfo, limit int, cursorOf func(*dto.PostIn
 	return items, &next
 }
 
-func (uc *PostUsecase) UpdatePost(ctx context.Context, userID uuid.UUID, p dto.PostRequest, lastUpdatedAt time.Time) error {
+func (uc *PostUsecase) UpdatePost(ctx context.Context, userID, postID uuid.UUID, p dto.PostRequest, lastUpdatedAt time.Time) error {
 	post := models.Post{
-		ID:     p.ID,
+		ID:     postID,
 		Title:  p.Title,
 		Body:   p.Body,
 		Status: p.Status,

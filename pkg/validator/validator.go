@@ -33,11 +33,17 @@ type EmailRules struct {
 	Regexp string `mapstructure:"regexp"`
 }
 
+type PostRules struct {
+	MaxTitleLen int `mapstructure:"max_title_len"`
+	MaxBodyLen  int `mapstructure:"max_body_len"`
+}
+
 type ValidationConfig struct {
 	Username UsernameRules `mapstructure:"username"`
 	Nickname NicknameRules `mapstructure:"nickname"`
 	Password PasswordRules `mapstructure:"password"`
 	Email    EmailRules    `mapstructure:"email"`
+	Post     PostRules     `mapstructure:"post"`
 }
 
 func DefaultConfig() ValidationConfig {
@@ -52,6 +58,10 @@ func DefaultConfig() ValidationConfig {
 		Email: EmailRules{
 			MaxLen: 254,
 			Regexp: `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`,
+		},
+		Post: PostRules{
+			MaxTitleLen: 255,
+			MaxBodyLen:  20000,
 		},
 	}
 }
@@ -69,6 +79,8 @@ func (c ValidationConfig) Validate() error {
 		{"password.min_len", c.Password.MinLen},
 		{"password.max_len", c.Password.MaxLen},
 		{"email.max_len", c.Email.MaxLen},
+		{"post.max_title_len", c.Post.MaxTitleLen},
+		{"post.max_body_len", c.Post.MaxBodyLen},
 	}
 	for _, p := range positive {
 		if p.value <= 0 {
@@ -145,4 +157,14 @@ func (v Validator) IsValidNickname(nickname string) bool {
 func (v Validator) IsValidPassword(password string) bool {
 	length := len(password)
 	return length >= v.cfg.Password.MinLen && length <= v.cfg.Password.MaxLen
+}
+
+func (v Validator) IsValidPostTitle(title string) bool {
+	length := len([]rune(title))
+	return length > 0 && length <= v.cfg.Post.MaxTitleLen
+}
+
+func (v Validator) IsValidPostBody(body string) bool {
+	length := len([]rune(body))
+	return length > 0 && length <= v.cfg.Post.MaxBodyLen
 }

@@ -1,4 +1,4 @@
-package repository
+package postrepository
 
 import (
 	"context"
@@ -82,16 +82,16 @@ func (r *PostRepository) GetPost(ctx context.Context, userID, postID uuid.UUID) 
 
 	err := r.pool.QueryRow(ctx, query, userID, postID).Scan(
 		&post.ID,
-		&post.AuthorID,
+		&post.Author.ID,
 		&post.Title,
 		&post.Body,
 		&post.Status,
 		&post.PublishedAt,
 		&post.CreatedAt,
 		&post.UpdatedAt,
-		&post.AuthorUsername,
-		&post.AuthorNickname,
-		&post.AuthorAvatarKey,
+		&post.Author.Username,
+		&post.Author.Nickname,
+		&post.Author.AvatarKey,
 		&post.Locked,
 		&post.LikesCount,
 		&post.LikedByUser,
@@ -198,15 +198,15 @@ func scanPosts(rows pgx.Rows) ([]*dto.PostInfo, error) {
 		post := &dto.PostInfo{}
 		err := rows.Scan(
 			&post.ID,
-			&post.AuthorID,
+			&post.Author.ID,
 			&post.Title,
 			&post.Body,
 			&post.PublishedAt,
 			&post.CreatedAt,
 			&post.UpdatedAt,
-			&post.AuthorUsername,
-			&post.AuthorNickname,
-			&post.AuthorAvatarKey,
+			&post.Author.Username,
+			&post.Author.Nickname,
+			&post.Author.AvatarKey,
 			&post.Locked,
 			&post.LikesCount,
 			&post.LikedByUser,

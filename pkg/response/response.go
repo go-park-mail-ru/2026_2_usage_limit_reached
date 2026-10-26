@@ -34,6 +34,10 @@ func ErrorUserConflict(w http.ResponseWriter) {
 	write(w, http.StatusConflict, ErrorResponse{Error: "user already exist"})
 }
 
+func ErrorPostConflict(w http.ResponseWriter) {
+	write(w, http.StatusConflict, ErrorResponse{Error: "post has already been changed"})
+}
+
 func ErrorNotFound(w http.ResponseWriter) {
 	write(w, http.StatusNotFound, ErrorResponse{Error: "not found"})
 }

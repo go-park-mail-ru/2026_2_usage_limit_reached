@@ -41,13 +41,13 @@ const (
 	countLikes       = `SELECT count(*) FROM post_like WHERE post_id = $1`
 )
 
-func (r *PostRepository) CreatePost(ctx context.Context, p dto.PostInfo) error {
+func (r *PostRepository) CreatePost(ctx context.Context, userID uuid.UUID, p models.Post) error {
 	const query = `
 		INSERT INTO post (author_id, title, body, status, published_at)
 		VALUES ($1, $2, $3, $4, CASE WHEN $4 = ` + statusPublished + ` THEN now() END)
 	`
 
-	_, err := r.pool.Exec(ctx, query, p.AuthorID, p.Title, p.Body, p.Status)
+	_, err := r.pool.Exec(ctx, query, userID, p.Title, p.Body, p.Status)
 	if err != nil {
 		err = postgres.ParseError(err)
 		switch {
@@ -212,17 +212,17 @@ func scanPosts(rows pgx.Rows) ([]*dto.PostInfo, error) {
 			&post.LikedByUser,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("get posts error: %w", err)
+			return nil, err
 		}
 		posts = append(posts, post)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("get posts error: %w", err)
+		return nil, err
 	}
 	return posts, nil
 }
 
-func (r *PostRepository) UpdatePost(ctx context.Context, postID, userID uuid.UUID, title, body, status string, updatedAt time.Time) error {
+func (r *PostRepository) UpdatePost(ctx context.Context, userID uuid.UUID, p models.Post, lastUpdatedAt time.Time) error {
 	const query = `
 		UPDATE post SET
 			title = $3,
@@ -234,8 +234,9 @@ func (r *PostRepository) UpdatePost(ctx context.Context, postID, userID uuid.UUI
 		WHERE id = $1 AND author_id = $2 AND updated_at = $6
 	`
 
-	result, err := r.pool.Exec(ctx, query, postID, userID, title, body, status, updatedAt)
+	result, err := r.pool.Exec(ctx, query, p.ID, userID, p.Title, p.Body, p.Status, lastUpdatedAt)
 	if err != nil {
+		err = postgres.ParseError(err)
 		if errors.Is(err, postgres.ErrCheckViolation) {
 			return models.ErrPostValidation
 		}
@@ -247,7 +248,7 @@ func (r *PostRepository) UpdatePost(ctx context.Context, postID, userID uuid.UUI
 			id uuid.UUID
 			ts time.Time
 		)
-		err := r.pool.QueryRow(ctx, `SELECT author_id, updated_at FROM post WHERE id = $1`, postID).Scan(
+		err := r.pool.QueryRow(ctx, `SELECT author_id, updated_at FROM post WHERE id = $1`, p.ID).Scan(
 			&id,
 			&ts,
 		)
@@ -258,14 +259,14 @@ func (r *PostRepository) UpdatePost(ctx context.Context, postID, userID uuid.UUI
 			return fmt.Errorf("update post error: get post: %w", err)
 		case id != userID:
 			return models.ErrForbidden
-		case !ts.Equal(updatedAt):
+		case !ts.Equal(lastUpdatedAt):
 			return models.ErrPostConflict
 		}
 	}
 	return nil
 }
 
-func (r *PostRepository) DeletePost(ctx context.Context, postID, userID uuid.UUID) error {
+func (r *PostRepository) DeletePost(ctx context.Context, userID, postID uuid.UUID) error {
 	result, err := r.pool.Exec(ctx, `DELETE FROM post WHERE id = $1 AND author_id = $2`, postID, userID)
 	if err != nil {
 		return fmt.Errorf("delete post error: %w", err)

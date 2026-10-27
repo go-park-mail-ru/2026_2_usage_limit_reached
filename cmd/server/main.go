@@ -8,6 +8,9 @@ import (
 	AuthRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/user"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
+	PostHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery"
+	PostRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/repository"
+	PostUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/usecase"
 	ProfileHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery"
 	ProfileRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/memory"
 	ProfileUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
@@ -50,6 +53,7 @@ func main() {
 
 	userRepo := AuthRepo.NewUserRepository(postgresCli.Pool)
 	profileRepo := ProfileRepo.NewProfileRepository()
+	postRepo := PostRepo.NewPostRepository(postgresCli.Pool)
 
 	uc := usecase.NewUsecase(userRepo, tokens)
 	valid, err := validator.NewValidator(cfg.Validation)
@@ -58,20 +62,30 @@ func main() {
 	}
 	authHandler := AuthHandlers.NewHandler(uc, valid, appLogger)
 	authMiddleware := middleware.AuthMiddleware(tokens)
+	checkAuthMiddleware := middleware.CheckAuthMiddleware(tokens)
 
 	profileUc := ProfileUsecase.NewProfileUsecase(uc, profileRepo)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, appLogger)
 
+	postUc := PostUsecase.NewPostUsecase(postRepo)
+	postHandler := PostHandlers.NewHandler(postUc, valid, appLogger)
+
 	r := mux.NewRouter()
-	private := r.NewRoute().Subrouter()
-	private.Use(authMiddleware)
-	authHandler.RegisterRoutes(r, private)
-	profileHandler.RegisterRoutes(r, private)
 	r.Use(
 		middleware.RecoverMiddleware(appLogger),
 		middleware.AccessLogMiddleware(appLogger),
 		middleware.CORSMiddleware(cfg.CORS),
 	)
+
+	public := r.NewRoute().Subrouter()
+	public.Use(checkAuthMiddleware)
+
+	private := r.NewRoute().Subrouter()
+	private.Use(authMiddleware)
+
+	authHandler.RegisterRoutes(public, private)
+	profileHandler.RegisterRoutes(public, private)
+	postHandler.RegisterRoutes(public, private)
 
 	srv, err := httpserver.New(cfg.HTTP, appLogger)
 	if err != nil {

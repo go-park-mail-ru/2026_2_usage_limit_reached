@@ -30,6 +30,10 @@ func ErrorUnauthorized(w http.ResponseWriter) {
 	write(w, http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
 }
 
+func ErrorForbidden(w http.ResponseWriter) {
+	write(w, http.StatusForbidden, ErrorResponse{Error: "forbidden"})
+}
+
 func ErrorUserConflict(w http.ResponseWriter) {
 	write(w, http.StatusConflict, ErrorResponse{Error: "user already exist"})
 }

@@ -33,7 +33,7 @@ const (
 	postColumns = `
 		p.id, p.author_id, p.title,
 		CASE WHEN l.locked THEN '' ELSE p.body_preview END AS body_preview,
-		p.published_at, p.created_at, p.updated_at,
+		p.published_at,
 		p.username, p.nickname, p.avatar_key, l.locked`
 	statusPublished  = `'published'`
 	statusUserActive = `'active'`
@@ -114,7 +114,7 @@ func (r *PostRepository) GetNewPosts(ctx context.Context, userID uuid.UUID, curs
 			JOIN "user" u ON u.id = p.author_id
 			WHERE p.status = ` + statusPublished + `
 				AND u.status = ` + statusUserActive + `
-				AND ($2 IS NULL OR (p.published_at, p.id) < ($2, $3))
+				AND ($2::timestamptz IS NULL OR (p.published_at, p.id) < ($2::timestamptz, $3::uuid))
 			ORDER BY p.published_at DESC, p.id DESC
 			LIMIT $4
 		)
@@ -159,7 +159,7 @@ func (r *PostRepository) GetPopularPosts(ctx context.Context, userID uuid.UUID, 
 			WHERE p.status = ` + statusPublished + ` AND u.status = ` + statusUserActive + `
 		), page AS (
 			SELECT * FROM posts_with_likes pwl
-			WHERE $2 IS NULL OR (pwl.likes_count, pwl.published_at, pwl.id) < ($2, $3, $4)
+			WHERE $2::bigint IS NULL OR (pwl.likes_count, pwl.published_at, pwl.id) < ($2::bigint, $3::timestamptz, $4::uuid)
 			ORDER BY pwl.likes_count DESC, pwl.published_at DESC, pwl.id DESC
 			LIMIT $5
 		)

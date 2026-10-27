@@ -57,7 +57,7 @@ func (h *PostHandler) handleError(ctx context.Context, w http.ResponseWriter, ha
 	case errors.Is(err, postusecase.ErrConflict):
 		response.ErrorPostConflict(w)
 	case errors.Is(err, postusecase.ErrForbidden):
-		response.ErrorUnauthorized(w)
+		response.ErrorForbidden(w)
 	case errors.Is(err, postusecase.ErrNotFound):
 		response.ErrorNotFound(w)
 	case errors.Is(err, validator.ErrValidation), errors.Is(err, postusecase.ErrValidation):

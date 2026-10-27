@@ -38,8 +38,6 @@ CREATE TABLE payment_order (
         CHECK ((status = 'canceled') = (canceled_at IS NOT NULL))
 );
 
-CREATE INDEX payment_order_payer_id_idx ON payment_order (payer_id);
-
 CREATE TRIGGER trg_payment_order_immutable
     BEFORE UPDATE ON payment_order
     FOR EACH ROW
@@ -155,8 +153,6 @@ ALTER TABLE payment_order
         FOREIGN KEY (id, credited_attempt_id, expected_amount_minor, currency)
         REFERENCES payment_attempt (payment_order_id, id, charged_amount_minor, charged_currency)
         ON DELETE RESTRICT;
-
-CREATE INDEX payment_order_credited_attempt_id_idx ON payment_order (credited_attempt_id);
 
 -- Учёт полученных событий провайдера для идемпотентной обработки вебхуков
 CREATE TABLE provider_webhook_event (

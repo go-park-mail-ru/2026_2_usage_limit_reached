@@ -16,8 +16,6 @@ CREATE TABLE donation (
         ON DELETE RESTRICT
 );
 
-CREATE INDEX donation_author_id_idx ON donation (author_id);
-
 CREATE TRIGGER trg_donation_immutable
     BEFORE UPDATE ON donation
     FOR EACH ROW

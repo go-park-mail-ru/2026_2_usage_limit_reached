@@ -46,6 +46,7 @@ func write(w http.ResponseWriter, code int, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
 		ErrorInternal(w)
+		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)

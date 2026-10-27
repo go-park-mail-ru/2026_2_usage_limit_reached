@@ -17,6 +17,11 @@ func SetupValidator() *validator.Validator {
 			MaxLen: 32,
 			Regexp: `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`,
 		},
+		Post: validator.PostRules{
+			MaxTitleLen:       255,
+			MaxBodyLen:        20000,
+			AllowedPostStatus: []string{"published", "draft", "archived"},
+		},
 	})
 	if err != nil {
 		panic(err)

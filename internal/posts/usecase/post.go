@@ -10,11 +10,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	defaultLimit = 20
-	maxLimit     = 50
-)
-
 func (uc *PostUsecase) CreatePost(ctx context.Context, userID uuid.UUID, p dto.PostRequest) error {
 	post := models.Post{
 		Title:  p.Title,
@@ -36,41 +31,28 @@ func (uc *PostUsecase) GetPost(ctx context.Context, userID, postID uuid.UUID) (*
 }
 
 func (uc *PostUsecase) GetNewPosts(ctx context.Context, userID uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error) {
-	limit = adjustLimit(limit)
 	posts, err := uc.repo.GetNewPosts(ctx, userID, cursor, limit+1)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get new posts: %w", err)
 	}
-	items, next := paginate(posts, limit, func(p *dto.PostInfo) dto.NewPostsCursor {
+	items, next := paginate(posts, limit, func(p *dto.PostPreview) dto.NewPostsCursor {
 		return dto.NewPostsCursor{PublishedAt: *p.PublishedAt, PostID: p.ID}
 	})
 	return &dto.NewPostsPage{Items: items, Next: next}, nil
 }
 
 func (uc *PostUsecase) GetPopularPosts(ctx context.Context, userID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error) {
-	limit = adjustLimit(limit)
 	posts, err := uc.repo.GetPopularPosts(ctx, userID, cursor, limit+1)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get popular posts: %w", err)
 	}
-	items, next := paginate(posts, limit, func(p *dto.PostInfo) dto.PopularPostsCursor {
+	items, next := paginate(posts, limit, func(p *dto.PostPreview) dto.PopularPostsCursor {
 		return dto.PopularPostsCursor{Likes: p.LikesCount, PublishedAt: *p.PublishedAt, PostID: p.ID}
 	})
 	return &dto.PopularPostsPage{Items: items, Next: next}, nil
 }
 
-func adjustLimit(limit int) int {
-	switch {
-	case limit <= 0:
-		return defaultLimit
-	case limit > maxLimit:
-		return maxLimit
-	default:
-		return limit
-	}
-}
-
-func paginate[C any](items []*dto.PostInfo, limit int, cursorOf func(*dto.PostInfo) C) ([]*dto.PostInfo, *C) {
+func paginate[C any](items []*dto.PostPreview, limit int, cursorOf func(*dto.PostPreview) C) ([]*dto.PostPreview, *C) {
 	if len(items) <= limit {
 		return items, nil
 	}

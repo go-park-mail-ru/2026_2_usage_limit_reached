@@ -21,17 +21,15 @@ var (
 
 var repoErrors = map[error]error{
 	models.ErrPostNotFound:    ErrNotFound,
-	models.ErrForbidden:       ErrForbidden,
 	models.ErrInvalidAuthorID: ErrForbidden,
 	models.ErrPostValidation:  ErrValidation,
 	models.ErrPostConflict:    ErrConflict,
 }
 
 func mapRepoError(op string, err error) error {
-	for from, to := range repoErrors {
-		if errors.Is(err, from) {
-			return to
-		}
+	to, ok := repoErrors[err]
+	if ok {
+		return fmt.Errorf("%s: %w: %w", op, to, err)
 	}
 	return fmt.Errorf("%s: %w", op, err)
 }
@@ -39,8 +37,8 @@ func mapRepoError(op string, err error) error {
 type PostRepository interface {
 	CreatePost(ctx context.Context, userID uuid.UUID, p models.Post) error
 	GetPost(ctx context.Context, userID, postID uuid.UUID) (*dto.PostInfo, error)
-	GetNewPosts(ctx context.Context, userID uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostInfo, error)
-	GetPopularPosts(ctx context.Context, userID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostInfo, error)
+	GetNewPosts(ctx context.Context, userID uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error)
+	GetPopularPosts(ctx context.Context, userID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
 	UpdatePost(ctx context.Context, userID uuid.UUID, p models.Post, lastUpdatedAt time.Time) error
 	DeletePost(ctx context.Context, userID, postID uuid.UUID) error
 

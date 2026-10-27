@@ -8,14 +8,14 @@ import (
 )
 
 type PostRequest struct {
-	Title         string `json:"title"`
-	Body          string `json:"body"`
-	Status        string `json:"status"`
-	LastUpdatedAt string `json:"last_updated_at,omitempty"`
+	Title         string     `json:"title"`
+	Body          string     `json:"body"`
+	Status        string     `json:"status"`
+	LastUpdatedAt *time.Time `json:"last_updated_at,omitempty"`
 }
 
 func (r PostRequest) Validate(v *validator.Validator) error {
-	if !v.IsValidPostTitle(r.Title) || !v.IsValidPostBody(r.Body) {
+	if !v.IsValidPostTitle(r.Title) || !v.IsValidPostBody(r.Body) || !v.IsValidPostStatus(r.Status) {
 		return validator.ErrValidation
 	}
 	return nil
@@ -42,9 +42,20 @@ type PostInfo struct {
 	LikedByUser bool           `json:"liked_by_user"`
 }
 
+type PostPreview struct {
+	ID          uuid.UUID      `json:"id"`
+	Author      AuthorResponse `json:"author"`
+	Title       string         `json:"title"`
+	BodyPreview string         `json:"body_preview"`
+	PublishedAt *time.Time     `json:"published_at"`
+	Locked      bool           `json:"locked"`
+	LikesCount  int64          `json:"likes_count"`
+	LikedByUser bool           `json:"liked_by_user"`
+}
+
 type PostsPageResponse struct {
-	Items      []*PostInfo `json:"items"`
-	NextCursor string      `json:"next_cursor"`
+	Items      []*PostPreview `json:"items"`
+	NextCursor *string        `json:"next_cursor"`
 }
 
 type NewPostsCursor struct {
@@ -59,16 +70,16 @@ type PopularPostsCursor struct {
 }
 
 type NewPostsPage struct {
-	Items []*PostInfo
+	Items []*PostPreview
 	Next  *NewPostsCursor
 }
 
 type PopularPostsPage struct {
-	Items []*PostInfo
+	Items []*PostPreview
 	Next  *PopularPostsCursor
 }
 
 type PostLikeResponse struct {
-	LikesCount int64 `json:"likes_count"`
-	Liked      bool  `json:"liked_by_user"`
+	LikesCount  int64 `json:"likes_count"`
+	LikedByUser bool  `json:"liked_by_user"`
 }

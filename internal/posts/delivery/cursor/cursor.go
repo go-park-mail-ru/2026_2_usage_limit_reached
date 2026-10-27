@@ -46,19 +46,20 @@ var (
 	}
 )
 
-func (c Codec[T]) Encode(v *T) (string, error) {
+func (c Codec[T]) Encode(v *T) (*string, error) {
 	if v == nil {
-		return "", nil
+		return nil, nil
 	}
 	payload, err := json.Marshal(v)
 	if err != nil {
-		return "", fmt.Errorf("marshal cursor payload: %w", err)
+		return nil, fmt.Errorf("marshal cursor payload: %w", err)
 	}
 	raw, err := json.Marshal(cursorGeneric{Kind: c.kind, Payload: payload})
 	if err != nil {
-		return "", fmt.Errorf("marshal cursor: %w", err)
+		return nil, fmt.Errorf("marshal cursor: %w", err)
 	}
-	return base64.RawURLEncoding.EncodeToString(raw), nil
+	cur := base64.RawURLEncoding.EncodeToString(raw)
+	return &cur, nil
 }
 
 func (c Codec[T]) Decode(s string) (*T, error) {

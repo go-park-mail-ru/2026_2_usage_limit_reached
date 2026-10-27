@@ -3,6 +3,7 @@ package posthandlers
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -29,17 +30,18 @@ type PostUsecase interface {
 type PostHandler struct { // TODO: добавить логгер
 	uc        PostUsecase
 	validator *validator.Validator
+	logger    *slog.Logger
 }
 
-func NewHandler(uc PostUsecase, validator *validator.Validator) *PostHandler {
-	return &PostHandler{uc: uc, validator: validator}
+func NewHandler(uc PostUsecase, v *validator.Validator, logger *slog.Logger) *PostHandler {
+	return &PostHandler{uc: uc, validator: v, logger: logger}
 }
 
 func (h *PostHandler) RegisterRoutes(public *mux.Router, private *mux.Router) {
 	public.HandleFunc("/feed", h.Feed).Methods(http.MethodGet, http.MethodOptions)
 	public.HandleFunc("/posts/{id}", h.ViewPost).Methods(http.MethodGet, http.MethodOptions)
 
-	private.HandleFunc("/posts/{id}", h.NewPost).Methods(http.MethodPost, http.MethodOptions)
+	private.HandleFunc("/posts", h.NewPost).Methods(http.MethodPost, http.MethodOptions)
 	private.HandleFunc("/posts/{id}", h.EditPost).Methods(http.MethodPut, http.MethodOptions)
 	private.HandleFunc("/posts/{id}", h.DeletePost).Methods(http.MethodDelete, http.MethodOptions)
 	private.HandleFunc("/posts/{id}/like", h.LikePost).Methods(http.MethodPost, http.MethodOptions)
@@ -47,7 +49,10 @@ func (h *PostHandler) RegisterRoutes(public *mux.Router, private *mux.Router) {
 }
 
 func (h *PostHandler) handleError(ctx context.Context, w http.ResponseWriter, handler string, logMessage string, err error) {
-	// TODO: добавить логи
+	h.logger.ErrorContext(ctx, logMessage,
+		slog.String("handler", handler),
+		slog.String("error", err.Error()),
+	)
 	switch {
 	case errors.Is(err, postusecase.ErrConflict):
 		response.ErrorPostConflict(w)

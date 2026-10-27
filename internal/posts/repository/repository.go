@@ -25,7 +25,7 @@ type PostRepository struct {
 	pool PgxCliPool
 }
 
-func NewPostRepository(pool PgxCliPool) *PostRepository {
+func NewPostRepository(pool PgxCliPool) *PostRepository { // TODO: добавить логгер
 	return &PostRepository{pool: pool}
 }
 
@@ -105,11 +105,11 @@ func (r *PostRepository) GetPost(ctx context.Context, userID, postID uuid.UUID) 
 	return post, nil
 }
 
-func (r *PostRepository) GetNewPosts(ctx context.Context, userID uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostInfo, error) {
+func (r *PostRepository) GetNewPosts(ctx context.Context, userID uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview,
-			p.published_at, p.created_at, p.updated_at, u.username, u.nickname, u.avatar_key
+			p.published_at, u.username, u.nickname, u.avatar_key
 			FROM post p
 			JOIN "user" u ON u.id = p.author_id
 			WHERE p.status = ` + statusPublished + `
@@ -148,10 +148,11 @@ func (r *PostRepository) GetNewPosts(ctx context.Context, userID uuid.UUID, curs
 	return posts, nil
 }
 
-func (r *PostRepository) GetPopularPosts(ctx context.Context, userID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostInfo, error) {
+func (r *PostRepository) GetPopularPosts(ctx context.Context, userID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH posts_with_likes AS (
-			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview, p.published_at, p.created_at, p.updated_at, u.username, u.nickname, u.avatar_key,
+			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview,
+			p.published_at, u.username, u.nickname, u.avatar_key,
 			(SELECT count(*) FROM post_like pl WHERE pl.post_id = p.id) AS likes_count
 			FROM post p
 			JOIN "user" u ON u.id = p.author_id
@@ -191,19 +192,17 @@ func (r *PostRepository) GetPopularPosts(ctx context.Context, userID uuid.UUID, 
 	return posts, nil
 }
 
-func scanPosts(rows pgx.Rows) ([]*dto.PostInfo, error) {
-	posts := make([]*dto.PostInfo, 0)
+func scanPosts(rows pgx.Rows) ([]*dto.PostPreview, error) {
+	posts := make([]*dto.PostPreview, 0)
 	defer rows.Close()
 	for rows.Next() {
-		post := &dto.PostInfo{}
+		post := &dto.PostPreview{}
 		err := rows.Scan(
 			&post.ID,
 			&post.Author.ID,
 			&post.Title,
-			&post.Body,
+			&post.BodyPreview,
 			&post.PublishedAt,
-			&post.CreatedAt,
-			&post.UpdatedAt,
 			&post.Author.Username,
 			&post.Author.Nickname,
 			&post.Author.AvatarKey,
@@ -258,8 +257,8 @@ func (r *PostRepository) UpdatePost(ctx context.Context, userID uuid.UUID, p mod
 		case err != nil:
 			return fmt.Errorf("update post error: get post: %w", err)
 		case id != userID:
-			return models.ErrForbidden
-		case !ts.Equal(lastUpdatedAt):
+			return models.ErrPostNotFound
+		case !ts.Equal(lastUpdatedAt): // optimistic blocking
 			return models.ErrPostConflict
 		}
 	}

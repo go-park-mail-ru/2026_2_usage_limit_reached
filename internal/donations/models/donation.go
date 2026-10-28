@@ -10,6 +10,7 @@ import (
 var (
 	ErrDonationNotFound   = errors.New("donation not found")
 	ErrDonationValidation = errors.New("donation validation error")
+	ErrSelfDonation       = errors.New("self donation is not allowed")
 )
 
 type Donation struct {

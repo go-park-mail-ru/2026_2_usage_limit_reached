@@ -14,8 +14,8 @@ import (
 func (uc *Usecase) CreateUser(ctx context.Context, req dto.CreateUserRequest) (*dto.UserInfo, error) {
 	user := &models.User{
 		ID:           uuid.New(),
-		Email:        normalize(req.Email),
-		Username:     normalize(req.Username),
+		Email:        Normalize(req.Email),
+		Username:     Normalize(req.Username),
 		Nickname:     req.Nickname,
 		PasswordHash: req.PasswordHash,
 		Status:       models.StatusActive,
@@ -45,7 +45,7 @@ func (uc *Usecase) FindUserByID(ctx context.Context, userID uuid.UUID) (*dto.Use
 }
 
 func (uc *Usecase) FindUserByLogin(ctx context.Context, login string) (*dto.UserCredentials, error) {
-	user, err := uc.findUserByLogin(ctx, normalize(login))
+	user, err := uc.findUserByLogin(ctx, Normalize(login))
 	if err != nil {
 		if errors.Is(err, models.ErrUserNotFound) {
 			return nil, fmt.Errorf("find user: %w", ErrUserNotFound)
@@ -64,6 +64,6 @@ func (uc *Usecase) findUserByLogin(ctx context.Context, login string) (*models.U
 	return uc.repo.GetUserByUsername(ctx, login)
 }
 
-func normalize(s string) string {
+func Normalize(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
 }

@@ -16,6 +16,7 @@ import (
 	profileusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/testutils"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
@@ -41,6 +42,10 @@ func (s profileUsecaseMock) GetMyProfile(_ context.Context, id uuid.UUID) (*dto.
 	return s.profiles[id], nil
 }
 
+func (s profileUsecaseMock) UpdateMyProfile(_ context.Context, _ uuid.UUID, _ dto.UpdateProfileRequest) error {
+	return nil
+}
+
 func (s profileUsecaseMock) GetMyPosts(_ context.Context, id uuid.UUID) (*dto.ProfilePostsResponse, error) {
 	if s.postsErr != nil {
 		return nil, s.postsErr
@@ -61,7 +66,7 @@ func (v tokenVerifierMock) Verify(token string) (json.RawMessage, error) {
 
 func newTestRouter(uc profilehandlers.ProfileUsecase, userID uuid.UUID) http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := profilehandlers.NewProfileHandler(uc, logger)
+	handler := profilehandlers.NewProfileHandler(uc, testutils.SetupValidator(), logger)
 	router := mux.NewRouter()
 	private := router.NewRoute().Subrouter()
 	private.Use(middleware.AuthMiddleware(tokenVerifierMock{userID: userID}))

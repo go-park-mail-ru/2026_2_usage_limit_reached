@@ -38,6 +38,10 @@ func ErrorUserConflict(w http.ResponseWriter) {
 	write(w, http.StatusConflict, ErrorResponse{Error: "user already exist"})
 }
 
+func ErrorProfileConflict(w http.ResponseWriter) {
+	write(w, http.StatusConflict, ErrorResponse{Error: "profile data already in use"})
+}
+
 func ErrorPostConflict(w http.ResponseWriter) {
 	write(w, http.StatusConflict, ErrorResponse{Error: "post has already been changed"})
 }

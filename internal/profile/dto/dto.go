@@ -1,8 +1,10 @@
 package dto
 
 import (
+	"strings"
 	"time"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 	"github.com/google/uuid"
 )
 
@@ -36,4 +38,53 @@ type ProfileResponse struct {
 type ProfilePostsResponse struct {
 	UserID uuid.UUID      `json:"user_id" example:"00000000-0000-4000-8000-000000000001"`
 	Posts  []PostResponse `json:"posts"`
+}
+
+type UpdateProfileRequest struct {
+	User   UpdateUserRequest    `json:"user"`
+	Author *UpdateAuthorRequest `json:"author,omitempty"`
+}
+
+type UpdateUserRequest struct {
+	Username string `json:"username" example:"username123"`
+	Nickname string `json:"nickname" example:"nickname_123"`
+	Email    string `json:"email" example:"user@example.com"`
+}
+
+type UpdateAuthorRequest struct {
+	Bio             string  `json:"bio" example:"i am author"`
+	Category        *string `json:"category" example:"Cars"`
+	PayoutProvider  *string `json:"payout_provider" example:"yookassa"`
+	PayoutAccountID *string `json:"payout_account_id" example:"acc_123"`
+}
+
+func (r *UpdateProfileRequest) Validate(v *validator.Validator) error {
+	if !v.IsValidUsername(r.User.Username) ||
+		!v.IsValidNickname(r.User.Nickname) ||
+		!v.IsValidEmail(r.User.Email) {
+		return validator.ErrValidation
+	}
+
+	if r.Author == nil {
+		return nil
+	}
+	if !v.IsValidBio(r.Author.Bio) {
+		return validator.ErrValidation
+	}
+	if r.Author.Category != nil && !v.IsValidCategory(*r.Author.Category) {
+		return validator.ErrValidation
+	}
+	if !isValidPayout(r.Author.PayoutProvider, r.Author.PayoutAccountID) {
+		return validator.ErrValidation
+	}
+
+	return nil
+}
+
+// isValidPayout проверяет, что провайдер и счет выплат либо заданы вместе, либо оба пустые
+func isValidPayout(provider, accountID *string) bool {
+	if provider == nil || accountID == nil {
+		return provider == nil && accountID == nil
+	}
+	return strings.TrimSpace(*provider) != "" && strings.TrimSpace(*accountID) != ""
 }

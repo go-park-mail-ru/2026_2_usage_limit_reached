@@ -13,6 +13,7 @@ import (
 	PostRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/repository"
 	PostUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/usecase"
 	ProfileHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery"
+	ProfileRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/profile"
 	ProfileUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
 	UserRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/repository/user"
 	UserUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
@@ -56,6 +57,7 @@ func main() {
 	userRepo := UserRepo.NewUserRepository(postgresCli.Pool)
 	authorRepo := AuthorRepo.NewAuthorRepository(postgresCli.Pool)
 	postRepo := PostRepo.NewPostRepository(postgresCli.Pool)
+	profileRepo := ProfileRepo.NewProfileRepository(postgresCli.Pool)
 
 	userUc := UserUsecase.NewUsecase(userRepo)
 	uc := usecase.NewUsecase(userUc, tokens)
@@ -71,8 +73,8 @@ func main() {
 	postHandler := PostHandlers.NewHandler(postUc, valid, appLogger)
 
 	authorUc := AuthorUsecase.NewUsecase(authorRepo)
-	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, postUc)
-	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, appLogger)
+	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, postUc, profileRepo)
+	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, valid, appLogger)
 
 	r := mux.NewRouter()
 	r.Use(

@@ -28,6 +28,14 @@ type NicknameRules struct {
 	MaxLen int `mapstructure:"max_len"`
 }
 
+type BioRules struct {
+	MaxLen int `mapstructure:"max_len"`
+}
+
+type CategoryRules struct {
+	MaxLen int `mapstructure:"max_len"`
+}
+
 type PasswordRules struct {
 	MinLen int `mapstructure:"min_len"`
 	MaxLen int `mapstructure:"max_len"`
@@ -47,6 +55,8 @@ type PostRules struct {
 type ValidationConfig struct {
 	Username UsernameRules `mapstructure:"username"`
 	Nickname NicknameRules `mapstructure:"nickname"`
+	Bio      BioRules      `mapstructure:"bio"`
+	Category CategoryRules `mapstructure:"category"`
 	Password PasswordRules `mapstructure:"password"`
 	Email    EmailRules    `mapstructure:"email"`
 	Post     PostRules     `mapstructure:"post"`
@@ -60,6 +70,8 @@ func DefaultConfig() ValidationConfig {
 			AllowedRunes: defaultUsernameAllowedRunes,
 		},
 		Nickname: NicknameRules{MaxLen: 64},
+		Bio:      BioRules{MaxLen: 1000},
+		Category: CategoryRules{MaxLen: 64},
 		Password: PasswordRules{MinLen: 8, MaxLen: 72},
 		Email: EmailRules{
 			MaxLen: 254,
@@ -83,6 +95,8 @@ func (c ValidationConfig) Validate() error {
 		{"username.min_len", c.Username.MinLen},
 		{"username.max_len", c.Username.MaxLen},
 		{"nickname.max_len", c.Nickname.MaxLen},
+		{"bio.max_len", c.Bio.MaxLen},
+		{"category.max_len", c.Category.MaxLen},
 		{"password.min_len", c.Password.MinLen},
 		{"password.max_len", c.Password.MaxLen},
 		{"email.max_len", c.Email.MaxLen},
@@ -162,6 +176,15 @@ func (v Validator) IsValidUsername(username string) bool {
 func (v Validator) IsValidNickname(nickname string) bool {
 	length := len([]rune(nickname))
 	return length > 0 && length <= v.cfg.Nickname.MaxLen
+}
+
+func (v Validator) IsValidBio(bio string) bool {
+	return len([]rune(bio)) <= v.cfg.Bio.MaxLen
+}
+
+func (v Validator) IsValidCategory(category string) bool {
+	length := len([]rune(strings.TrimSpace(category)))
+	return length > 0 && length <= v.cfg.Category.MaxLen
 }
 
 func (v Validator) IsValidPassword(password string) bool {

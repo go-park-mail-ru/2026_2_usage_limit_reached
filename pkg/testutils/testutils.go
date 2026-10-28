@@ -12,6 +12,8 @@ func SetupValidator() *validator.Validator {
 			AllowedRunes: "abcdefghijklmnopqrstuvwxyz0123456789_",
 		},
 		Nickname: validator.NicknameRules{MaxLen: 32},
+		Bio:      validator.BioRules{MaxLen: 1000},
+		Category: validator.CategoryRules{MaxLen: 64},
 		Password: validator.PasswordRules{MinLen: 8, MaxLen: 32},
 		Email: validator.EmailRules{
 			MaxLen: 32,

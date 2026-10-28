@@ -106,6 +106,7 @@ func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 				userInfoMock{users: map[uuid.UUID]userdto.UserInfo{profileUserID: *user}},
 				authorInfoMock{authors: authors},
 				postsMock{},
+				nil,
 			)
 			got, err := uc.GetMyProfile(context.Background(), profileUserID)
 			require.NoError(t, err)
@@ -137,7 +138,7 @@ func TestProfileUsecase_GetMyProfile_Errors(t *testing.T) {
 			if tt.user != nil {
 				users[profileUserID] = *tt.user
 			}
-			uc := profileusecase.NewProfileUsecase(userInfoMock{users: users, err: tt.userErr}, authorInfoMock{err: tt.authorErr}, postsMock{})
+			uc := profileusecase.NewProfileUsecase(userInfoMock{users: users, err: tt.userErr}, authorInfoMock{err: tt.authorErr}, postsMock{}, nil)
 			got, err := uc.GetMyProfile(context.Background(), profileUserID)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
@@ -169,7 +170,7 @@ func TestProfileUsecase_GetMyPosts_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			uc := profileusecase.NewProfileUsecase(userInfoMock{}, authorInfoMock{}, postsMock{posts: map[uuid.UUID][]*postdto.PostInfo{profileUserID: tt.posts}})
+			uc := profileusecase.NewProfileUsecase(userInfoMock{}, authorInfoMock{}, postsMock{posts: map[uuid.UUID][]*postdto.PostInfo{profileUserID: tt.posts}}, nil)
 			got, err := uc.GetMyPosts(context.Background(), profileUserID)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
@@ -191,7 +192,7 @@ func TestProfileUsecase_GetMyPosts_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			uc := profileusecase.NewProfileUsecase(userInfoMock{}, authorInfoMock{}, postsMock{err: tt.postsErr})
+			uc := profileusecase.NewProfileUsecase(userInfoMock{}, authorInfoMock{}, postsMock{err: tt.postsErr}, nil)
 			got, err := uc.GetMyPosts(context.Background(), profileUserID)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)

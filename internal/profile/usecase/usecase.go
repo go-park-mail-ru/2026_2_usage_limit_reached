@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/dto"
-	authdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
-	authuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
+	userusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
 	"github.com/google/uuid"
 )
@@ -18,7 +18,7 @@ var (
 )
 
 type UserInfoProvider interface {
-	FindUserByID(ctx context.Context, userID uuid.UUID) (*authdto.UserInfo, error)
+	FindUserByID(ctx context.Context, userID uuid.UUID) (*userdto.UserInfo, error)
 }
 
 type ProfileRepository interface {
@@ -38,7 +38,7 @@ func NewProfileUsecase(users UserInfoProvider, profiles ProfileRepository) *Prof
 func (uc *ProfileUsecase) GetMyProfile(ctx context.Context, userID uuid.UUID) (*dto.ProfileResponse, error) {
 	userProfile, err := uc.usersRepo.FindUserByID(ctx, userID)
 	if err != nil {
-		if errors.Is(err, authuc.ErrUserNotFound) {
+		if errors.Is(err, userusecase.ErrUserNotFound) {
 			return nil, fmt.Errorf("get user: %w", ErrProfileNotFound)
 		}
 		return nil, fmt.Errorf("get user: %w", err)

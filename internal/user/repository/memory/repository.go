@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/models"
 )
 
 type UserRepository struct {

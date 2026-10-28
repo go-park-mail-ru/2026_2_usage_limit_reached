@@ -13,6 +13,10 @@ var (
 	ErrInternal     = errors.New("internal server error")
 )
 
+const (
+	StatusActive = "active"
+)
+
 type User struct {
 	ID           uuid.UUID
 	Username     string

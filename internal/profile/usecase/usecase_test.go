@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	authdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
-	authuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
+	userusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
 	profiledto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
 	profileusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
@@ -22,17 +22,17 @@ var (
 )
 
 type userInfoMock struct {
-	users map[uuid.UUID]authdto.UserInfo
+	users map[uuid.UUID]userdto.UserInfo
 	err   error
 }
 
-func (s userInfoMock) FindUserByID(_ context.Context, id uuid.UUID) (*authdto.UserInfo, error) {
+func (s userInfoMock) FindUserByID(_ context.Context, id uuid.UUID) (*userdto.UserInfo, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	user, ok := s.users[id]
 	if !ok {
-		return nil, authuc.ErrUserNotFound
+		return nil, userusecase.ErrUserNotFound
 	}
 	return &user, nil
 }
@@ -67,7 +67,7 @@ func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 
 	path := "avatars/ivan.png"
 	avatar := &path
-	user := &authdto.UserInfo{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarKey: avatar, CreatedAt: profileTime}
+	user := &userdto.UserInfo{ID: profileUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", AvatarKey: avatar, CreatedAt: profileTime}
 	author := &models.Author{Bio: "Пишу о технологиях", Category: "Технологии"}
 	tests := []struct {
 		name   string
@@ -97,7 +97,7 @@ func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 				authors[profileUserID] = *tt.author
 			}
 			uc := profileusecase.NewProfileUsecase(
-				userInfoMock{users: map[uuid.UUID]authdto.UserInfo{profileUserID: *user}},
+				userInfoMock{users: map[uuid.UUID]userdto.UserInfo{profileUserID: *user}},
 				profileRepositoryMock{authors: authors},
 			)
 			got, err := uc.GetMyProfile(context.Background(), profileUserID)
@@ -114,19 +114,19 @@ func TestProfileUsecase_GetMyProfile_Errors(t *testing.T) {
 	technicalAuthorErr := errors.New("author storage unavailable")
 	tests := []struct {
 		name      string
-		user      *authdto.UserInfo
+		user      *userdto.UserInfo
 		userErr   error
 		authorErr error
 		wantErr   error
 	}{
-		{name: "unknown user", userErr: authuc.ErrUserNotFound, wantErr: profileusecase.ErrProfileNotFound},
+		{name: "unknown user", userErr: userusecase.ErrUserNotFound, wantErr: profileusecase.ErrProfileNotFound},
 		{name: "user storage failure", userErr: technicalUserErr, wantErr: technicalUserErr},
-		{name: "author storage failure", user: &authdto.UserInfo{ID: profileUserID}, authorErr: technicalAuthorErr, wantErr: technicalAuthorErr},
+		{name: "author storage failure", user: &userdto.UserInfo{ID: profileUserID}, authorErr: technicalAuthorErr, wantErr: technicalAuthorErr},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			users := make(map[uuid.UUID]authdto.UserInfo)
+			users := make(map[uuid.UUID]userdto.UserInfo)
 			if tt.user != nil {
 				users[profileUserID] = *tt.user
 			}

@@ -11,7 +11,12 @@ var (
 	ErrValidation = errors.New("validation error")
 )
 
-const defaultUsernameAllowedRunes = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_"
+const (
+	defaultUsernameAllowedRunes = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_"
+	postPublishedStatus         = "published"
+	postDraftStatus             = "draft"
+	postArchivedStatus          = "archived"
+)
 
 type UsernameRules struct {
 	MinLen       int    `mapstructure:"min_len"`
@@ -33,11 +38,18 @@ type EmailRules struct {
 	Regexp string `mapstructure:"regexp"`
 }
 
+type PostRules struct {
+	MaxTitleLen       int      `mapstructure:"max_title_len"`
+	MaxBodyLen        int      `mapstructure:"max_body_len"`
+	AllowedPostStatus []string `mapstructure:"allowed_post_status"`
+}
+
 type ValidationConfig struct {
 	Username UsernameRules `mapstructure:"username"`
 	Nickname NicknameRules `mapstructure:"nickname"`
 	Password PasswordRules `mapstructure:"password"`
 	Email    EmailRules    `mapstructure:"email"`
+	Post     PostRules     `mapstructure:"post"`
 }
 
 func DefaultConfig() ValidationConfig {
@@ -52,6 +64,11 @@ func DefaultConfig() ValidationConfig {
 		Email: EmailRules{
 			MaxLen: 254,
 			Regexp: `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`,
+		},
+		Post: PostRules{
+			MaxTitleLen:       255,
+			MaxBodyLen:        20000,
+			AllowedPostStatus: []string{postPublishedStatus, postDraftStatus, postArchivedStatus},
 		},
 	}
 }
@@ -69,6 +86,8 @@ func (c ValidationConfig) Validate() error {
 		{"password.min_len", c.Password.MinLen},
 		{"password.max_len", c.Password.MaxLen},
 		{"email.max_len", c.Email.MaxLen},
+		{"post.max_title_len", c.Post.MaxTitleLen},
+		{"post.max_body_len", c.Post.MaxBodyLen},
 	}
 	for _, p := range positive {
 		if p.value <= 0 {
@@ -87,6 +106,9 @@ func (c ValidationConfig) Validate() error {
 	}
 	if _, err := regexp.Compile(c.Email.Regexp); err != nil {
 		errs = append(errs, fmt.Errorf("validator: invalid email.regexp: %w", err))
+	}
+	if len(c.Post.AllowedPostStatus) == 0 {
+		errs = append(errs, errors.New("validator: post.allowed_post_status must not be empty"))
 	}
 
 	return errors.Join(errs...)
@@ -145,4 +167,23 @@ func (v Validator) IsValidNickname(nickname string) bool {
 func (v Validator) IsValidPassword(password string) bool {
 	length := len(password)
 	return length >= v.cfg.Password.MinLen && length <= v.cfg.Password.MaxLen
+}
+
+func (v Validator) IsValidPostTitle(title string) bool {
+	length := len([]rune(strings.TrimSpace(title)))
+	return length > 0 && length <= v.cfg.Post.MaxTitleLen
+}
+
+func (v Validator) IsValidPostBody(body string) bool {
+	length := len([]rune(strings.TrimSpace(body)))
+	return length > 0 && length <= v.cfg.Post.MaxBodyLen
+}
+
+func (v Validator) IsValidPostStatus(status string) bool {
+	for _, st := range v.cfg.Post.AllowedPostStatus {
+		if status == st {
+			return true
+		}
+	}
+	return false
 }

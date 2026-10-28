@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -28,7 +27,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var regReq dto.RegistrationRequest
 	defer r.Body.Close()
 
-	if err := json.NewDecoder(r.Body).Decode(&regReq); err != nil {
+	if err := response.DecodeJSON(w, r, &regReq); err != nil {
 		h.handleError(r.Context(), w, "register", "request body decode error", validator.ErrValidation)
 		return
 	}
@@ -70,7 +69,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var loginReq dto.LoginRequest
 	defer r.Body.Close()
 
-	if err := json.NewDecoder(r.Body).Decode(&loginReq); err != nil {
+	if err := response.DecodeJSON(w, r, &loginReq); err != nil {
 		h.handleError(r.Context(), w, "login", "request body decode error", usecase.ErrLoginFailed)
 		return
 	}

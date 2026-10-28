@@ -10,7 +10,6 @@ import (
 var (
 	ErrUserExists   = errors.New("user already exists")
 	ErrUserNotFound = errors.New("no user found")
-	ErrInternal     = errors.New("internal server error")
 )
 
 const (

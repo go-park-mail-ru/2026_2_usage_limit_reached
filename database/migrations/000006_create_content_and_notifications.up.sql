@@ -21,8 +21,6 @@ CREATE TABLE post (
         )
 );
 
-CREATE INDEX post_author_id_idx ON post (author_id);
-
 CREATE TRIGGER trg_post_set_updated_at
     BEFORE UPDATE ON post
     FOR EACH ROW
@@ -44,8 +42,6 @@ CREATE TABLE post_access (
         REFERENCES subscription_type (id)
         ON DELETE RESTRICT
 );
-
-CREATE INDEX post_access_subscription_type_id_idx ON post_access (subscription_type_id);
 
 CREATE TRIGGER trg_post_access_set_updated_at
     BEFORE UPDATE ON post_access
@@ -98,8 +94,6 @@ CREATE TABLE post_like (
         REFERENCES "user" (id)
         ON DELETE CASCADE
 );
-
-CREATE INDEX post_like_user_id_idx ON post_like (user_id);
 
 CREATE TRIGGER trg_post_like_set_updated_at
     BEFORE UPDATE ON post_like

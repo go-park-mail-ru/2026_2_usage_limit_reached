@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
 	"github.com/google/uuid"
@@ -21,7 +22,7 @@ func TestUsecase_CreateUser(t *testing.T) {
 	}
 
 	uc := usecase.NewUsecase(repo)
-	_, err := uc.CreateUser(context.Background(), &models.User{Email: "Test@Mail.ru ", Username: " TestUser "})
+	_, err := uc.CreateUser(context.Background(), dto.CreateUserRequest{Email: "Test@Mail.ru ", Username: " TestUser "})
 	require.NoError(t, err)
 }
 
@@ -35,7 +36,7 @@ func TestUsecase_FindUserByLogin(t *testing.T) {
 	})
 	got, err := byEmail.FindUserByLogin(context.Background(), "user@mail.ru")
 	require.NoError(t, err)
-	require.Same(t, user, got)
+	require.Equal(t, user.ID, got.ID)
 
 	byUsername := usecase.NewUsecase(&MockRepository{
 		GetUserByUsernameFunc: func(ctx context.Context, username string) (*models.User, error) {
@@ -44,7 +45,7 @@ func TestUsecase_FindUserByLogin(t *testing.T) {
 	})
 	got, err = byUsername.FindUserByLogin(context.Background(), "username")
 	require.NoError(t, err)
-	require.Same(t, user, got)
+	require.Equal(t, user.ID, got.ID)
 }
 
 func TestUsecase_FindUserByID(t *testing.T) {

@@ -4,23 +4,23 @@ import (
 	"context"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/models"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 	"github.com/google/uuid"
 )
 
 type MockUserProvider struct {
-	CreateUserFunc      func(ctx context.Context, user *models.User) (*models.User, error)
-	FindUserByLoginFunc func(ctx context.Context, login string) (*models.User, error)
+	CreateUserFunc      func(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error)
+	FindUserByLoginFunc func(ctx context.Context, login string) (*userdto.UserCredentials, error)
 }
 
-func (m *MockUserProvider) CreateUser(ctx context.Context, user *models.User) (*models.User, error) {
+func (m *MockUserProvider) CreateUser(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error) {
 	if m.CreateUserFunc != nil {
-		return m.CreateUserFunc(ctx, user)
+		return m.CreateUserFunc(ctx, req)
 	}
 	return nil, nil
 }
 
-func (m *MockUserProvider) FindUserByLogin(ctx context.Context, login string) (*models.User, error) {
+func (m *MockUserProvider) FindUserByLogin(ctx context.Context, login string) (*userdto.UserCredentials, error) {
 	if m.FindUserByLoginFunc != nil {
 		return m.FindUserByLoginFunc(ctx, login)
 	}

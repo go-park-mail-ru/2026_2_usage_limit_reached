@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/models"
+	userusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -18,16 +20,14 @@ func (uc *Usecase) Register(ctx context.Context, regInput dto.RegistrationReques
 		return nil, "", fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	user := &models.User{
+	user, err := uc.users.CreateUser(ctx, userdto.CreateUserRequest{
 		Email:        regInput.Email,
 		Username:     regInput.Username,
 		Nickname:     regInput.Nickname,
 		PasswordHash: string(passwordHash),
-	}
-
-	user, err = uc.users.CreateUser(ctx, user)
+	})
 	if err != nil {
-		if errors.Is(err, models.ErrUserExists) {
+		if errors.Is(err, userusecase.ErrUserExists) {
 			return nil, "", fmt.Errorf("%w: %w", ErrRegistrationFailed, err)
 		}
 		return nil, "", fmt.Errorf("failed to create user: %w", err)
@@ -46,7 +46,7 @@ func (uc *Usecase) Login(ctx context.Context, logReq dto.LoginRequest) (*dto.Use
 	user, err := uc.users.FindUserByLogin(ctx, logReq.Login)
 
 	if err != nil {
-		if errors.Is(err, models.ErrUserNotFound) {
+		if errors.Is(err, userusecase.ErrUserNotFound) {
 			return nil, "", fmt.Errorf("%w: %w", ErrLoginFailed, err)
 		}
 		return nil, "", fmt.Errorf("failed to find user: %w", err)
@@ -66,7 +66,7 @@ func (uc *Usecase) Login(ctx context.Context, logReq dto.LoginRequest) (*dto.Use
 		return nil, "", fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	response := dto.ToUserResponse(user)
+	response := dto.ToUserResponse(&user.UserInfo)
 	return response, token, nil
 }
 

@@ -9,7 +9,8 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/models"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
+	userusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -36,8 +37,8 @@ func TestUsecase_Register(t *testing.T) {
 			name:  "Success",
 			input: validInput,
 			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.CreateUserFunc = func(ctx context.Context, user *models.User) (*models.User, error) {
-					return user, nil
+				r.CreateUserFunc = func(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error) {
+					return &userdto.UserInfo{Email: req.Email, Username: req.Username}, nil
 				}
 				tm.GenerateFunc = func(ID uuid.UUID, payload any) (string, error) {
 					return "jwt-token", nil
@@ -56,8 +57,8 @@ func TestUsecase_Register(t *testing.T) {
 			name:  "Repo error: User already exists",
 			input: validInput,
 			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.CreateUserFunc = func(ctx context.Context, user *models.User) (*models.User, error) {
-					return nil, models.ErrUserExists
+				r.CreateUserFunc = func(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error) {
+					return nil, userusecase.ErrUserExists
 				}
 			},
 			expectedErr: usecase.ErrRegistrationFailed,
@@ -66,7 +67,7 @@ func TestUsecase_Register(t *testing.T) {
 			name:  "Repo error: DB error",
 			input: validInput,
 			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.CreateUserFunc = func(ctx context.Context, user *models.User) (*models.User, error) {
+				r.CreateUserFunc = func(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error) {
 					return nil, errors.New("db connection down")
 				}
 			},
@@ -76,8 +77,8 @@ func TestUsecase_Register(t *testing.T) {
 			name:  "Token generator error",
 			input: validInput,
 			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.CreateUserFunc = func(ctx context.Context, user *models.User) (*models.User, error) {
-					return user, nil
+				r.CreateUserFunc = func(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error) {
+					return &userdto.UserInfo{Email: req.Email, Username: req.Username}, nil
 				}
 				tm.GenerateFunc = func(ID uuid.UUID, payload any) (string, error) {
 					return "", errors.New("token failure")
@@ -122,12 +123,14 @@ func TestUsecase_Login(t *testing.T) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(plainPassword), bcrypt.DefaultCost)
 	require.NoError(t, err)
 
-	activeUser := &models.User{
-		ID:           uuid.New(),
-		Email:        "user@mail.ru",
-		Username:     "username",
+	activeUser := &userdto.UserCredentials{
+		UserInfo: userdto.UserInfo{
+			ID:       uuid.New(),
+			Email:    "user@mail.ru",
+			Username: "username",
+			Status:   "active",
+		},
 		PasswordHash: string(hash),
-		Status:       "active",
 	}
 
 	tests := []struct {
@@ -142,7 +145,7 @@ func TestUsecase_Login(t *testing.T) {
 			name:  "Success login by Email",
 			input: dto.LoginRequest{Login: "user@mail.ru", Password: plainPassword},
 			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.FindUserByLoginFunc = func(ctx context.Context, login string) (*models.User, error) {
+				r.FindUserByLoginFunc = func(ctx context.Context, login string) (*userdto.UserCredentials, error) {
 					return activeUser, nil
 				}
 				tm.GenerateFunc = func(ID uuid.UUID, payload any) (string, error) {
@@ -155,8 +158,8 @@ func TestUsecase_Login(t *testing.T) {
 			name:  "User not found",
 			input: dto.LoginRequest{Login: "unknown@mail.ru", Password: plainPassword},
 			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.FindUserByLoginFunc = func(ctx context.Context, login string) (*models.User, error) {
-					return nil, models.ErrUserNotFound
+				r.FindUserByLoginFunc = func(ctx context.Context, login string) (*userdto.UserCredentials, error) {
+					return nil, userusecase.ErrUserNotFound
 				}
 			},
 			expectedErr: usecase.ErrLoginFailed,
@@ -165,7 +168,7 @@ func TestUsecase_Login(t *testing.T) {
 			name:  "Repo DB error",
 			input: dto.LoginRequest{Login: "user@mail.ru", Password: plainPassword},
 			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.FindUserByLoginFunc = func(ctx context.Context, login string) (*models.User, error) {
+				r.FindUserByLoginFunc = func(ctx context.Context, login string) (*userdto.UserCredentials, error) {
 					return nil, errors.New("db network error")
 				}
 			},
@@ -175,7 +178,7 @@ func TestUsecase_Login(t *testing.T) {
 			name:  "Wrong password",
 			input: dto.LoginRequest{Login: "user@mail.ru", Password: "wrong_password"},
 			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.FindUserByLoginFunc = func(ctx context.Context, login string) (*models.User, error) {
+				r.FindUserByLoginFunc = func(ctx context.Context, login string) (*userdto.UserCredentials, error) {
 					return activeUser, nil
 				}
 			},
@@ -185,7 +188,7 @@ func TestUsecase_Login(t *testing.T) {
 			name:  "User banned",
 			input: dto.LoginRequest{Login: "user@mail.ru", Password: plainPassword},
 			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.FindUserByLoginFunc = func(ctx context.Context, login string) (*models.User, error) {
+				r.FindUserByLoginFunc = func(ctx context.Context, login string) (*userdto.UserCredentials, error) {
 					inactiveUser := *activeUser
 					inactiveUser.Status = "banned"
 					return &inactiveUser, nil
@@ -198,7 +201,7 @@ func TestUsecase_Login(t *testing.T) {
 			name:  "Token generation error",
 			input: dto.LoginRequest{Login: "user@mail.ru", Password: plainPassword},
 			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.FindUserByLoginFunc = func(ctx context.Context, login string) (*models.User, error) {
+				r.FindUserByLoginFunc = func(ctx context.Context, login string) (*userdto.UserCredentials, error) {
 					return activeUser, nil
 				}
 				tm.GenerateFunc = func(ID uuid.UUID, payload any) (string, error) {

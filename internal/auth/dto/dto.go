@@ -6,7 +6,7 @@ import (
 
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/models"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 )
 
@@ -54,7 +54,7 @@ type UserResponse struct {
 	UpdatedAt time.Time `json:"updated_at" example:"2025-06-15T14:30:45.123456789Z"`
 }
 
-func ToUserResponse(user *models.User) *UserResponse {
+func ToUserResponse(user *userdto.UserInfo) *UserResponse {
 	if user == nil {
 		return nil
 	}

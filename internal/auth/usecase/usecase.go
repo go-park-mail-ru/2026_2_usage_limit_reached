@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/models"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 	"github.com/google/uuid"
 )
 
@@ -15,8 +15,8 @@ var (
 )
 
 type UserProvider interface {
-	CreateUser(ctx context.Context, user *models.User) (*models.User, error)
-	FindUserByLogin(ctx context.Context, login string) (*models.User, error)
+	CreateUser(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error)
+	FindUserByLogin(ctx context.Context, login string) (*userdto.UserCredentials, error)
 }
 
 type TokenManager interface {

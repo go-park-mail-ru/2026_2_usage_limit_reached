@@ -11,17 +11,25 @@ import (
 	"github.com/google/uuid"
 )
 
-func (uc *Usecase) CreateUser(ctx context.Context, user *models.User) (*models.User, error) {
-	user = &models.User{
+func (uc *Usecase) CreateUser(ctx context.Context, req dto.CreateUserRequest) (*dto.UserInfo, error) {
+	user := &models.User{
 		ID:           uuid.New(),
-		Email:        normalize(user.Email),
-		Username:     normalize(user.Username),
-		Nickname:     user.Nickname,
-		PasswordHash: user.PasswordHash,
+		Email:        normalize(req.Email),
+		Username:     normalize(req.Username),
+		Nickname:     req.Nickname,
+		PasswordHash: req.PasswordHash,
 		Status:       models.StatusActive,
 	}
 
-	return uc.repo.CreateUser(ctx, user)
+	user, err := uc.repo.CreateUser(ctx, user)
+	if err != nil {
+		if errors.Is(err, models.ErrUserExists) {
+			return nil, fmt.Errorf("create user: %w", ErrUserExists)
+		}
+		return nil, fmt.Errorf("create user: %w", err)
+	}
+
+	return dto.ToUserInfo(user), nil
 }
 
 func (uc *Usecase) FindUserByID(ctx context.Context, userID uuid.UUID) (*dto.UserInfo, error) {
@@ -36,8 +44,19 @@ func (uc *Usecase) FindUserByID(ctx context.Context, userID uuid.UUID) (*dto.Use
 	return dto.ToUserInfo(user), nil
 }
 
-func (uc *Usecase) FindUserByLogin(ctx context.Context, login string) (*models.User, error) {
-	login = normalize(login)
+func (uc *Usecase) FindUserByLogin(ctx context.Context, login string) (*dto.UserCredentials, error) {
+	user, err := uc.findUserByLogin(ctx, normalize(login))
+	if err != nil {
+		if errors.Is(err, models.ErrUserNotFound) {
+			return nil, fmt.Errorf("find user: %w", ErrUserNotFound)
+		}
+		return nil, fmt.Errorf("find user: %w", err)
+	}
+
+	return dto.ToUserCredentials(user), nil
+}
+
+func (uc *Usecase) findUserByLogin(ctx context.Context, login string) (*models.User, error) {
 	if strings.ContainsRune(login, '@') {
 		return uc.repo.GetUserByEmail(ctx, login)
 	}

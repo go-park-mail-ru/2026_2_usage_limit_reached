@@ -26,14 +26,15 @@ type ReceivedDonation struct {
 }
 
 type SentDonation struct {
-	PaymentOrderID uuid.UUID
-	Message        *string
-	IsAnonymous    bool
-	AmountMinor    int64
-	Currency       string
-	Status         string
-	CreatedAt      time.Time
-	Author         *DonationUserInfo
+	PaymentOrderID   uuid.UUID
+	PaymentAttemptID uuid.UUID
+	Message          *string
+	IsAnonymous      bool
+	AmountMinor      int64
+	Currency         string
+	Status           string
+	CreatedAt        time.Time
+	Author           *DonationUserInfo
 }
 
 type DonationUserInfo struct {

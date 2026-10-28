@@ -35,16 +35,16 @@ func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UU
 			INSERT INTO payment_order (payer_id, request_key, purpose, origin, expected_amount_minor, currency, status)
 			VALUES ($1, $2, 'donation', 'manual', $3, $4, 'pending')
 			ON CONFLICT (request_key) DO NOTHING
-			RETURNING id, created_at
+			RETURNING id
 		`
-		var (
-			orderID        uuid.UUID
-			orderCreatedAt time.Time
-		)
-		err := tx.QueryRow(ctx, insertOrder, payerID, req.RequestKey, req.AmountMinor, req.Currency).Scan(&orderID, &orderCreatedAt)
+		var orderID uuid.UUID
+		err := tx.QueryRow(ctx, insertOrder, payerID, req.RequestKey, req.AmountMinor, req.Currency).Scan(&orderID)
 
 		if errors.Is(err, pgx.ErrNoRows) {
-			return tx.QueryRow(ctx, `SELECT id FROM payment_order WHERE request_key = $1`, req.RequestKey).Scan(&orderID)
+			result, err = checkExistingOrder(ctx, tx, req)
+			if err != nil {
+				return err
+			}
 		} else if err != nil {
 			err = postgres.ParseError(err)
 			if errors.Is(err, postgres.ErrFKViolation) {
@@ -103,6 +103,58 @@ func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UU
 	return result, nil
 }
 
+func checkExistingOrder(ctx context.Context, tx pgx.Tx, req *dto.CreateDonationRequest) (*dto.SentDonation, error) {
+	const query = `
+		SELECT po.id, d.author_id, d.message, d.is_anonymous, 
+		po.expected_amount_minor, po.currency, po.status, d.created_at,
+	       (SELECT pa.id FROM payment_attempt pa
+	         WHERE pa.payment_order_id = po.id
+	         ORDER BY pa.created_at DESC, pa.id DESC LIMIT 1) AS attempt_id
+	  	FROM payment_order po
+		JOIN donation d ON d.payment_order_id = po.id
+		WHERE po.request_key = $1
+	`
+
+	var (
+		authorID uuid.UUID
+		donation dto.SentDonation
+	)
+	err := tx.QueryRow(ctx, query, req.RequestKey).Scan(
+		&donation.PaymentOrderID,
+		&authorID,
+		&donation.Message,
+		&donation.IsAnonymous,
+		&donation.AmountMinor,
+		&donation.Currency,
+		&donation.Status,
+		&donation.CreatedAt,
+		&donation.PaymentAttemptID,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, models.ErrDonationNotFound
+		}
+		return nil, fmt.Errorf("error while get existing payment order: %w", err)
+	}
+
+	if authorID != req.AuthorID ||
+		!equalPtr(donation.Message, req.Message) ||
+		donation.AmountMinor != req.AmountMinor ||
+		donation.Currency != req.Currency ||
+		donation.IsAnonymous != req.IsAnonymous {
+		return nil, models.ErrDonationValidation
+	}
+
+	return &donation, nil
+}
+
+func equalPtr(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
 func (r *DonationRepository) GetReceivedDonations(ctx context.Context, authorID uuid.UUID, limit int) ([]*dto.ReceivedDonation, error) {
 	const query = `
 		SELECT 
@@ -145,7 +197,6 @@ func (r *DonationRepository) GetSentDonations(ctx context.Context, payerID uuid.
 			u.avatar_key
 		FROM donation d
 		JOIN payment_order po ON po.id = d.payment_order_id
-		JOIN author a ON a.id = d.author_id
 		JOIN "user" u ON u.id = a.id
 		WHERE po.payer_id = $1
 		ORDER BY d.created_at DESC, d.payment_order_id DESC
@@ -161,7 +212,7 @@ func (r *DonationRepository) GetSentDonations(ctx context.Context, payerID uuid.
 }
 
 func scanReceivedDonations(rows pgx.Rows) ([]*dto.ReceivedDonation, error) {
-	var donations []*dto.ReceivedDonation
+	donations := make([]*dto.ReceivedDonation, 0)
 	for rows.Next() {
 		d := &dto.ReceivedDonation{}
 		var donorUsername, donorAvatar *string
@@ -187,7 +238,7 @@ func scanReceivedDonations(rows pgx.Rows) ([]*dto.ReceivedDonation, error) {
 }
 
 func scanSentDonations(rows pgx.Rows) ([]*dto.SentDonation, error) {
-	var donations []*dto.SentDonation
+	donations := make([]*dto.SentDonation, 0)
 	for rows.Next() {
 		d := &dto.SentDonation{}
 		var (

@@ -28,6 +28,10 @@ func NewDonationRepository(pool PgxCliPool) *DonationRepository {
 }
 
 func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UUID, req *dto.CreateDonationRequest) (*dto.SentDonation, error) {
+	if payerID == req.AuthorID {
+		return nil, models.ErrSelfDonation
+	}
+
 	var result *dto.SentDonation
 
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
@@ -197,7 +201,7 @@ func (r *DonationRepository) GetSentDonations(ctx context.Context, payerID uuid.
 			u.avatar_key
 		FROM donation d
 		JOIN payment_order po ON po.id = d.payment_order_id
-		JOIN "user" u ON u.id = a.id
+		JOIN "user" u ON u.id = d.author_id
 		WHERE po.payer_id = $1
 		ORDER BY d.created_at DESC, d.payment_order_id DESC
 		LIMIT $2

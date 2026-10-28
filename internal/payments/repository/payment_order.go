@@ -123,41 +123,41 @@ func (r *PaymentOrderRepository) CompleteAttempt(ctx context.Context, attempt dt
 			if result.RowsAffected() != 1 {
 				return models.ErrPaymentAttemptValidation
 			}
+		}
 
-			switch orderStatus {
-			case models.StatusPaid: // refund on already paid order
-				requireRefund = *creditedAttemptID != attempt.ID
-				if requireRefund {
-					return r.makeRefund(ctx, attempt.ID, attempt.ChargedAmountMinor, "duplicate_payment")
-				}
-				return nil
-			case models.StatusCanceled: // refund on calceled order
-				requireRefund = true
-				return r.makeRefund(ctx, attempt.ID, attempt.ChargedAmountMinor, "order_canceled")
+		switch orderStatus {
+		case models.StatusPaid: // refund on already paid order
+			requireRefund = *creditedAttemptID != attempt.ID
+			if requireRefund {
+				return makeRefund(ctx, tx, attempt.ID, attempt.ChargedAmountMinor, "duplicate_payment")
 			}
+			return nil
+		case models.StatusCanceled: // refund on calceled order
+			requireRefund = true
+			return makeRefund(ctx, tx, attempt.ID, attempt.ChargedAmountMinor, "order_canceled")
+		}
 
-			if expectedAmount != attempt.ChargedAmountMinor || expectedCurrency != attempt.ChargedCurrency { // fail invalid order
-				if orderStatus == models.StatusPending || orderStatus == models.StatusProcessing {
-					const failOrder = `
-					UPDATE payment_order
-					SET status = 'failed'
-					WHERE id = $1 AND status IN ('pending', 'processing')
-				`
-					result, err := tx.Exec(ctx, failOrder, attempt.OrderID)
-					if err != nil {
-						parsed := postgres.ParseError(err)
-						if errors.Is(parsed, postgres.ErrCheckViolation) || errors.Is(parsed, postgres.ErrFKViolation) {
-							return models.ErrPaymentOrderValidation
-						}
-						return fmt.Errorf("mark invalid payment order failed: %w", err)
-					}
-					if result.RowsAffected() != 1 {
+		if expectedAmount != attempt.ChargedAmountMinor || expectedCurrency != attempt.ChargedCurrency { // fail invalid order
+			if orderStatus == models.StatusPending || orderStatus == models.StatusProcessing {
+				const failOrder = `
+				UPDATE payment_order
+				SET status = 'failed'
+				WHERE id = $1 AND status IN ('pending', 'processing')
+			`
+				result, err := tx.Exec(ctx, failOrder, attempt.OrderID)
+				if err != nil {
+					parsed := postgres.ParseError(err)
+					if errors.Is(parsed, postgres.ErrCheckViolation) || errors.Is(parsed, postgres.ErrFKViolation) {
 						return models.ErrPaymentOrderValidation
 					}
+					return fmt.Errorf("mark invalid payment order failed: %w", err)
 				}
-				requireRefund = true
-				return r.makeRefund(ctx, attempt.ID, attempt.ChargedAmountMinor, "amount_mismatch")
+				if result.RowsAffected() != 1 {
+					return models.ErrPaymentOrderValidation
+				}
 			}
+			requireRefund = true
+			return makeRefund(ctx, tx, attempt.ID, attempt.ChargedAmountMinor, "amount_mismatch")
 		}
 
 		switch orderStatus {
@@ -216,13 +216,13 @@ func (r *PaymentOrderRepository) CompleteAttempt(ctx context.Context, attempt dt
 	return requireRefund, nil
 }
 
-func (r *PaymentOrderRepository) makeRefund(ctx context.Context, attemptID uuid.UUID, amount int64, reason string) error {
+func makeRefund(ctx context.Context, tx pgx.Tx, attemptID uuid.UUID, amount int64, reason string) error {
 	const query = `
 		INSERT INTO refund (payment_attempt_id, amount_minor, kind, reason)
 		VALUES ($1, $2, 'excess_charge', $3)
 		ON CONFLICT (payment_attempt_id) DO NOTHING
 	`
-	if _, err := r.pool.Exec(ctx, query, attemptID, amount, reason); err != nil {
+	if _, err := tx.Exec(ctx, query, attemptID, amount, reason); err != nil {
 		return fmt.Errorf("insert refund: %w", err)
 	}
 	return nil
@@ -234,7 +234,7 @@ func (r *PaymentOrderRepository) Cancel(ctx context.Context, userID, orderID uui
 		const cancelOrder = `
 			UPDATE payment_order
 			SET status = 'canceled', canceled_at = now()
-			WHERE id = $1 AND payer_id = $2 status IN ('pending', 'processing', 'failed')
+			WHERE id = $1 AND payer_id = $2 AND status IN ('pending', 'processing', 'failed')
 			RETURNING id
 		`
 		err := tx.QueryRow(ctx, cancelOrder, orderID, userID).Scan(&canceledID)

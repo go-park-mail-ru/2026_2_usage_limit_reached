@@ -52,6 +52,14 @@ func (uc *PostUsecase) GetPopularPosts(ctx context.Context, userID uuid.UUID, cu
 	return &dto.PopularPostsPage{Items: items, Next: next}, nil
 }
 
+func (uc *PostUsecase) ListPostsByAuthor(ctx context.Context, authorID uuid.UUID) ([]*dto.PostInfo, error) {
+	posts, err := uc.repo.ListPostsByAuthor(ctx, authorID)
+	if err != nil {
+		return nil, mapRepoError("list author posts", err)
+	}
+	return posts, nil
+}
+
 func paginate[C any](items []*dto.PostPreview, limit int, cursorOf func(*dto.PostPreview) C) ([]*dto.PostPreview, *C) {
 	if len(items) <= limit {
 		return items, nil

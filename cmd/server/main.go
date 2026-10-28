@@ -6,12 +6,13 @@ import (
 
 	AuthHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
+	AuthorRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/repository/author"
+	AuthorUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
 	PostHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery"
 	PostRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/repository"
 	PostUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/usecase"
 	ProfileHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery"
-	ProfileRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/memory"
 	ProfileUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
 	UserRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/repository/user"
 	UserUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
@@ -53,7 +54,7 @@ func main() {
 	defer postgresCli.Close()
 
 	userRepo := UserRepo.NewUserRepository(postgresCli.Pool)
-	profileRepo := ProfileRepo.NewProfileRepository()
+	authorRepo := AuthorRepo.NewAuthorRepository(postgresCli.Pool)
 	postRepo := PostRepo.NewPostRepository(postgresCli.Pool)
 
 	userUc := UserUsecase.NewUsecase(userRepo)
@@ -66,11 +67,12 @@ func main() {
 	authMiddleware := middleware.AuthMiddleware(tokens)
 	checkAuthMiddleware := middleware.CheckAuthMiddleware(tokens)
 
-	profileUc := ProfileUsecase.NewProfileUsecase(userUc, profileRepo)
-	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, appLogger)
-
 	postUc := PostUsecase.NewPostUsecase(postRepo)
 	postHandler := PostHandlers.NewHandler(postUc, valid, appLogger)
+
+	authorUc := AuthorUsecase.NewUsecase(authorRepo)
+	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, postUc)
+	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, appLogger)
 
 	r := mux.NewRouter()
 	r.Use(

@@ -1,12 +1,13 @@
 package dto
 
 import (
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
+	authordto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/dto"
+	postdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
 	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 	"github.com/google/uuid"
 )
 
-func ToProfileResponse(user *userdto.UserInfo, author *models.Author) *ProfileResponse {
+func ToProfileResponse(user *userdto.UserInfo, author *authordto.AuthorInfo) *ProfileResponse {
 
 	return &ProfileResponse{
 		User:   toUserResponse(*user),
@@ -14,7 +15,7 @@ func ToProfileResponse(user *userdto.UserInfo, author *models.Author) *ProfileRe
 	}
 }
 
-func ToProfilePostsResponse(userID uuid.UUID, posts []models.Post) *ProfilePostsResponse {
+func ToProfilePostsResponse(userID uuid.UUID, posts []*postdto.PostInfo) *ProfilePostsResponse {
 	postResponses := make([]PostResponse, 0, len(posts))
 	for _, post := range posts {
 		postResponses = append(postResponses, toPostResponse(post))
@@ -37,19 +38,23 @@ func toUserResponse(user userdto.UserInfo) ProfileUserResponse {
 	}
 }
 
-func toAuthorResponse(author *models.Author) *AuthorResponse {
+func toAuthorResponse(author *authordto.AuthorInfo) *AuthorResponse {
 	if author == nil {
 		return nil
 	}
-	return &AuthorResponse{Bio: author.Bio, Category: author.Category}
+	var category string
+	if author.Category != nil {
+		category = *author.Category
+	}
+	return &AuthorResponse{Bio: author.Bio, Category: category}
 }
 
-func toPostResponse(post models.Post) PostResponse {
+func toPostResponse(post *postdto.PostInfo) PostResponse {
 	return PostResponse{
 		ID:          post.ID,
 		Title:       post.Title,
 		Body:        post.Body,
-		Status:      string(post.Status),
+		Status:      post.Status,
 		PublishedAt: post.PublishedAt,
 	}
 }

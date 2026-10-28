@@ -192,6 +192,44 @@ func (r *PostRepository) GetPopularPosts(ctx context.Context, userID uuid.UUID, 
 	return posts, nil
 }
 
+func (r *PostRepository) ListPostsByAuthor(ctx context.Context, authorID uuid.UUID) ([]*dto.PostInfo, error) {
+	const query = `
+		SELECT id, author_id, title, body, status, published_at, created_at, updated_at
+		FROM post
+		WHERE author_id = $1
+		ORDER BY created_at DESC, id
+	`
+
+	rows, err := r.pool.Query(ctx, query, authorID)
+	if err != nil {
+		return nil, fmt.Errorf("list author posts error: %w", err)
+	}
+	defer rows.Close()
+
+	posts := make([]*dto.PostInfo, 0)
+	for rows.Next() {
+		post := &dto.PostInfo{}
+		err := rows.Scan(
+			&post.ID,
+			&post.Author.ID,
+			&post.Title,
+			&post.Body,
+			&post.Status,
+			&post.PublishedAt,
+			&post.CreatedAt,
+			&post.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("list author posts error: %w", err)
+		}
+		posts = append(posts, post)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list author posts error: %w", err)
+	}
+	return posts, nil
+}
+
 func scanPosts(rows pgx.Rows) ([]*dto.PostPreview, error) {
 	posts := make([]*dto.PostPreview, 0)
 	defer rows.Close()

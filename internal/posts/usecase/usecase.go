@@ -39,6 +39,7 @@ type PostRepository interface {
 	GetPost(ctx context.Context, userID, postID uuid.UUID) (*dto.PostInfo, error)
 	GetNewPosts(ctx context.Context, userID uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error)
 	GetPopularPosts(ctx context.Context, userID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
+	ListPostsByAuthor(ctx context.Context, authorID uuid.UUID) ([]*dto.PostInfo, error)
 	UpdatePost(ctx context.Context, userID uuid.UUID, p models.Post, lastUpdatedAt time.Time) error
 	DeletePost(ctx context.Context, userID, postID uuid.UUID) error
 

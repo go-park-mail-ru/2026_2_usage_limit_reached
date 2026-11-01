@@ -37,7 +37,7 @@ func (uc *PostUsecase) GetNewPosts(ctx context.Context, userID *uuid.UUID, curso
 		return nil, fmt.Errorf("failed to get new posts: %w", err)
 	}
 	items, next := paginate(posts, limit, func(p *dto.PostPreview) dto.NewPostsCursor {
-		return dto.NewPostsCursor{PublishedAt: *p.PublishedAt, PostID: p.ID}
+		return dto.NewPostsCursor{PublishedOrUpdatedAt: *p.PublishedAt, PostID: p.ID}
 	})
 	return &dto.NewPostsPage{Items: items, Next: next}, nil
 }

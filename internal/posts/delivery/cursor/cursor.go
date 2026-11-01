@@ -16,7 +16,7 @@ var (
 	NewPosts = cursor.Codec[dto.NewPostsCursor]{
 		Kind: typeNewPosts,
 		Valid: func(c *dto.NewPostsCursor) bool {
-			return !c.PublishedAt.IsZero() && c.PostID != uuid.Nil
+			return !c.PublishedOrUpdatedAt.IsZero() && c.PostID != uuid.Nil
 		},
 	}
 	PopularPosts = cursor.Codec[dto.PopularPostsCursor]{

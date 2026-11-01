@@ -56,6 +56,15 @@ type PostInfo struct {
 	LikedByUser bool           `json:"liked_by_user"`
 }
 
+type MyPostPreview struct {
+	ID                   uuid.UUID  `json:"id"`
+	Title                string     `json:"title"`
+	BodyPreview          string     `json:"body_preview"`
+	PublishedOrUpdatedAt *time.Time `json:"ts"`
+	LikesCount           int64      `json:"likes_count"`
+	LikedByUser          bool       `json:"liked_by_user"`
+}
+
 type PostPreview struct {
 	ID          uuid.UUID      `json:"id"`
 	Author      AuthorResponse `json:"author"`
@@ -73,8 +82,8 @@ type PostsPageResponse struct {
 }
 
 type NewPostsCursor struct {
-	PublishedAt time.Time `json:"published_at"`
-	PostID      uuid.UUID `json:"post_id"`
+	PublishedOrUpdatedAt time.Time `json:"ts"`
+	PostID               uuid.UUID `json:"post_id"`
 }
 
 type PopularPostsCursor struct {

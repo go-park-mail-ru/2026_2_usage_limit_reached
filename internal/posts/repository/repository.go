@@ -90,6 +90,137 @@ func (r *PostRepository) GetPost(ctx context.Context, userID *uuid.UUID, postID 
 	return post, nil
 }
 
+func (r *PostRepository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.MyPostPreview, error) {
+	const query = `
+		SELECT 
+			p.id, p.author_id, p.title,
+			p.body_preview,
+			p.published_at, p.likes_count,
+			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
+		FROM post p
+		WHERE p.status = 'published'
+			AND ($2::timestamptz IS NULL OR (p.published_at, p.id) < ($2::timestamptz, $3::uuid))
+			AND p.author_id = $1
+		ORDER BY p.published_at DESC, p.id DESC
+		LIMIT $4
+	`
+
+	if userID == nil {
+		return nil, models.ErrUnauthorized
+	}
+
+	var (
+		ts *time.Time
+		id *uuid.UUID
+	)
+	if cursor != nil {
+		ts, id = &cursor.PublishedOrUpdatedAt, &cursor.PostID
+	}
+
+	rows, err := r.pool.Query(ctx, query, userID, ts, id, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get my new posts error: %w", err)
+	}
+	posts, err := scanMyPosts(rows)
+	if err != nil {
+		return nil, fmt.Errorf("get my new posts error: %w", err)
+	}
+	return posts, nil
+}
+
+func (r *PostRepository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.MyPostPreview, error) {
+	const query = `
+		SELECT p.id, p.author_id, p.title,
+				p.body_preview,
+				EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
+		FROM post p
+		WHERE p.status = 'published'
+				AND $2::bigint IS NULL OR (p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid)
+				AND p.author_id = $1
+		ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC
+		LIMIT $5
+	`
+	var (
+		likes *int64
+		ts    *time.Time
+		id    *uuid.UUID
+	)
+	if cursor != nil {
+		likes, ts, id = &cursor.Likes, &cursor.PublishedAt, &cursor.PostID
+	}
+
+	rows, err := r.pool.Query(ctx, query, userID, likes, ts, id, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get my popular posts error: %w", err)
+	}
+	posts, err := scanMyPosts(rows)
+	if err != nil {
+		return nil, fmt.Errorf("get my popular posts error: %w", err)
+	}
+	return posts, nil
+}
+
+func (r *PostRepository) GetMyDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.MyPostPreview, error) {
+	const query = `
+		SELECT 
+			p.id, p.author_id, p.title,
+			p.body_preview,
+			p.updated_at, 0, FALSE,
+		FROM post p
+		WHERE p.status = 'draft'
+			AND ($2::timestamptz IS NULL OR (p.updated_at, p.id) < ($2::timestamptz, $3::uuid))
+			AND p.author_id = $1
+		ORDER BY p.updated_at DESC, p.id DESC
+		LIMIT $4
+	`
+
+	if userID == nil {
+		return nil, models.ErrUnauthorized
+	}
+
+	var (
+		ts *time.Time
+		id *uuid.UUID
+	)
+	if cursor != nil {
+		ts, id = &cursor.PublishedOrUpdatedAt, &cursor.PostID
+	}
+
+	rows, err := r.pool.Query(ctx, query, userID, ts, id, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get my new posts error: %w", err)
+	}
+	posts, err := scanMyPosts(rows)
+	if err != nil {
+		return nil, fmt.Errorf("get my new posts error: %w", err)
+	}
+	return posts, nil
+}
+
+func scanMyPosts(rows pgx.Rows) ([]*dto.MyPostPreview, error) {
+	posts := make([]*dto.MyPostPreview, 0)
+	defer rows.Close()
+	for rows.Next() {
+		post := &dto.MyPostPreview{}
+		err := rows.Scan(
+			&post.ID,
+			&post.Title,
+			&post.BodyPreview,
+			&post.PublishedOrUpdatedAt,
+			&post.LikesCount,
+			&post.LikedByUser,
+		)
+		if err != nil {
+			return nil, err
+		}
+		posts = append(posts, post)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return posts, nil
+}
+
 func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
@@ -121,7 +252,7 @@ func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cur
 		id *uuid.UUID
 	)
 	if cursor != nil {
-		ts, id = &cursor.PublishedAt, &cursor.PostID
+		ts, id = &cursor.PublishedOrUpdatedAt, &cursor.PostID
 	}
 
 	rows, err := r.pool.Query(ctx, query, userID, ts, id, limit)
@@ -189,11 +320,11 @@ func scanPosts(rows pgx.Rows) ([]*dto.PostPreview, error) {
 			&post.Title,
 			&post.BodyPreview,
 			&post.PublishedAt,
+			&post.LikesCount,
 			&post.Author.Username,
 			&post.Author.Nickname,
 			&post.Author.AvatarKey,
 			&post.Locked,
-			&post.LikesCount,
 			&post.LikedByUser,
 		)
 		if err != nil {

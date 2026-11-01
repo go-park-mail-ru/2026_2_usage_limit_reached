@@ -6,9 +6,9 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 )
 
 // Register регистрирует нового пользователя
@@ -48,8 +48,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	)
 
 	h.setAuthCookie(w, token)
-
-	response.WriteJSON(w, http.StatusOK, user)
+	w.WriteHeader(http.StatusOK)
 }
 
 // Login аутентифицирует пользователя
@@ -90,7 +89,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	)
 
 	h.setAuthCookie(w, token)
-	response.WriteJSON(w, http.StatusOK, user)
+	w.WriteHeader(http.StatusOK)
 }
 
 // Logout деавторизует пользователя
@@ -105,10 +104,14 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 // @Header 200 {string} Set-Cookie "token=; Path=/; Max-Age=-1"
 // @Router /logout [post]
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
-	id, _ := middleware.UserIDFromContext(r.Context())
-	h.logger.InfoContext(r.Context(), "logging out user",
-		slog.String("userID", id.String()),
-	)
+	user, ok := middleware.UserInfoFromContext(r.Context())
+	if !ok {
+		h.logger.WarnContext(r.Context(), "logout auth token invalid")
+	} else {
+		h.logger.InfoContext(r.Context(), "logging out user",
+			slog.String("userID", user.UserID.String()),
+		)
+	}
 	h.deleteAuthCookie(w)
 	w.WriteHeader(http.StatusOK)
 }

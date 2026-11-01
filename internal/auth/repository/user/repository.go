@@ -19,15 +19,11 @@ const (
 	UsernameField = "username"
 )
 
-type PgxCliPool interface {
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-}
-
 type UserRepository struct {
-	pool PgxCliPool
+	pool postgres.DB
 }
 
-func NewUserRepository(pool PgxCliPool) *UserRepository {
+func NewUserRepository(pool postgres.DB) *UserRepository {
 	return &UserRepository{pool: pool}
 }
 

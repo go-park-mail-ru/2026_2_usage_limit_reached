@@ -8,6 +8,7 @@ import (
 	AuthRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/user"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	PostHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery"
 	PostRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/repository"
 	PostUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/usecase"
@@ -19,7 +20,6 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 	"github.com/gorilla/mux"
 )
 
@@ -45,15 +45,15 @@ func main() {
 		log.Fatalf("token manager initialization error: %v", err)
 	}
 
-	postgresCli, err := postgres.NewClient(cfg.Postgres)
+	postgresClient, err := postgres.NewClient(cfg.Postgres)
 	if err != nil {
 		log.Fatalf("databse pool initialization error: %v", err)
 	}
-	defer postgresCli.Close()
+	defer postgresClient.Close()
 
-	userRepo := AuthRepo.NewUserRepository(postgresCli.Pool)
+	userRepo := AuthRepo.NewUserRepository(postgresClient.Pool)
 	profileRepo := ProfileRepo.NewProfileRepository()
-	postRepo := PostRepo.NewPostRepository(postgresCli.Pool)
+	postRepo := PostRepo.NewPostRepository(postgresClient.Pool)
 
 	uc := usecase.NewUsecase(userRepo, tokens)
 	valid, err := validator.NewValidator(cfg.Validation)
@@ -62,7 +62,7 @@ func main() {
 	}
 	authHandler := AuthHandlers.NewHandler(uc, valid, appLogger)
 	authMiddleware := middleware.AuthMiddleware(tokens)
-	checkAuthMiddleware := middleware.CheckAuthMiddleware(tokens)
+	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(tokens)
 
 	profileUc := ProfileUsecase.NewProfileUsecase(uc, profileRepo)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, appLogger)
@@ -78,7 +78,7 @@ func main() {
 	)
 
 	public := r.NewRoute().Subrouter()
-	public.Use(checkAuthMiddleware)
+	public.Use(optionalAuthMiddleware)
 
 	private := r.NewRoute().Subrouter()
 	private.Use(authMiddleware)

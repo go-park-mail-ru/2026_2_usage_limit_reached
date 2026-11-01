@@ -14,7 +14,7 @@ type CORSConfig struct {
 
 func DefaultCORSConfig() CORSConfig {
 	return CORSConfig{
-		AllowedHeaders: "Content-Type, Authorization",
+		AllowedHeaders: "Content-Type, Authorization, X-Request-ID",
 		AllowedMethods: "GET, POST, PUT, DELETE, OPTIONS, PATCH",
 	}
 }

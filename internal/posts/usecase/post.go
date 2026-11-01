@@ -10,19 +10,20 @@ import (
 	"github.com/google/uuid"
 )
 
-func (uc *PostUsecase) CreatePost(ctx context.Context, userID uuid.UUID, p dto.PostRequest) error {
+func (uc *PostUsecase) CreatePost(ctx context.Context, userID *uuid.UUID, p dto.PostRequest) (uuid.UUID, error) {
 	post := models.Post{
 		Title:  p.Title,
 		Body:   p.Body,
 		Status: p.Status,
 	}
-	if err := uc.repo.CreatePost(ctx, userID, post); err != nil {
-		return mapRepoError("create post", err)
+	postID, err := uc.repo.CreatePost(ctx, userID, post)
+	if err != nil {
+		return uuid.Nil, mapRepoError("create post", err)
 	}
-	return nil
+	return postID, nil
 }
 
-func (uc *PostUsecase) GetPost(ctx context.Context, userID, postID uuid.UUID) (*dto.PostInfo, error) {
+func (uc *PostUsecase) GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error) {
 	post, err := uc.repo.GetPost(ctx, userID, postID)
 	if err != nil {
 		return nil, mapRepoError("get post", err)
@@ -30,7 +31,7 @@ func (uc *PostUsecase) GetPost(ctx context.Context, userID, postID uuid.UUID) (*
 	return post, nil
 }
 
-func (uc *PostUsecase) GetNewPosts(ctx context.Context, userID uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error) {
+func (uc *PostUsecase) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error) {
 	posts, err := uc.repo.GetNewPosts(ctx, userID, cursor, limit+1)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get new posts: %w", err)
@@ -41,7 +42,7 @@ func (uc *PostUsecase) GetNewPosts(ctx context.Context, userID uuid.UUID, cursor
 	return &dto.NewPostsPage{Items: items, Next: next}, nil
 }
 
-func (uc *PostUsecase) GetPopularPosts(ctx context.Context, userID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error) {
+func (uc *PostUsecase) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error) {
 	posts, err := uc.repo.GetPopularPosts(ctx, userID, cursor, limit+1)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get popular posts: %w", err)
@@ -61,7 +62,7 @@ func paginate[C any](items []*dto.PostPreview, limit int, cursorOf func(*dto.Pos
 	return items, &next
 }
 
-func (uc *PostUsecase) UpdatePost(ctx context.Context, userID, postID uuid.UUID, p dto.PostRequest, lastUpdatedAt time.Time) error {
+func (uc *PostUsecase) UpdatePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID, p dto.PostRequest, lastUpdatedAt time.Time) error {
 	post := models.Post{
 		ID:     postID,
 		Title:  p.Title,
@@ -74,14 +75,14 @@ func (uc *PostUsecase) UpdatePost(ctx context.Context, userID, postID uuid.UUID,
 	return nil
 }
 
-func (uc *PostUsecase) DeletePost(ctx context.Context, userID, postID uuid.UUID) error {
+func (uc *PostUsecase) DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error {
 	if err := uc.repo.DeletePost(ctx, userID, postID); err != nil {
 		return mapRepoError("delete post", err)
 	}
 	return nil
 }
 
-func (uc *PostUsecase) LikePost(ctx context.Context, userID, postID uuid.UUID) (int64, error) {
+func (uc *PostUsecase) LikePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
 	likes, err := uc.repo.LikePost(ctx, userID, postID)
 	if err != nil {
 		return 0, mapRepoError("like post", err)
@@ -89,7 +90,7 @@ func (uc *PostUsecase) LikePost(ctx context.Context, userID, postID uuid.UUID) (
 	return likes, nil
 }
 
-func (uc *PostUsecase) DeletePostLike(ctx context.Context, userID, postID uuid.UUID) (int64, error) {
+func (uc *PostUsecase) DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
 	likes, err := uc.repo.DeletePostLike(ctx, userID, postID)
 	if err != nil {
 		return 0, err

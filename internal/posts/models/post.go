@@ -9,6 +9,7 @@ import (
 
 var (
 	ErrInvalidAuthorID = errors.New("invalid author id")
+	ErrUnauthorized    = errors.New("unauthorized")
 	ErrPostNotFound    = errors.New("post not found")
 	ErrPostConflict    = errors.New("post was already updated")
 	ErrPostValidation  = errors.New("invalid post fields")

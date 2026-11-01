@@ -11,71 +11,56 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
-type PgxCliPool interface {
-	Query(ctx context.Context, query string, args ...any) (pgx.Rows, error)
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-	Exec(ctx context.Context, query string, args ...any) (pgconn.CommandTag, error)
-	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
-}
-
 type PostRepository struct {
-	pool PgxCliPool
+	pool postgres.DB
 }
 
-func NewPostRepository(pool PgxCliPool) *PostRepository { // TODO: добавить логгер
+func NewPostRepository(pool postgres.DB) *PostRepository { // TODO: добавить логгер
 	return &PostRepository{pool: pool}
 }
 
-const (
-	postColumns = `
-		p.id, p.author_id, p.title,
-		CASE WHEN l.locked THEN '' ELSE p.body_preview END AS body_preview,
-		p.published_at,
-		p.username, p.nickname, p.avatar_key, l.locked`
-	statusPublished  = `'published'`
-	statusUserActive = `'active'`
-	postLikeEvent    = `'post_liked'`
-	countLikes       = `SELECT count(*) FROM post_like WHERE post_id = $1`
-)
-
-func (r *PostRepository) CreatePost(ctx context.Context, userID uuid.UUID, p models.Post) error {
+func (r *PostRepository) CreatePost(ctx context.Context, userID *uuid.UUID, p models.Post) (uuid.UUID, error) {
 	const query = `
 		INSERT INTO post (author_id, title, body, status, published_at)
-		VALUES ($1, $2, $3, $4, CASE WHEN $4 = ` + statusPublished + ` THEN now() END)
+		VALUES ($1, $2, $3, $4, CASE WHEN $4 = 'published' THEN now() END)
+		RETURNING id
 	`
 
-	_, err := r.pool.Exec(ctx, query, userID, p.Title, p.Body, p.Status)
+	if userID == nil {
+		return uuid.Nil, models.ErrPostNotFound
+	}
+
+	var postID uuid.UUID
+	err := r.pool.QueryRow(ctx, query, userID, p.Title, p.Body, p.Status).Scan(&postID)
 	if err != nil {
 		err = postgres.ParseError(err)
 		switch {
 		case errors.Is(err, postgres.ErrFKViolation):
-			return models.ErrInvalidAuthorID
+			return uuid.Nil, models.ErrInvalidAuthorID
 		case errors.Is(err, postgres.ErrCheckViolation):
-			return models.ErrPostValidation
+			return uuid.Nil, models.ErrPostValidation
 		}
-		return fmt.Errorf("create post error: %w", err)
+		return uuid.Nil, fmt.Errorf("create post error: %w", err)
 	}
-	return nil
+	return postID, nil
 }
 
-func (r *PostRepository) GetPost(ctx context.Context, userID, postID uuid.UUID) (*dto.PostInfo, error) {
+func (r *PostRepository) GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error) {
 	const query = `
 		SELECT p.id, p.author_id, p.title,
 			CASE WHEN l.locked THEN '' ELSE p.body END AS body,
-			p.status, p.published_at, p.created_at, p.updated_at, u.username, u.nickname, u.avatar_key, l.locked,
-			(SELECT count(*) FROM post_like pl WHERE pl.post_id = p.id) AS likes_count,
+			p.status, p.published_at, p.likes_count, p.created_at, p.updated_at, u.username, u.nickname, u.avatar_key, l.locked,
 			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM post p
-		JOIN "user" u ON u.id = p.author_id AND u.status = ` + statusUserActive + `
+		JOIN "user" u ON u.id = p.author_id AND u.status = 'active'
 		LEFT JOIN post_access pa ON pa.post_id = p.id
 		CROSS JOIN LATERAL (
 			SELECT (pa.post_id IS NOT NULL AND p.author_id IS DISTINCT FROM $1) AS locked
 		) l
 		WHERE p.id = $2
-		AND (p.status = ` + statusPublished + ` OR p.author_id = $1)
+		AND (p.status = 'published' OR p.author_id = $1)
 	`
 
 	post := &dto.PostInfo{}
@@ -105,22 +90,24 @@ func (r *PostRepository) GetPost(ctx context.Context, userID, postID uuid.UUID) 
 	return post, nil
 }
 
-func (r *PostRepository) GetNewPosts(ctx context.Context, userID uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview,
-			p.published_at, u.username, u.nickname, u.avatar_key
+				p.published_at, p.likes_count, u.username, u.nickname, u.avatar_key
 			FROM post p
 			JOIN "user" u ON u.id = p.author_id
-			WHERE p.status = ` + statusPublished + `
-				AND u.status = ` + statusUserActive + `
+			WHERE p.status = 'published' AND u.status = 'active'
 				AND ($2::timestamptz IS NULL OR (p.published_at, p.id) < ($2::timestamptz, $3::uuid))
 			ORDER BY p.published_at DESC, p.id DESC
 			LIMIT $4
 		)
-		SELECT` + postColumns + `,
-				(SELECT count(*) FROM post_like pl WHERE pl.post_id = p.id) AS likes_count,
-				EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
+		SELECT 
+			p.id, p.author_id, p.title,
+			CASE WHEN l.locked THEN '' ELSE p.body_preview END AS body_preview,
+			p.published_at, p.likes_count,
+			p.username, p.nickname, p.avatar_key, l.locked,
+			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM page p
 		LEFT JOIN post_access pa ON pa.post_id = p.id
 		CROSS JOIN LATERAL (
@@ -148,22 +135,21 @@ func (r *PostRepository) GetNewPosts(ctx context.Context, userID uuid.UUID, curs
 	return posts, nil
 }
 
-func (r *PostRepository) GetPopularPosts(ctx context.Context, userID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *PostRepository) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
-		WITH posts_with_likes AS (
+		WITH page AS (
 			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview,
-			p.published_at, u.username, u.nickname, u.avatar_key,
-			(SELECT count(*) FROM post_like pl WHERE pl.post_id = p.id) AS likes_count
+			p.published_at, p.likes_count, u.username, u.nickname, u.avatar_key
 			FROM post p
 			JOIN "user" u ON u.id = p.author_id
-			WHERE p.status = ` + statusPublished + ` AND u.status = ` + statusUserActive + `
-		), page AS (
-			SELECT * FROM posts_with_likes pwl
-			WHERE $2::bigint IS NULL OR (pwl.likes_count, pwl.published_at, pwl.id) < ($2::bigint, $3::timestamptz, $4::uuid)
-			ORDER BY pwl.likes_count DESC, pwl.published_at DESC, pwl.id DESC
+			WHERE p.status = 'published' AND u.status = 'active'
+				AND $2::bigint IS NULL OR (p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid)
+			ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC
 			LIMIT $5
 		)
-		SELECT` + postColumns + `, p.likes_count,
+		SELECT p.id, p.author_id, p.title,
+				CASE WHEN l.locked THEN '' ELSE p.body_preview END AS body_preview,
+				p.published_at, p.likes_count, p.username, p.nickname, p.avatar_key, l.locked,
 				EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM page p
 		LEFT JOIN post_access pa ON pa.post_id = p.id
@@ -221,17 +207,21 @@ func scanPosts(rows pgx.Rows) ([]*dto.PostPreview, error) {
 	return posts, nil
 }
 
-func (r *PostRepository) UpdatePost(ctx context.Context, userID uuid.UUID, p models.Post, lastUpdatedAt time.Time) error {
+func (r *PostRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) error {
 	const query = `
 		UPDATE post SET
 			title = $3,
 			body   = $4,
 			status = $5,
-			published_at = CASE WHEN $5 = ` + statusPublished + `
+			published_at = CASE WHEN $5 = 'published'
 								THEN COALESCE(published_at, now())
 								ELSE published_at END
 		WHERE id = $1 AND author_id = $2 AND updated_at = $6
 	`
+
+	if userID == nil {
+		return models.ErrPostNotFound
+	}
 
 	result, err := r.pool.Exec(ctx, query, p.ID, userID, p.Title, p.Body, p.Status, lastUpdatedAt)
 	if err != nil {
@@ -256,7 +246,7 @@ func (r *PostRepository) UpdatePost(ctx context.Context, userID uuid.UUID, p mod
 			return models.ErrPostNotFound
 		case err != nil:
 			return fmt.Errorf("update post error: get post: %w", err)
-		case id != userID:
+		case id != *userID:
 			return models.ErrPostNotFound
 		case !ts.Equal(lastUpdatedAt): // optimistic blocking
 			return models.ErrPostConflict
@@ -265,7 +255,11 @@ func (r *PostRepository) UpdatePost(ctx context.Context, userID uuid.UUID, p mod
 	return nil
 }
 
-func (r *PostRepository) DeletePost(ctx context.Context, userID, postID uuid.UUID) error {
+func (r *PostRepository) DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error {
+	if userID == nil {
+		return models.ErrPostNotFound
+	}
+
 	result, err := r.pool.Exec(ctx, `DELETE FROM post WHERE id = $1 AND author_id = $2`, postID, userID)
 	if err != nil {
 		return fmt.Errorf("delete post error: %w", err)
@@ -276,13 +270,13 @@ func (r *PostRepository) DeletePost(ctx context.Context, userID, postID uuid.UUI
 	return nil
 }
 
-func (r *PostRepository) LikePost(ctx context.Context, userID, postID uuid.UUID) (int64, error) {
+func (r *PostRepository) LikePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
 	const getPostAuthor = `
 		SELECT p.author_id
 		FROM post p
 		LEFT JOIN post_access pa ON pa.post_id = p.id
 		WHERE p.id = $2
-			AND p.status = ` + statusPublished + `
+			AND p.status = 'published'
 			AND NOT (pa.post_id IS NOT NULL AND p.author_id IS DISTINCT FROM $1)
 		FOR KEY SHARE OF p`
 	const insertLike = `
@@ -292,7 +286,12 @@ func (r *PostRepository) LikePost(ctx context.Context, userID, postID uuid.UUID)
 		RETURNING id`
 	const insertNotification = `
 		INSERT INTO notification (user_id, event_kind, post_like_id)
-		VALUES ($1, ` + postLikeEvent + `, $2)`
+		VALUES ($1, 'post_liked', $2)`
+	const getLikesCount = `SELECT likes_count FROM post WHERE post_id = $1`
+
+	if userID == nil {
+		return 0, models.ErrPostNotFound
+	}
 
 	var likesCount int64
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
@@ -312,13 +311,13 @@ func (r *PostRepository) LikePost(ctx context.Context, userID, postID uuid.UUID)
 			// do nothing on duplicate likes
 		case err != nil:
 			return fmt.Errorf("like post error: insert like: %w", err)
-		case authorID != userID:
+		case authorID != *userID:
 			if _, err := tx.Exec(ctx, insertNotification, authorID, likeID); err != nil {
 				return fmt.Errorf("like post error: insert notification: %w", err)
 			}
 		}
 
-		if err := tx.QueryRow(ctx, countLikes, postID).Scan(&likesCount); err != nil {
+		if err := tx.QueryRow(ctx, getLikesCount, postID).Scan(&likesCount); err != nil {
 			return fmt.Errorf("like post error: count likes: %w", err)
 		}
 		return nil
@@ -329,14 +328,19 @@ func (r *PostRepository) LikePost(ctx context.Context, userID, postID uuid.UUID)
 	return likesCount, nil
 }
 
-func (r *PostRepository) DeletePostLike(ctx context.Context, userID, postID uuid.UUID) (int64, error) {
-	if _, err := r.pool.Exec(ctx,
-		`DELETE FROM post_like WHERE post_id = $1 AND user_id = $2`, postID, userID); err != nil {
+func (r *PostRepository) DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
+	const deletePostLike = `DELETE FROM post_like WHERE post_id = $1 AND user_id = $2`
+	const getLikesCount = `SELECT likes_count FROM post WHERE post_id = $1`
+
+	if userID == nil {
+		return 0, models.ErrPostNotFound
+	}
+	if _, err := r.pool.Exec(ctx, deletePostLike, postID, userID); err != nil {
 		return 0, fmt.Errorf("delete post like error: %w", err)
 	}
 
 	var likesCount int64
-	if err := r.pool.QueryRow(ctx, countLikes, postID).Scan(&likesCount); err != nil {
+	if err := r.pool.QueryRow(ctx, getLikesCount, postID).Scan(&likesCount); err != nil {
 		return 0, fmt.Errorf("delete post like error: count likes: %w", err)
 	}
 	return likesCount, nil

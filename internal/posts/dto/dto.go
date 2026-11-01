@@ -1,9 +1,10 @@
 package dto
 
 import (
+	"fmt"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/google/uuid"
 )
 
@@ -15,10 +16,23 @@ type PostRequest struct {
 }
 
 func (r PostRequest) Validate(v *validator.Validator) error {
-	if !v.IsValidPostTitle(r.Title) || !v.IsValidPostBody(r.Body) || !v.IsValidPostStatus(r.Status) {
-		return validator.ErrValidation
+	var valError string
+	switch {
+	case !v.IsValidPostTitle(r.Title):
+		valError += "invalid title:"
+	case !v.IsValidPostBody(r.Body):
+		valError += "invalid body: "
+	case !v.IsValidPostStatus(r.Status):
+		valError += "invalid status: "
+	}
+	if valError != "" {
+		return fmt.Errorf("%s%w", valError, validator.ErrValidation)
 	}
 	return nil
+}
+
+type CreatePostResponse struct {
+	ID uuid.UUID `json:"id"`
 }
 
 type AuthorResponse struct {

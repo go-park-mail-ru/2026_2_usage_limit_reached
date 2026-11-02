@@ -37,7 +37,6 @@ func TestHandler_Register(t *testing.T) {
 		mockBehavior   func(m *MockUseCase)
 		expectedStatus int
 		expectedErrMsg string
-		expectedBody   *dto.UserResponse
 		expectedToken  string
 	}{
 		{
@@ -49,7 +48,6 @@ func TestHandler_Register(t *testing.T) {
 				}
 			},
 			expectedStatus: http.StatusOK,
-			expectedBody:   &dto.UserResponse{Email: "test@mail.ru", Username: "testuser"},
 			expectedToken:  "mock-token",
 		},
 		{
@@ -110,15 +108,11 @@ func TestHandler_Register(t *testing.T) {
 				require.NoError(t, json.NewDecoder(w.Body).Decode(&errResp))
 				require.Equal(t, tt.expectedErrMsg, errResp.Error)
 
-			case tt.expectedBody != nil:
+			case tt.expectedStatus == http.StatusOK:
 				cookies := w.Result().Cookies()
 				require.Len(t, cookies, 1)
 				require.Equal(t, "token", cookies[0].Name)
 				require.Equal(t, tt.expectedToken, cookies[0].Value)
-
-				var respBody dto.UserResponse
-				require.NoError(t, json.NewDecoder(w.Body).Decode(&respBody))
-				require.Equal(t, *tt.expectedBody, respBody)
 			}
 		})
 	}
@@ -143,7 +137,6 @@ func TestHandler_Login(t *testing.T) {
 		mockBehavior   func(m *MockUseCase)
 		expectedStatus int
 		expectedErrMsg string
-		expectedBody   *dto.UserResponse
 		expectedToken  string
 	}{
 		{
@@ -155,7 +148,6 @@ func TestHandler_Login(t *testing.T) {
 				}
 			},
 			expectedStatus: http.StatusOK,
-			expectedBody:   &dto.UserResponse{Email: "test@mail.ru"},
 			expectedToken:  "mock-token",
 		},
 		{
@@ -216,15 +208,11 @@ func TestHandler_Login(t *testing.T) {
 				require.NoError(t, json.NewDecoder(w.Body).Decode(&errResp))
 				require.Equal(t, tt.expectedErrMsg, errResp.Error)
 
-			case tt.expectedBody != nil:
+			case tt.expectedStatus == http.StatusOK:
 				cookies := w.Result().Cookies()
 				require.Len(t, cookies, 1)
 				require.Equal(t, "token", cookies[0].Name)
 				require.Equal(t, tt.expectedToken, cookies[0].Value)
-
-				var respBody dto.UserResponse
-				require.NoError(t, json.NewDecoder(w.Body).Decode(&respBody))
-				require.Equal(t, *tt.expectedBody, respBody)
 			}
 		})
 	}

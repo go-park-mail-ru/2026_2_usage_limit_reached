@@ -25,7 +25,7 @@ import (
 
 // @title Patreon Clone API
 // @version 1.0
-// @description Регистрация, вход, выход и профиль пользователя.
+// @description Регистрация, вход, выход, профиль пользователя и посты.
 // @securityDefinitions.apikey CookieAuth
 // @in cookie
 // @name token
@@ -51,9 +51,9 @@ func main() {
 	}
 	defer postgresClient.Close()
 
-	userRepo := AuthRepo.NewUserRepository(postgresClient.Pool)
+	userRepo := AuthRepo.NewUserRepository(postgresClient.Pool, appLogger)
 	profileRepo := ProfileRepo.NewProfileRepository()
-	postRepo := PostRepo.NewPostRepository(postgresClient.Pool)
+	postRepo := PostRepo.NewPostRepository(postgresClient.Pool, appLogger)
 
 	uc := usecase.NewUsecase(userRepo, tokens)
 	valid, err := validator.NewValidator(cfg.Validation)

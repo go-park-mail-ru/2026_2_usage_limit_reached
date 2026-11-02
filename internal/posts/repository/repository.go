@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
@@ -14,11 +15,12 @@ import (
 )
 
 type PostRepository struct {
-	pool postgres.DB
+	pool   postgres.DB
+	logger *slog.Logger
 }
 
-func NewPostRepository(pool postgres.DB) *PostRepository { // TODO: добавить логгер
-	return &PostRepository{pool: pool}
+func NewPostRepository(pool postgres.DB, logger *slog.Logger) *PostRepository {
+	return &PostRepository{pool: pool, logger: logger}
 }
 
 func (r *PostRepository) CreatePost(ctx context.Context, userID *uuid.UUID, p models.Post) (uuid.UUID, error) {
@@ -32,18 +34,40 @@ func (r *PostRepository) CreatePost(ctx context.Context, userID *uuid.UUID, p mo
 		return uuid.Nil, models.ErrPostNotFound
 	}
 
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "create post"),
+		slog.String("userID", userID.String()),
+	)
+
 	var postID uuid.UUID
 	err := r.pool.QueryRow(ctx, query, userID, p.Title, p.Body, p.Status).Scan(&postID)
 	if err != nil {
 		err = postgres.ParseError(err)
 		switch {
 		case errors.Is(err, postgres.ErrFKViolation):
+			r.logger.WarnContext(ctx, "failed to create post: forbidden",
+				slog.String("op", "create post"),
+				slog.String("userID", userID.String()),
+			)
 			return uuid.Nil, models.ErrInvalidAuthorID
 		case errors.Is(err, postgres.ErrCheckViolation):
+			r.logger.WarnContext(ctx, "failed to create post: validation error",
+				slog.String("op", "create post"),
+				slog.String("userID", userID.String()),
+			)
 			return uuid.Nil, models.ErrPostValidation
 		}
+		r.logger.ErrorContext(ctx, "failed to create post",
+			slog.String("op", "create post"),
+			slog.String("userID", userID.String()),
+			slog.String("error", err.Error()),
+		)
 		return uuid.Nil, fmt.Errorf("create post error: %w", err)
 	}
+	r.logger.InfoContext(ctx, "post created successfully",
+		slog.String("op", "create post"),
+		slog.String("userID", userID.String()),
+	)
 	return postID, nil
 }
 
@@ -63,8 +87,13 @@ func (r *PostRepository) GetPost(ctx context.Context, userID *uuid.UUID, postID 
 		AND (p.status = 'published' OR p.author_id = $1)
 	`
 
-	post := &dto.PostInfo{}
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get post"),
+		slog.String("postID", postID.String()),
+		slog.String("userID", uid(userID)),
+	)
 
+	post := &dto.PostInfo{}
 	err := r.pool.QueryRow(ctx, query, userID, postID).Scan(
 		&post.ID,
 		&post.Author.ID,
@@ -72,32 +101,49 @@ func (r *PostRepository) GetPost(ctx context.Context, userID *uuid.UUID, postID 
 		&post.Body,
 		&post.Status,
 		&post.PublishedAt,
+		&post.LikesCount,
 		&post.CreatedAt,
 		&post.UpdatedAt,
 		&post.Author.Username,
 		&post.Author.Nickname,
 		&post.Author.AvatarKey,
 		&post.Locked,
-		&post.LikesCount,
 		&post.LikedByUser,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			r.logger.WarnContext(ctx, "post not found",
+				slog.String("op", "get post"),
+				slog.String("postID", postID.String()),
+				slog.String("userID", uid(userID)),
+			)
 			return nil, models.ErrPostNotFound
 		}
+		r.logger.ErrorContext(ctx, "failed to get post",
+			slog.String("op", "get post"),
+			slog.String("postID", postID.String()),
+			slog.String("userID", uid(userID)),
+			slog.String("error", err.Error()),
+		)
 		return nil, fmt.Errorf("get post error: %w", err)
 	}
+	r.logger.DebugContext(ctx, "post fetched successfully",
+		slog.String("op", "get post"),
+		slog.String("postID", postID.String()),
+		slog.String("userID", uid(userID)),
+		slog.Bool("locked", post.Locked),
+	)
 	return post, nil
 }
 
-func (r *PostRepository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.MyPostPreview, error) {
+func (r *PostRepository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
-			p.id, p.author_id, p.title,
-			p.body_preview,
-			p.published_at, p.likes_count,
+			p.id, p.author_id, p.title, left(p.body, 200) AS body_preview, p.published_at, p.likes_count,
+			u.username, u.nickname, u.avatar_key, FALSE,
 			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM post p
+		JOIN "user" u ON u.id = p.author_id
 		WHERE p.status = 'published'
 			AND ($2::timestamptz IS NULL OR (p.published_at, p.id) < ($2::timestamptz, $3::uuid))
 			AND p.author_id = $1
@@ -109,6 +155,13 @@ func (r *PostRepository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, c
 		return nil, models.ErrUnauthorized
 	}
 
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get my new posts"),
+		slog.String("userID", userID.String()),
+		slog.Int("limit", limit),
+		slog.Bool("hasCursor", cursor != nil),
+	)
+
 	var (
 		ts *time.Time
 		id *uuid.UUID
@@ -119,27 +172,56 @@ func (r *PostRepository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, c
 
 	rows, err := r.pool.Query(ctx, query, userID, ts, id, limit)
 	if err != nil {
+		r.logger.ErrorContext(ctx, "failed to get my new posts",
+			slog.String("op", "get my new posts"),
+			slog.String("userID", userID.String()),
+			slog.String("error", err.Error()),
+		)
 		return nil, fmt.Errorf("get my new posts error: %w", err)
 	}
-	posts, err := scanMyPosts(rows)
+	posts, err := scanPosts(rows)
 	if err != nil {
+		r.logger.ErrorContext(ctx, "failed to scan my new posts",
+			slog.String("op", "get my new posts"),
+			slog.String("userID", userID.String()),
+			slog.String("error", err.Error()),
+		)
 		return nil, fmt.Errorf("get my new posts error: %w", err)
 	}
+	r.logger.DebugContext(ctx, "my new posts fetched",
+		slog.String("op", "get my new posts"),
+		slog.String("userID", userID.String()),
+		slog.Int("count", len(posts)),
+	)
 	return posts, nil
 }
 
-func (r *PostRepository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.MyPostPreview, error) {
+func (r *PostRepository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
-		SELECT p.id, p.author_id, p.title,
-				p.body_preview,
-				EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
+		SELECT 
+			p.id, p.author_id, p.title, left(p.body, 200) AS body_preview, p.published_at, p.likes_count,
+			u.username, u.nickname, u.avatar_key, FALSE,
+			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM post p
+		JOIN "user" u ON u.id = p.author_id
 		WHERE p.status = 'published'
-				AND $2::bigint IS NULL OR (p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid)
+				AND ($2::bigint IS NULL OR (p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid))
 				AND p.author_id = $1
 		ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC
 		LIMIT $5
 	`
+
+	if userID == nil {
+		return nil, models.ErrUnauthorized
+	}
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get my popular posts"),
+		slog.String("userID", userID.String()),
+		slog.Int("limit", limit),
+		slog.Bool("hasCursor", cursor != nil),
+	)
+
 	var (
 		likes *int64
 		ts    *time.Time
@@ -151,22 +233,37 @@ func (r *PostRepository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUI
 
 	rows, err := r.pool.Query(ctx, query, userID, likes, ts, id, limit)
 	if err != nil {
+		r.logger.ErrorContext(ctx, "failed to get my popular posts",
+			slog.String("op", "get my popular posts"),
+			slog.String("userID", userID.String()),
+			slog.String("error", err.Error()),
+		)
 		return nil, fmt.Errorf("get my popular posts error: %w", err)
 	}
-	posts, err := scanMyPosts(rows)
+	posts, err := scanPosts(rows)
 	if err != nil {
+		r.logger.ErrorContext(ctx, "failed to scan my popular posts",
+			slog.String("op", "get my popular posts"),
+			slog.String("userID", userID.String()),
+			slog.String("error", err.Error()),
+		)
 		return nil, fmt.Errorf("get my popular posts error: %w", err)
 	}
+	r.logger.DebugContext(ctx, "my popular posts fetched",
+		slog.String("op", "get my popular posts"),
+		slog.String("userID", userID.String()),
+		slog.Int("count", len(posts)),
+	)
 	return posts, nil
 }
 
-func (r *PostRepository) GetMyDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.MyPostPreview, error) {
+func (r *PostRepository) GetMyDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
-			p.id, p.author_id, p.title,
-			p.body_preview,
-			p.updated_at, 0, FALSE,
+			p.id, p.author_id, p.title, left(p.body, 200) AS body_preview, p.updated_at, p.likes_count,
+			u.username, u.nickname, u.avatar_key, FALSE, FALSE
 		FROM post p
+		JOIN "user" u ON u.id = p.author_id
 		WHERE p.status = 'draft'
 			AND ($2::timestamptz IS NULL OR (p.updated_at, p.id) < ($2::timestamptz, $3::uuid))
 			AND p.author_id = $1
@@ -178,6 +275,13 @@ func (r *PostRepository) GetMyDrafts(ctx context.Context, userID *uuid.UUID, cur
 		return nil, models.ErrUnauthorized
 	}
 
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get my drafts"),
+		slog.String("userID", userID.String()),
+		slog.Int("limit", limit),
+		slog.Bool("hasCursor", cursor != nil),
+	)
+
 	var (
 		ts *time.Time
 		id *uuid.UUID
@@ -188,36 +292,27 @@ func (r *PostRepository) GetMyDrafts(ctx context.Context, userID *uuid.UUID, cur
 
 	rows, err := r.pool.Query(ctx, query, userID, ts, id, limit)
 	if err != nil {
-		return nil, fmt.Errorf("get my new posts error: %w", err)
-	}
-	posts, err := scanMyPosts(rows)
-	if err != nil {
-		return nil, fmt.Errorf("get my new posts error: %w", err)
-	}
-	return posts, nil
-}
-
-func scanMyPosts(rows pgx.Rows) ([]*dto.MyPostPreview, error) {
-	posts := make([]*dto.MyPostPreview, 0)
-	defer rows.Close()
-	for rows.Next() {
-		post := &dto.MyPostPreview{}
-		err := rows.Scan(
-			&post.ID,
-			&post.Title,
-			&post.BodyPreview,
-			&post.PublishedOrUpdatedAt,
-			&post.LikesCount,
-			&post.LikedByUser,
+		r.logger.ErrorContext(ctx, "failed to get my drafts",
+			slog.String("op", "get my drafts"),
+			slog.String("userID", userID.String()),
+			slog.String("error", err.Error()),
 		)
-		if err != nil {
-			return nil, err
-		}
-		posts = append(posts, post)
+		return nil, fmt.Errorf("get my new posts error: %w", err)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	posts, err := scanPosts(rows)
+	if err != nil {
+		r.logger.ErrorContext(ctx, "failed to scan my drafts",
+			slog.String("op", "get my drafts"),
+			slog.String("userID", userID.String()),
+			slog.String("error", err.Error()),
+		)
+		return nil, fmt.Errorf("get my new posts error: %w", err)
 	}
+	r.logger.DebugContext(ctx, "my drafts fetched",
+		slog.String("op", "get my drafts"),
+		slog.String("userID", userID.String()),
+		slog.Int("count", len(posts)),
+	)
 	return posts, nil
 }
 
@@ -247,6 +342,13 @@ func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cur
 		ORDER BY p.published_at DESC, p.id DESC
 	`
 
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get new posts"),
+		slog.String("userID", uid(userID)),
+		slog.Int("limit", limit),
+		slog.Bool("hasCursor", cursor != nil),
+	)
+
 	var (
 		ts *time.Time
 		id *uuid.UUID
@@ -257,12 +359,27 @@ func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cur
 
 	rows, err := r.pool.Query(ctx, query, userID, ts, id, limit)
 	if err != nil {
+		r.logger.ErrorContext(ctx, "failed to get new posts",
+			slog.String("op", "get new posts"),
+			slog.String("userID", uid(userID)),
+			slog.String("error", err.Error()),
+		)
 		return nil, fmt.Errorf("get new posts error: %w", err)
 	}
 	posts, err := scanPosts(rows)
 	if err != nil {
+		r.logger.ErrorContext(ctx, "failed to scan new posts",
+			slog.String("op", "get new posts"),
+			slog.String("userID", uid(userID)),
+			slog.String("error", err.Error()),
+		)
 		return nil, fmt.Errorf("get new posts error: %w", err)
 	}
+	r.logger.DebugContext(ctx, "new posts fetched",
+		slog.String("op", "get new posts"),
+		slog.String("userID", uid(userID)),
+		slog.Int("count", len(posts)),
+	)
 	return posts, nil
 }
 
@@ -274,7 +391,7 @@ func (r *PostRepository) GetPopularPosts(ctx context.Context, userID *uuid.UUID,
 			FROM post p
 			JOIN "user" u ON u.id = p.author_id
 			WHERE p.status = 'published' AND u.status = 'active'
-				AND $2::bigint IS NULL OR (p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid)
+				AND ($2::bigint IS NULL OR (p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid))
 			ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC
 			LIMIT $5
 		)
@@ -289,6 +406,14 @@ func (r *PostRepository) GetPopularPosts(ctx context.Context, userID *uuid.UUID,
 		) l
 		ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC
 	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get popular posts"),
+		slog.String("userID", uid(userID)),
+		slog.Int("limit", limit),
+		slog.Bool("hasCursor", cursor != nil),
+	)
+
 	var (
 		likes *int64
 		ts    *time.Time
@@ -300,12 +425,27 @@ func (r *PostRepository) GetPopularPosts(ctx context.Context, userID *uuid.UUID,
 
 	rows, err := r.pool.Query(ctx, query, userID, likes, ts, id, limit)
 	if err != nil {
+		r.logger.ErrorContext(ctx, "failed to get popular posts",
+			slog.String("op", "get popular posts"),
+			slog.String("userID", uid(userID)),
+			slog.String("error", err.Error()),
+		)
 		return nil, fmt.Errorf("get popular posts error: %w", err)
 	}
 	posts, err := scanPosts(rows)
 	if err != nil {
+		r.logger.ErrorContext(ctx, "failed to scan popular posts",
+			slog.String("op", "get popular posts"),
+			slog.String("userID", uid(userID)),
+			slog.String("error", err.Error()),
+		)
 		return nil, fmt.Errorf("get popular posts error: %w", err)
 	}
+	r.logger.DebugContext(ctx, "popular posts fetched",
+		slog.String("op", "get popular posts"),
+		slog.String("userID", uid(userID)),
+		slog.Int("count", len(posts)),
+	)
 	return posts, nil
 }
 
@@ -319,7 +459,7 @@ func scanPosts(rows pgx.Rows) ([]*dto.PostPreview, error) {
 			&post.Author.ID,
 			&post.Title,
 			&post.BodyPreview,
-			&post.PublishedAt,
+			&post.PublishedOrUpdatedAt,
 			&post.LikesCount,
 			&post.Author.Username,
 			&post.Author.Nickname,
@@ -354,12 +494,30 @@ func (r *PostRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p mo
 		return models.ErrPostNotFound
 	}
 
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "update post"),
+		slog.String("postID", p.ID.String()),
+		slog.String("userID", userID.String()),
+		slog.Time("lastUpdatedAt", lastUpdatedAt),
+	)
+
 	result, err := r.pool.Exec(ctx, query, p.ID, userID, p.Title, p.Body, p.Status, lastUpdatedAt)
 	if err != nil {
 		err = postgres.ParseError(err)
 		if errors.Is(err, postgres.ErrCheckViolation) {
+			r.logger.WarnContext(ctx, "failed to update post: validation error",
+				slog.String("op", "update post"),
+				slog.String("postID", p.ID.String()),
+				slog.String("userID", userID.String()),
+			)
 			return models.ErrPostValidation
 		}
+		r.logger.ErrorContext(ctx, "failed to update post",
+			slog.String("op", "update post"),
+			slog.String("postID", p.ID.String()),
+			slog.String("userID", userID.String()),
+			slog.String("error", err.Error()),
+		)
 		return fmt.Errorf("update post error: %w", err)
 	}
 
@@ -374,15 +532,44 @@ func (r *PostRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p mo
 		)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
+			r.logger.WarnContext(ctx, "update post: not found",
+				slog.String("op", "update post"),
+				slog.String("postID", p.ID.String()),
+				slog.String("userID", userID.String()),
+			)
 			return models.ErrPostNotFound
 		case err != nil:
+			r.logger.ErrorContext(ctx, "failed to fetch post for update check",
+				slog.String("op", "update post"),
+				slog.String("postID", p.ID.String()),
+				slog.String("userID", userID.String()),
+				slog.String("error", err.Error()),
+			)
 			return fmt.Errorf("update post error: get post: %w", err)
 		case id != *userID:
+			r.logger.WarnContext(ctx, "update post: forbidden (not author)",
+				slog.String("op", "update post"),
+				slog.String("postID", p.ID.String()),
+				slog.String("userID", userID.String()),
+				slog.String("actualAuthorID", id.String()),
+			)
 			return models.ErrPostNotFound
 		case !ts.Equal(lastUpdatedAt): // optimistic blocking
+			r.logger.WarnContext(ctx, "update post: conflict (optimistic lock)",
+				slog.String("op", "update post"),
+				slog.String("postID", p.ID.String()),
+				slog.String("userID", userID.String()),
+				slog.Time("expectedUpdatedAt", lastUpdatedAt),
+				slog.Time("actualUpdatedAt", ts),
+			)
 			return models.ErrPostConflict
 		}
 	}
+	r.logger.InfoContext(ctx, "post updated successfully",
+		slog.String("op", "update post"),
+		slog.String("postID", p.ID.String()),
+		slog.String("userID", userID.String()),
+	)
 	return nil
 }
 
@@ -391,13 +578,35 @@ func (r *PostRepository) DeletePost(ctx context.Context, userID *uuid.UUID, post
 		return models.ErrPostNotFound
 	}
 
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "delete post"),
+		slog.String("postID", postID.String()),
+		slog.String("userID", userID.String()),
+	)
+
 	result, err := r.pool.Exec(ctx, `DELETE FROM post WHERE id = $1 AND author_id = $2`, postID, userID)
 	if err != nil {
+		r.logger.ErrorContext(ctx, "failed to delete post",
+			slog.String("op", "delete post"),
+			slog.String("postID", postID.String()),
+			slog.String("userID", userID.String()),
+			slog.String("error", err.Error()),
+		)
 		return fmt.Errorf("delete post error: %w", err)
 	}
 	if result.RowsAffected() == 0 {
+		r.logger.WarnContext(ctx, "delete post: not found or not author",
+			slog.String("op", "delete post"),
+			slog.String("postID", postID.String()),
+			slog.String("userID", userID.String()),
+		)
 		return models.ErrPostNotFound
 	}
+	r.logger.InfoContext(ctx, "post deleted successfully",
+		slog.String("op", "delete post"),
+		slog.String("postID", postID.String()),
+		slog.String("userID", userID.String()),
+	)
 	return nil
 }
 
@@ -418,17 +627,28 @@ func (r *PostRepository) LikePost(ctx context.Context, userID *uuid.UUID, postID
 	const insertNotification = `
 		INSERT INTO notification (user_id, event_kind, post_like_id)
 		VALUES ($1, 'post_liked', $2)`
-	const getLikesCount = `SELECT likes_count FROM post WHERE post_id = $1`
+	const getLikesCount = `SELECT likes_count FROM post WHERE id = $1`
 
 	if userID == nil {
 		return 0, models.ErrPostNotFound
 	}
+
+	r.logger.DebugContext(ctx, "executing transaction",
+		slog.String("op", "like post"),
+		slog.String("postID", postID.String()),
+		slog.String("userID", userID.String()),
+	)
 
 	var likesCount int64
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
 		var authorID uuid.UUID
 		err := tx.QueryRow(ctx, getPostAuthor, userID, postID).Scan(&authorID)
 		if errors.Is(err, pgx.ErrNoRows) {
+			r.logger.WarnContext(ctx, "like post: post not found or locked",
+				slog.String("op", "like post"),
+				slog.String("postID", postID.String()),
+				slog.String("userID", userID.String()),
+			)
 			return models.ErrPostNotFound
 		}
 		if err != nil {
@@ -440,6 +660,11 @@ func (r *PostRepository) LikePost(ctx context.Context, userID *uuid.UUID, postID
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 			// do nothing on duplicate likes
+			r.logger.DebugContext(ctx, "like post: duplicate like (no-op)",
+				slog.String("op", "like post"),
+				slog.String("postID", postID.String()),
+				slog.String("userID", userID.String()),
+			)
 		case err != nil:
 			return fmt.Errorf("like post error: insert like: %w", err)
 		case authorID != *userID:
@@ -454,25 +679,71 @@ func (r *PostRepository) LikePost(ctx context.Context, userID *uuid.UUID, postID
 		return nil
 	})
 	if err != nil {
+		if !errors.Is(err, models.ErrPostNotFound) {
+			r.logger.ErrorContext(ctx, "failed to like post",
+				slog.String("op", "like post"),
+				slog.String("postID", postID.String()),
+				slog.String("userID", userID.String()),
+				slog.String("error", err.Error()),
+			)
+		}
 		return 0, err
 	}
+	r.logger.InfoContext(ctx, "post liked successfully",
+		slog.String("op", "like post"),
+		slog.String("postID", postID.String()),
+		slog.String("userID", userID.String()),
+		slog.Int64("likesCount", likesCount),
+	)
 	return likesCount, nil
 }
 
 func (r *PostRepository) DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
 	const deletePostLike = `DELETE FROM post_like WHERE post_id = $1 AND user_id = $2`
-	const getLikesCount = `SELECT likes_count FROM post WHERE post_id = $1`
+	const getLikesCount = `SELECT likes_count FROM post WHERE id = $1`
 
 	if userID == nil {
 		return 0, models.ErrPostNotFound
 	}
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "unlike post"),
+		slog.String("postID", postID.String()),
+		slog.String("userID", userID.String()),
+	)
+
 	if _, err := r.pool.Exec(ctx, deletePostLike, postID, userID); err != nil {
+		r.logger.ErrorContext(ctx, "failed to delete post like",
+			slog.String("op", "unlike post"),
+			slog.String("postID", postID.String()),
+			slog.String("userID", userID.String()),
+			slog.String("error", err.Error()),
+		)
 		return 0, fmt.Errorf("delete post like error: %w", err)
 	}
 
 	var likesCount int64
 	if err := r.pool.QueryRow(ctx, getLikesCount, postID).Scan(&likesCount); err != nil {
+		r.logger.ErrorContext(ctx, "failed to count likes after unlike",
+			slog.String("op", "unlike post"),
+			slog.String("postID", postID.String()),
+			slog.String("userID", userID.String()),
+			slog.String("error", err.Error()),
+		)
 		return 0, fmt.Errorf("delete post like error: count likes: %w", err)
 	}
+	r.logger.InfoContext(ctx, "post like delete successfully",
+		slog.String("op", "unlike post"),
+		slog.String("postID", postID.String()),
+		slog.String("userID", userID.String()),
+		slog.Int64("likesCount", likesCount),
+	)
 	return likesCount, nil
+}
+
+func uid(id *uuid.UUID) string {
+	if id == nil {
+		return "-"
+	}
+	return id.String()
 }

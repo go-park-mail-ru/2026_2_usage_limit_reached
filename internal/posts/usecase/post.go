@@ -2,7 +2,6 @@ package postusecase
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
@@ -31,13 +30,46 @@ func (uc *PostUsecase) GetPost(ctx context.Context, userID *uuid.UUID, postID uu
 	return post, nil
 }
 
+func (uc *PostUsecase) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error) {
+	posts, err := uc.repo.GetMyNewPosts(ctx, userID, cursor, limit+1)
+	if err != nil {
+		return nil, mapRepoError("get my new posts", err)
+	}
+	items, next := paginate(posts, limit, func(p *dto.PostPreview) dto.NewPostsCursor {
+		return dto.NewPostsCursor{PublishedOrUpdatedAt: *p.PublishedOrUpdatedAt, PostID: p.ID}
+	})
+	return &dto.NewPostsPage{Items: items, Next: next}, nil
+}
+
+func (uc *PostUsecase) GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error) {
+	posts, err := uc.repo.GetMyPopularPosts(ctx, userID, cursor, limit+1)
+	if err != nil {
+		return nil, mapRepoError("get my popular posts", err)
+	}
+	items, next := paginate(posts, limit, func(p *dto.PostPreview) dto.PopularPostsCursor {
+		return dto.PopularPostsCursor{Likes: p.LikesCount, PublishedAt: *p.PublishedOrUpdatedAt, PostID: p.ID}
+	})
+	return &dto.PopularPostsPage{Items: items, Next: next}, nil
+}
+
+func (uc *PostUsecase) GetMyDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error) {
+	posts, err := uc.repo.GetMyDrafts(ctx, userID, cursor, limit+1)
+	if err != nil {
+		return nil, mapRepoError("get my drafts", err)
+	}
+	items, next := paginate(posts, limit, func(p *dto.PostPreview) dto.NewPostsCursor {
+		return dto.NewPostsCursor{PublishedOrUpdatedAt: *p.PublishedOrUpdatedAt, PostID: p.ID}
+	})
+	return &dto.NewPostsPage{Items: items, Next: next}, nil
+}
+
 func (uc *PostUsecase) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error) {
 	posts, err := uc.repo.GetNewPosts(ctx, userID, cursor, limit+1)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get new posts: %w", err)
+		return nil, mapRepoError("get new posts", err)
 	}
 	items, next := paginate(posts, limit, func(p *dto.PostPreview) dto.NewPostsCursor {
-		return dto.NewPostsCursor{PublishedOrUpdatedAt: *p.PublishedAt, PostID: p.ID}
+		return dto.NewPostsCursor{PublishedOrUpdatedAt: *p.PublishedOrUpdatedAt, PostID: p.ID}
 	})
 	return &dto.NewPostsPage{Items: items, Next: next}, nil
 }
@@ -45,10 +77,10 @@ func (uc *PostUsecase) GetNewPosts(ctx context.Context, userID *uuid.UUID, curso
 func (uc *PostUsecase) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error) {
 	posts, err := uc.repo.GetPopularPosts(ctx, userID, cursor, limit+1)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get popular posts: %w", err)
+		return nil, mapRepoError("get popular posts", err)
 	}
 	items, next := paginate(posts, limit, func(p *dto.PostPreview) dto.PopularPostsCursor {
-		return dto.PopularPostsCursor{Likes: p.LikesCount, PublishedAt: *p.PublishedAt, PostID: p.ID}
+		return dto.PopularPostsCursor{Likes: p.LikesCount, PublishedAt: *p.PublishedOrUpdatedAt, PostID: p.ID}
 	})
 	return &dto.PopularPostsPage{Items: items, Next: next}, nil
 }

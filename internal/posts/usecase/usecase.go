@@ -39,9 +39,9 @@ func mapRepoError(op string, err error) error {
 type PostRepository interface {
 	CreatePost(ctx context.Context, userID *uuid.UUID, p models.Post) (uuid.UUID, error)
 	GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error)
-	GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.MyPostPreview, error)
-	GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.MyPostPreview, error)
-	GetMyDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.MyPostPreview, error)
+	GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error)
+	GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
+	GetMyDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error)
 	GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error)
 	GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
 	UpdatePost(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) error
@@ -51,7 +51,7 @@ type PostRepository interface {
 	DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error)
 }
 
-type PostUsecase struct { // TODO: добавить логгер
+type PostUsecase struct {
 	repo PostRepository
 }
 

@@ -30,7 +30,7 @@ func NewProfileHandler(uc ProfileUsecase, logger *slog.Logger) *ProfileHandler {
 
 func (h *ProfileHandler) RegisterRoutes(public *mux.Router, private *mux.Router) {
 	private.HandleFunc("/profile/me", h.GetMe).Methods(http.MethodGet, http.MethodOptions)
-	private.HandleFunc("/profile/me/posts", h.GetMePosts).Methods(http.MethodGet, http.MethodOptions)
+	// private.HandleFunc("/profile/me/posts", h.GetMePosts).Methods(http.MethodGet, http.MethodOptions)
 }
 
 // GetMe возвращает профиль текущего пользователя

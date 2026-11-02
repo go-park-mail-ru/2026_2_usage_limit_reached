@@ -18,6 +18,9 @@ import (
 type PostUsecase interface {
 	CreatePost(ctx context.Context, userID *uuid.UUID, p dto.PostRequest) (uuid.UUID, error)
 	GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error)
+	GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error)
+	GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)
+	GetMyDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error)
 	GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error)
 	GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)
 	UpdatePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID, p dto.PostRequest, lastUpdatedAt time.Time) error
@@ -41,6 +44,8 @@ func (h *PostHandler) RegisterRoutes(public *mux.Router, private *mux.Router) {
 	public.HandleFunc("/feed", h.Feed).Methods(http.MethodGet, http.MethodOptions)
 	public.HandleFunc("/posts/{id}", h.ViewPost).Methods(http.MethodGet, http.MethodOptions)
 
+	private.HandleFunc("/profile/me/posts", h.MyPosts).Methods(http.MethodGet, http.MethodOptions)
+	private.HandleFunc("/profile/me/drafts", h.MyDrafts).Methods(http.MethodGet, http.MethodOptions)
 	private.HandleFunc("/posts", h.NewPost).Methods(http.MethodPost, http.MethodOptions)
 	private.HandleFunc("/posts/{id}", h.EditPost).Methods(http.MethodPut, http.MethodOptions)
 	private.HandleFunc("/posts/{id}", h.DeletePost).Methods(http.MethodDelete, http.MethodOptions)

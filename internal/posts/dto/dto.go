@@ -9,10 +9,10 @@ import (
 )
 
 type PostRequest struct {
-	Title         string     `json:"title"`
-	Body          string     `json:"body"`
-	Status        string     `json:"status"`
-	LastUpdatedAt *time.Time `json:"last_updated_at,omitempty"`
+	Title         string     `json:"title" example:"Мой первый пост"`
+	Body          string     `json:"body" example:"Текст поста"`
+	Status        string     `json:"status" enums:"draft,published" example:"published"`
+	LastUpdatedAt *time.Time `json:"last_updated_at,omitempty" example:"2026-11-02T12:00:00Z"`
 }
 
 func (r PostRequest) Validate(v *validator.Validator) error {
@@ -32,57 +32,48 @@ func (r PostRequest) Validate(v *validator.Validator) error {
 }
 
 type CreatePostResponse struct {
-	ID uuid.UUID `json:"id"`
+	ID uuid.UUID `json:"id" example:"00000000-0000-4000-8000-000000000101"`
 }
 
 type AuthorResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Username  string    `json:"username"`
-	Nickname  string    `json:"nickname"`
-	AvatarKey *string   `json:"avatar_key"`
+	ID        uuid.UUID `json:"id" example:"00000000-0000-4000-8000-000000000001"`
+	Username  string    `json:"username" example:"username123"`
+	Nickname  string    `json:"nickname" example:"nickname_123"`
+	AvatarKey *string   `json:"avatar_key" example:"avatars/user-1.png"`
 }
 
 type PostInfo struct {
-	ID          uuid.UUID      `json:"id"`
+	ID          uuid.UUID      `json:"id" example:"00000000-0000-4000-8000-000000000101"`
 	Author      AuthorResponse `json:"author"`
-	Title       string         `json:"title"`
-	Body        string         `json:"body"`
-	Status      string         `json:"status"`
-	PublishedAt *time.Time     `json:"published_at"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	Locked      bool           `json:"locked"`
-	LikesCount  int64          `json:"likes_count"`
-	LikedByUser bool           `json:"liked_by_user"`
-}
-
-type MyPostPreview struct {
-	ID                   uuid.UUID  `json:"id"`
-	Title                string     `json:"title"`
-	BodyPreview          string     `json:"body_preview"`
-	PublishedOrUpdatedAt *time.Time `json:"ts"`
-	LikesCount           int64      `json:"likes_count"`
-	LikedByUser          bool       `json:"liked_by_user"`
+	Title       string         `json:"title" example:"Мой первый пост"`
+	Body        string         `json:"body" example:"Текст поста"`
+	Status      string         `json:"status" example:"published"`
+	PublishedAt *time.Time     `json:"published_at" example:"2026-09-01T12:00:00Z"`
+	CreatedAt   time.Time      `json:"created_at" example:"2026-09-01T11:00:00Z"`
+	UpdatedAt   time.Time      `json:"updated_at" example:"2026-09-01T12:00:00Z"`
+	Locked      bool           `json:"locked" example:"false"`
+	LikesCount  int64          `json:"likes_count" example:"12"`
+	LikedByUser bool           `json:"liked_by_user" example:"true"`
 }
 
 type PostPreview struct {
-	ID          uuid.UUID      `json:"id"`
-	Author      AuthorResponse `json:"author"`
-	Title       string         `json:"title"`
-	BodyPreview string         `json:"body_preview"`
-	PublishedAt *time.Time     `json:"published_at"`
-	Locked      bool           `json:"locked"`
-	LikesCount  int64          `json:"likes_count"`
-	LikedByUser bool           `json:"liked_by_user"`
+	ID                   uuid.UUID      `json:"id" example:"00000000-0000-4000-8000-000000000101"`
+	Author               AuthorResponse `json:"author"`
+	Title                string         `json:"title" example:"Мой первый пост"`
+	BodyPreview          string         `json:"body_preview" example:"Первые 200 символов текста поста"`
+	PublishedOrUpdatedAt *time.Time     `json:"published_or_updated_at" example:"2026-09-01T12:00:00Z"`
+	Locked               bool           `json:"locked" example:"false"`
+	LikesCount           int64          `json:"likes_count" example:"12"`
+	LikedByUser          bool           `json:"liked_by_user" example:"true"`
 }
 
 type PostsPageResponse struct {
 	Items      []*PostPreview `json:"items"`
-	NextCursor *string        `json:"next_cursor"`
+	NextCursor *string        `json:"next_cursor" example:"eyJraW5kIjoibmV3X3Bvc3RzIn0"`
 }
 
 type NewPostsCursor struct {
-	PublishedOrUpdatedAt time.Time `json:"ts"`
+	PublishedOrUpdatedAt time.Time `json:"published_or_updated_at"`
 	PostID               uuid.UUID `json:"post_id"`
 }
 
@@ -103,6 +94,6 @@ type PopularPostsPage struct {
 }
 
 type PostLikeResponse struct {
-	LikesCount  int64 `json:"likes_count"`
-	LikedByUser bool  `json:"liked_by_user"`
+	LikesCount  int64 `json:"likes_count" example:"13"`
+	LikedByUser bool  `json:"liked_by_user" example:"true"`
 }

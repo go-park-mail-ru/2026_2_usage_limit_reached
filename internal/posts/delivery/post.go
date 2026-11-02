@@ -3,6 +3,7 @@ package posthandlers
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -23,6 +24,18 @@ const (
 	maxLimit      = 50
 )
 
+// Feed возвращает ленту опубликованных постов
+// @Summary Лента постов
+// @Description Возвращает опубликованные посты страницами. Авторизация необязательна: для авторизованного пользователя заполняется liked_by_user. У закрытых постов (locked = true) body_preview пустой. Чтобы получить следующую страницу, передайте next_cursor из ответа в параметр cursor; значение null означает, что страниц больше нет.
+// @Tags posts
+// @Produce json
+// @Param sort query string true "Порядок сортировки" Enums(new, popular)
+// @Param limit query int false "Размер страницы (значения вне диапазона 1-50 заменяются на 20)" default(20) minimum(1) maximum(50)
+// @Param cursor query string false "Курсор из next_cursor предыдущего ответа (для первой страницы не передаётся)"
+// @Success 200 {object} dto.PostsPageResponse "Страница постов"
+// @Failure 400 {object} response.ErrorResponse "Неверный sort или cursor"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /feed [get]
 func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	limit := parseLimit(r.URL.Query().Get(limitField))
@@ -32,12 +45,13 @@ func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 		resp dto.PostsPageResponse
 		err  error
 	)
-	userID := getUserIDFromContext(ctx)
-	switch r.URL.Query().Get("sort") {
+	userID := h.getUserIDFromContext(ctx)
+	sort := r.URL.Query().Get("sort")
+	switch sort {
 	case sortByNew:
-		resp, err = h.feedNew(ctx, userID, rawCursor, limit)
+		resp, err = h.feedNew(ctx, userID, rawCursor, limit, h.uc.GetNewPosts)
 	case sortByPopular:
-		resp, err = h.feedPopular(ctx, userID, rawCursor, limit)
+		resp, err = h.feedPopular(ctx, userID, rawCursor, limit, h.uc.GetPopularPosts)
 	default:
 		err = validator.ErrValidation
 	}
@@ -45,6 +59,98 @@ func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 		h.handleError(ctx, w, "feed", "get feed", err)
 		return
 	}
+	h.logger.InfoContext(ctx, "feed sent successfully",
+		slog.String("user_id", uid(userID)),
+		slog.String("sort", sort),
+		slog.Int("limit", limit),
+		slog.Int("items_sent", len(resp.Items)),
+	)
+	response.WriteJSON(w, http.StatusOK, resp)
+}
+
+// MyPosts возвращает посты текущего пользователя
+// @Summary Посты текущего пользователя
+// @Description Возвращает опубликованные посты авторизованного пользователя страницами. Черновики доступны через /profile/me/drafts.
+// @Tags posts
+// @Produce json
+// @Security CookieAuth
+// @Param sort query string true "Порядок сортировки" Enums(new, popular)
+// @Param limit query int false "Размер страницы (значения вне диапазона 1-50 заменяются на 20)" default(20) minimum(1) maximum(50)
+// @Param cursor query string false "Курсор из next_cursor предыдущего ответа (для первой страницы не передаётся)"
+// @Success 200 {object} dto.PostsPageResponse "Страница постов"
+// @Failure 400 {object} response.ErrorResponse "Неверный sort или cursor"
+// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /profile/me/posts [get]
+func (h *PostHandler) MyPosts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	limit := parseLimit(r.URL.Query().Get(limitField))
+	rawCursor := r.URL.Query().Get("cursor")
+
+	var (
+		resp dto.PostsPageResponse
+		err  error
+	)
+	userID := h.getUserIDFromContext(ctx)
+	sort := r.URL.Query().Get("sort")
+	switch sort {
+	case sortByNew:
+		resp, err = h.feedNew(ctx, userID, rawCursor, limit, h.uc.GetMyNewPosts)
+	case sortByPopular:
+		resp, err = h.feedPopular(ctx, userID, rawCursor, limit, h.uc.GetMyPopularPosts)
+	default:
+		err = validator.ErrValidation
+	}
+	if err != nil {
+		h.handleError(ctx, w, "my posts", "get my posts", err)
+		return
+	}
+	h.logger.InfoContext(ctx, "my posts sent successfully",
+		slog.String("sort", sort),
+		slog.Int("limit", limit),
+		slog.Int("items_sent", len(resp.Items)),
+	)
+	response.WriteJSON(w, http.StatusOK, resp)
+}
+
+// MyDrafts возвращает черновики текущего пользователя
+// @Summary Черновики текущего пользователя
+// @Description Возвращает черновики авторизованного пользователя страницами. Поддерживается только sort=new.
+// @Tags posts
+// @Produce json
+// @Security CookieAuth
+// @Param sort query string true "Порядок сортировки (поддерживается только new)" Enums(new)
+// @Param limit query int false "Размер страницы (значения вне диапазона 1-50 заменяются на 20)" default(20) minimum(1) maximum(50)
+// @Param cursor query string false "Курсор из next_cursor предыдущего ответа (для первой страницы не передаётся)"
+// @Success 200 {object} dto.PostsPageResponse "Страница черновиков"
+// @Failure 400 {object} response.ErrorResponse "Неверный sort или cursor"
+// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /profile/me/drafts [get]
+func (h *PostHandler) MyDrafts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	limit := parseLimit(r.URL.Query().Get(limitField))
+	rawCursor := r.URL.Query().Get("cursor")
+
+	var (
+		resp dto.PostsPageResponse
+		err  error
+	)
+	userID := h.getUserIDFromContext(ctx)
+	switch r.URL.Query().Get("sort") {
+	case sortByNew:
+		resp, err = h.feedNew(ctx, userID, rawCursor, limit, h.uc.GetMyDrafts)
+	default:
+		err = validator.ErrValidation
+	}
+	if err != nil {
+		h.handleError(ctx, w, "my drafts", "get my drafts", err)
+		return
+	}
+	h.logger.InfoContext(ctx, "my drafts sent successfully",
+		slog.Int("limit", limit),
+		slog.Int("items_sent", len(resp.Items)),
+	)
 	response.WriteJSON(w, http.StatusOK, resp)
 }
 
@@ -56,12 +162,17 @@ func parseLimit(raw string) int {
 	return limit
 }
 
-func (h *PostHandler) feedNew(ctx context.Context, userID *uuid.UUID, rawCursor string, limit int) (dto.PostsPageResponse, error) {
+func (h *PostHandler) feedNew(
+	ctx context.Context,
+	userID *uuid.UUID,
+	rawCursor string,
+	limit int,
+	getNewPosts func(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error)) (dto.PostsPageResponse, error) {
 	cur, err := cursor.NewPosts.Decode(rawCursor)
 	if err != nil {
 		return dto.PostsPageResponse{}, fmt.Errorf("decode cursor: %w: %w", validator.ErrValidation, err)
 	}
-	page, err := h.uc.GetNewPosts(ctx, userID, cur, limit)
+	page, err := getNewPosts(ctx, userID, cur, limit)
 	if err != nil {
 		return dto.PostsPageResponse{}, err
 	}
@@ -72,12 +183,16 @@ func (h *PostHandler) feedNew(ctx context.Context, userID *uuid.UUID, rawCursor 
 	return dto.PostsPageResponse{Items: page.Items, NextCursor: next}, nil
 }
 
-func (h *PostHandler) feedPopular(ctx context.Context, userID *uuid.UUID, rawCursor string, limit int) (dto.PostsPageResponse, error) {
+func (h *PostHandler) feedPopular(ctx context.Context,
+	userID *uuid.UUID,
+	rawCursor string,
+	limit int,
+	getPopularPosts func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)) (dto.PostsPageResponse, error) {
 	cur, err := cursor.PopularPosts.Decode(rawCursor)
 	if err != nil {
 		return dto.PostsPageResponse{}, fmt.Errorf("decode cursor: %w: %w", validator.ErrValidation, err)
 	}
-	page, err := h.uc.GetPopularPosts(ctx, userID, cur, limit)
+	page, err := getPopularPosts(ctx, userID, cur, limit)
 	if err != nil {
 		return dto.PostsPageResponse{}, err
 	}
@@ -88,6 +203,17 @@ func (h *PostHandler) feedPopular(ctx context.Context, userID *uuid.UUID, rawCur
 	return dto.PostsPageResponse{Items: page.Items, NextCursor: next}, nil
 }
 
+// ViewPost возвращает пост целиком
+// @Summary Просмотр поста
+// @Description Возвращает пост целиком. Авторизация необязательна: автор видит свои неопубликованные посты, для остальных они недоступны (404). У закрытого поста (locked = true) поле body пустое.
+// @Tags posts
+// @Produce json
+// @Param id path string true "ID поста" Format(uuid)
+// @Success 200 {object} dto.PostInfo "Пост"
+// @Failure 400 {object} response.ErrorResponse "Некорректный ID поста"
+// @Failure 404 {object} response.ErrorResponse "Пост не найден или недоступен"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /posts/{id} [get]
 func (h *PostHandler) ViewPost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	postID, err := getPostID(r)
@@ -96,15 +222,33 @@ func (h *PostHandler) ViewPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := getUserIDFromContext(ctx)
+	userID := h.getUserIDFromContext(ctx)
 	post, err := h.uc.GetPost(ctx, userID, postID)
 	if err != nil {
 		h.handleError(ctx, w, "view post", "get post error", err)
 		return
 	}
+	h.logger.InfoContext(ctx, "view post success",
+		slog.String("post_id", post.ID.String()),
+		slog.String("user_id", uid(userID)),
+	)
 	response.WriteJSON(w, http.StatusOK, post)
 }
 
+// NewPost создаёт пост
+// @Summary Создание поста
+// @Description Создаёт пост от имени текущего пользователя. Создавать посты могут только авторы. Поле last_updated_at при создании не используется. Для статуса published дата публикации проставляется автоматически.
+// @Tags posts
+// @Accept json
+// @Produce json
+// @Security CookieAuth
+// @Param request body dto.PostRequest true "Данные поста"
+// @Success 200 {object} dto.CreatePostResponse "ID созданного поста"
+// @Failure 400 {object} response.ErrorResponse "Ошибка валидации"
+// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 403 {object} response.ErrorResponse "Пользователь не является автором"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /posts [post]
 func (h *PostHandler) NewPost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	defer r.Body.Close()
@@ -118,15 +262,36 @@ func (h *PostHandler) NewPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := getUserIDFromContext(ctx)
+	userID := h.getUserIDFromContext(ctx)
 	postID, err := h.uc.CreatePost(ctx, userID, postReq)
 	if err != nil {
 		h.handleError(ctx, w, "new post", "create post error", err)
 		return
 	}
+	h.logger.InfoContext(ctx, "new post created",
+		slog.String("post_id", postID.String()),
+		slog.String("userID", userID.String()),
+	)
 	response.WriteJSON(w, http.StatusOK, dto.CreatePostResponse{ID: postID})
 }
 
+// EditPost изменяет пост
+// @Summary Изменение поста
+// @Description Полностью заменяет title, body и status поста. Используется оптимистическая блокировка: в last_updated_at нужно передать значение updated_at, полученное при последнем чтении поста. Если пост успели изменить, вернётся 409, и пост нужно перечитать.
+// @Tags posts
+// @Accept json
+// @Produce json
+// @Security CookieAuth
+// @Param id path string true "ID поста" Format(uuid)
+// @Param request body dto.PostRequest true "Новые данные поста (last_updated_at обязателен)"
+// @Success 200 "Пост обновлён"
+// @Failure 400 {object} response.ErrorResponse "Ошибка валидации или не передан last_updated_at"
+// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 403 {object} response.ErrorResponse "Пост принадлежит другому пользователю"
+// @Failure 404 {object} response.ErrorResponse "Пост не найден"
+// @Failure 409 {object} response.ErrorResponse "Пост уже был изменён (устаревший last_updated_at)"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /posts/{id} [put]
 func (h *PostHandler) EditPost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	postID, err := getPostID(r)
@@ -149,14 +314,31 @@ func (h *PostHandler) EditPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := getUserIDFromContext(ctx)
+	userID := h.getUserIDFromContext(ctx)
 	if err := h.uc.UpdatePost(ctx, userID, postID, postReq, *postReq.LastUpdatedAt); err != nil {
 		h.handleError(ctx, w, "edit post", "update post error", err)
 		return
 	}
+	h.logger.InfoContext(ctx, "post edited",
+		slog.String("post_id", postID.String()),
+		slog.String("userID", userID.String()),
+	)
 	w.WriteHeader(http.StatusOK)
 }
 
+// DeletePost удаляет пост
+// @Summary Удаление поста
+// @Description Удаляет пост текущего пользователя вместе с лайками, комментариями и уведомлениями.
+// @Tags posts
+// @Produce json
+// @Security CookieAuth
+// @Param id path string true "ID поста" Format(uuid)
+// @Success 200 "Пост удалён"
+// @Failure 400 {object} response.ErrorResponse "Некорректный ID поста"
+// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 404 {object} response.ErrorResponse "Пост не найден или принадлежит другому пользователю"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /posts/{id} [delete]
 func (h *PostHandler) DeletePost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	postID, err := getPostID(r)
@@ -165,14 +347,31 @@ func (h *PostHandler) DeletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := getUserIDFromContext(ctx)
+	userID := h.getUserIDFromContext(ctx)
 	if err := h.uc.DeletePost(ctx, userID, postID); err != nil {
 		h.handleError(ctx, w, "delete post", "delete post error", err)
 		return
 	}
+	h.logger.InfoContext(ctx, "post deleted",
+		slog.String("post_id", postID.String()),
+		slog.String("userID", userID.String()),
+	)
 	w.WriteHeader(http.StatusOK)
 }
 
+// LikePost ставит лайк посту
+// @Summary Лайк поста
+// @Description Ставит лайк опубликованному посту. Операция идемпотентна: повторный лайк не увеличивает счётчик. Лайкнуть можно только пост, доступный пользователю; автору о лайке своего поста уведомление не отправляется.
+// @Tags posts
+// @Produce json
+// @Security CookieAuth
+// @Param id path string true "ID поста" Format(uuid)
+// @Success 200 {object} dto.PostLikeResponse "Актуальное число лайков"
+// @Failure 400 {object} response.ErrorResponse "Некорректный ID поста"
+// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 404 {object} response.ErrorResponse "Пост не найден или недоступен"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /posts/{id}/like [post]
 func (h *PostHandler) LikePost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	postID, err := getPostID(r)
@@ -181,15 +380,31 @@ func (h *PostHandler) LikePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := getUserIDFromContext(ctx)
+	userID := h.getUserIDFromContext(ctx)
 	likesCount, err := h.uc.LikePost(ctx, userID, postID)
 	if err != nil {
 		h.handleError(ctx, w, "like post", "like post error", err)
 		return
 	}
+	h.logger.InfoContext(ctx, "post liked",
+		slog.String("post_id", postID.String()),
+		slog.String("user_id", userID.String()),
+	)
 	response.WriteJSON(w, http.StatusOK, dto.PostLikeResponse{LikesCount: likesCount, LikedByUser: true})
 }
 
+// UnlikePost снимает лайк с поста
+// @Summary Снятие лайка с поста
+// @Description Снимает лайк пользователя с поста. Операция идемпотентна: если лайка нет, счётчик не меняется.
+// @Tags posts
+// @Produce json
+// @Security CookieAuth
+// @Param id path string true "ID поста" Format(uuid)
+// @Success 200 {object} dto.PostLikeResponse "Актуальное число лайков"
+// @Failure 400 {object} response.ErrorResponse "Некорректный ID поста"
+// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /posts/{id}/like [delete]
 func (h *PostHandler) UnlikePost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	postID, err := getPostID(r)
@@ -198,13 +413,28 @@ func (h *PostHandler) UnlikePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := getUserIDFromContext(ctx)
+	userID := h.getUserIDFromContext(ctx)
 	likesCount, err := h.uc.DeletePostLike(ctx, userID, postID)
 	if err != nil {
 		h.handleError(ctx, w, "unlike post", "like post error", err)
 		return
 	}
+	h.logger.InfoContext(ctx, "post like deleted",
+		slog.String("post_id", postID.String()),
+		slog.String("user_id", userID.String()),
+	)
 	response.WriteJSON(w, http.StatusOK, dto.PostLikeResponse{LikesCount: likesCount, LikedByUser: false})
+}
+
+func (h *PostHandler) getUserIDFromContext(ctx context.Context) *uuid.UUID {
+	user, ok := middleware.UserInfoFromContext(ctx)
+	if !ok {
+		h.logger.WarnContext(ctx, "posts: invalid user id from context")
+	}
+	if user == nil {
+		return nil
+	}
+	return (*uuid.UUID)(user.UserID[:])
 }
 
 func getPostID(r *http.Request) (uuid.UUID, error) {
@@ -215,10 +445,9 @@ func getPostID(r *http.Request) (uuid.UUID, error) {
 	return id, nil
 }
 
-func getUserIDFromContext(ctx context.Context) (uID *uuid.UUID) {
-	user, _ := middleware.UserInfoFromContext(ctx) // добавить лог на !ok
-	if user == nil {
-		return nil
+func uid(id *uuid.UUID) string {
+	if id == nil {
+		return "-"
 	}
-	return (*uuid.UUID)(user.UserID[:])
+	return id.String()
 }

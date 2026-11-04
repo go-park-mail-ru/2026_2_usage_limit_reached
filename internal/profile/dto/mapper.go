@@ -1,55 +1,51 @@
 package dto
 
 import (
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/avatar"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
-	authdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
-	"github.com/google/uuid"
 )
 
-func ToProfileResponse(user *authdto.UserInfo, author *models.Author) *ProfileResponse {
-
+func ToProfileResponse(profile *models.ProfileReadModel) *ProfileResponse {
+	if profile == nil {
+		return nil
+	}
 	return &ProfileResponse{
-		User:   toUserResponse(*user),
-		Author: toAuthorResponse(author),
+		User:   toUserResponse(profile),
+		Author: toAuthorResponse(profile.Author),
 	}
 }
 
-func ToProfilePostsResponse(userID uuid.UUID, posts []models.Post) *ProfilePostsResponse {
-	postResponses := make([]PostResponse, 0, len(posts))
-	for _, post := range posts {
-		postResponses = append(postResponses, toPostResponse(post))
+func ToPublicProfileResponse(profile *models.ProfileReadModel) *PublicProfileResponse {
+	if profile == nil {
+		return nil
 	}
 
-	return &ProfilePostsResponse{
-		UserID: userID,
-		Posts:  postResponses,
+	return &PublicProfileResponse{
+		User:   toPublicUserResponse(profile),
+		Author: toAuthorResponse(profile.Author),
 	}
 }
 
-func toUserResponse(user authdto.UserInfo) ProfileUserResponse {
+func toUserResponse(profile *models.ProfileReadModel) ProfileUserResponse {
 	return ProfileUserResponse{
-		ID:        user.ID,
-		Username:  user.Username,
-		Nickname:  user.Nickname,
-		Email:     user.Email,
-		AvatarKey: user.AvatarKey,
-		CreatedAt: user.CreatedAt,
+		PublicProfileUserResponse: toPublicUserResponse(profile),
+		Email:                     profile.Email,
 	}
 }
 
-func toAuthorResponse(author *models.Author) *AuthorResponse {
+func toPublicUserResponse(profile *models.ProfileReadModel) PublicProfileUserResponse {
+	return PublicProfileUserResponse{
+		ID:        profile.UserID,
+		Username:  profile.Username,
+		Nickname:  profile.Nickname,
+		AvatarURL: avatar.URL(profile.AvatarKey),
+		CreatedAt: profile.CreatedAt,
+	}
+}
+
+func toAuthorResponse(author *models.ProfileAuthorReadModel) *AuthorResponse {
 	if author == nil {
 		return nil
 	}
 	return &AuthorResponse{Bio: author.Bio, Category: author.Category}
-}
-
-func toPostResponse(post models.Post) PostResponse {
-	return PostResponse{
-		ID:          post.ID,
-		Title:       post.Title,
-		Body:        post.Body,
-		Status:      string(post.Status),
-		PublishedAt: post.PublishedAt,
-	}
 }

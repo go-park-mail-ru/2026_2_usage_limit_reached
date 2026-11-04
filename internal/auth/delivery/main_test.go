@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/testutils"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 )
 
 type MockUseCase struct {

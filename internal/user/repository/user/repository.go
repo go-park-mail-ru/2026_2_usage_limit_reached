@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -19,41 +18,53 @@ const (
 	UsernameField = "username"
 )
 
-type PgxCliPool interface {
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-}
-
 type UserRepository struct {
-	pool PgxCliPool
+	pool postgres.Querier
 }
 
-func NewUserRepository(pool PgxCliPool) *UserRepository {
+func NewUserRepository(pool postgres.Querier) *UserRepository {
 	return &UserRepository{pool: pool}
 }
 
-func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*models.User, error) {
+func (r *UserRepository) CreateUser(ctx context.Context, u models.User) (*models.User, error) {
 	const query = `
 		INSERT INTO "user" (username, nickname, email, password_hash, status)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at, updated_at
 	`
-	var (
-		id        uuid.UUID
-		createdAt time.Time
-		updatedAt time.Time
-	)
-	err := r.pool.QueryRow(ctx, query, u.Username, u.Nickname, u.Email, u.PasswordHash, u.Status).Scan(&id, &createdAt, &updatedAt)
+
+	err := r.pool.QueryRow(ctx, query, u.Username, u.Nickname, u.Email, u.PasswordHash, u.Status).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		err = postgres.ParseError(err)
-		if errors.Is(postgres.ErrUniqViolation, err) {
+		if errors.Is(err, postgres.ErrUniqViolation) {
 			return nil, models.ErrUserExists
 		}
 		return nil, fmt.Errorf("Create user error: %w", err)
 	}
-	u.ID = id
-	u.CreatedAt = createdAt
-	u.UpdatedAt = updatedAt
-	return u, nil
+
+	return &u, nil
+}
+
+func (r *UserRepository) UpdateNickname(ctx context.Context, id uuid.UUID, nickname string) (string, error) {
+	const query = `
+		UPDATE "user"
+		SET nickname = $2
+		WHERE id = $1
+		RETURNING nickname
+	`
+
+	var updated string
+
+	err := r.pool.QueryRow(ctx, query, id, nickname).Scan(&updated)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", models.ErrUserNotFound
+		}
+
+		return "", fmt.Errorf("update nickname error: %w", err)
+	}
+
+	return updated, nil
 }
 
 func (r *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {

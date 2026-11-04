@@ -4,41 +4,25 @@ import (
 	"context"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 	"github.com/google/uuid"
 )
 
-type MockRepository struct {
-	CreateUserFunc        func(ctx context.Context, user *models.User) (*models.User, error)
-	GetUserByIDFunc       func(ctx context.Context, id uuid.UUID) (*models.User, error)
-	GetUserByEmailFunc    func(ctx context.Context, email string) (*models.User, error)
-	GetUserByUsernameFunc func(ctx context.Context, username string) (*models.User, error)
+type MockUserProvider struct {
+	CreateUserFunc             func(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error)
+	FindCredentialsByLoginFunc func(ctx context.Context, login string) (*userdto.UserCredentials, error)
 }
 
-func (m *MockRepository) CreateUser(ctx context.Context, user *models.User) (*models.User, error) {
+func (m *MockUserProvider) CreateUser(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error) {
 	if m.CreateUserFunc != nil {
-		return m.CreateUserFunc(ctx, user)
+		return m.CreateUserFunc(ctx, req)
 	}
 	return nil, nil
 }
 
-func (m *MockRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
-	if m.GetUserByIDFunc != nil {
-		return m.GetUserByIDFunc(ctx, id)
-	}
-	return nil, nil
-}
-
-func (m *MockRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
-	if m.GetUserByEmailFunc != nil {
-		return m.GetUserByEmailFunc(ctx, email)
-	}
-	return nil, nil
-}
-
-func (m *MockRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
-	if m.GetUserByUsernameFunc != nil {
-		return m.GetUserByUsernameFunc(ctx, username)
+func (m *MockUserProvider) FindCredentialsByLogin(ctx context.Context, login string) (*userdto.UserCredentials, error) {
+	if m.FindCredentialsByLoginFunc != nil {
+		return m.FindCredentialsByLoginFunc(ctx, login)
 	}
 	return nil, nil
 }

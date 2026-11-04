@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
+	userusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -20,19 +19,15 @@ func (uc *Usecase) Register(ctx context.Context, regInput dto.RegistrationReques
 		return nil, "", fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	user := &models.User{
-		ID:           uuid.New(),
-		Email:        normalize(regInput.Email),
-		Username:     normalize(regInput.Username),
+	user, err := uc.users.CreateUser(ctx, userdto.CreateUserRequest{
+		Email:        regInput.Email,
+		Username:     regInput.Username,
 		Nickname:     regInput.Nickname,
 		PasswordHash: string(passwordHash),
-		Status:       statusActive,
-	}
-
-	user, err = uc.repo.CreateUser(ctx, user)
+	})
 	if err != nil {
-		if errors.Is(err, models.ErrUserExists) {
-			return nil, "", fmt.Errorf("%w: %w", ErrRegistrationFailed, err)
+		if errors.Is(err, userusecase.ErrUserExists) {																		
+			return nil, "", fmt.Errorf("register: %w", ErrRegistrationFailed)
 		}
 		return nil, "", fmt.Errorf("failed to create user: %w", err)
 	}
@@ -42,26 +37,25 @@ func (uc *Usecase) Register(ctx context.Context, regInput dto.RegistrationReques
 		return nil, "", fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	response := dto.ToUserResponse(user)
-	return response, token, nil
+	return dto.ToUserResponse(user), token, nil
 }
 
 func (uc *Usecase) Login(ctx context.Context, logReq dto.LoginRequest) (*dto.UserResponse, string, error) {
-	user, err := uc.findUserByLogin(ctx, normalize(logReq.Login))
+	user, err := uc.users.FindCredentialsByLogin(ctx, logReq.Login)
 
 	if err != nil {
-		if errors.Is(err, models.ErrUserNotFound) {
-			return nil, "", fmt.Errorf("%w: %w", ErrLoginFailed, err)
+		if errors.Is(err, userusecase.ErrUserNotFound) {
+			return nil, "", fmt.Errorf("%w: user not found", ErrLoginFailed)
 		}
 		return nil, "", fmt.Errorf("failed to find user: %w", err)
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(logReq.Password))
 	if err != nil {
-		return nil, "", fmt.Errorf("%w: %w", ErrLoginFailed, err)
+		return nil, "", fmt.Errorf("%w: invalid password", ErrLoginFailed)
 	}
 
-	if user.Status != statusActive {
+	if !user.IsActive() {
 		return nil, "", fmt.Errorf("%w: account disabled", ErrLoginFailed)
 	}
 
@@ -70,34 +64,9 @@ func (uc *Usecase) Login(ctx context.Context, logReq dto.LoginRequest) (*dto.Use
 		return nil, "", fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	response := dto.ToUserResponse(user)
-	return response, token, nil
-}
-
-func (uc *Usecase) FindUserByID(ctx context.Context, userID uuid.UUID) (*dto.UserInfo, error) {
-	user, err := uc.repo.GetUserByID(ctx, userID)
-	if err != nil {
-		if errors.Is(err, models.ErrUserNotFound) {
-			return nil, fmt.Errorf("find user: %w", ErrUserNotFound)
-		}
-		return nil, fmt.Errorf("find user: %w", err)
-	}
-
-	return dto.ToUserInfo(user), nil
-}
-
-func (uc *Usecase) findUserByLogin(ctx context.Context, login string) (*models.User, error) {
-	if strings.ContainsRune(login, '@') {
-		return uc.repo.GetUserByEmail(ctx, login)
-	}
-
-	return uc.repo.GetUserByUsername(ctx, login)
+	return dto.ToUserResponse(&user.UserInfo), token, nil
 }
 
 func (uc *Usecase) TokenTTL() time.Duration {
 	return uc.tokenGenerator.TTL()
-}
-
-func normalize(s string) string {
-	return strings.ToLower(strings.TrimSpace(s))
 }

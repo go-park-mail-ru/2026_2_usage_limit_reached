@@ -5,25 +5,18 @@ import (
 	"errors"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 	"github.com/google/uuid"
 )
 
 var (
 	ErrRegistrationFailed = errors.New("registration failed")
 	ErrLoginFailed        = errors.New("login failed")
-	ErrUserNotFound       = errors.New("user not found")
 )
 
-const (
-	statusActive = "active"
-)
-
-type Repository interface {
-	CreateUser(ctx context.Context, user *models.User) (*models.User, error)
-	GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error)
-	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
-	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
+type UserProvider interface {
+	CreateUser(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error)
+	FindCredentialsByLogin(ctx context.Context, login string) (*userdto.UserCredentials, error)
 }
 
 type TokenManager interface {
@@ -32,10 +25,10 @@ type TokenManager interface {
 }
 
 type Usecase struct {
-	repo           Repository
+	users          UserProvider
 	tokenGenerator TokenManager
 }
 
-func NewUsecase(r Repository, t TokenManager) *Usecase {
-	return &Usecase{repo: r, tokenGenerator: t}
+func NewUsecase(u UserProvider, t TokenManager) *Usecase {
+	return &Usecase{users: u, tokenGenerator: t}
 }

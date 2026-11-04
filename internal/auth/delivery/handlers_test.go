@@ -37,7 +37,6 @@ func TestHandler_Register(t *testing.T) {
 		mockBehavior   func(m *MockUseCase)
 		expectedStatus int
 		expectedErrMsg string
-		expectedBody   *dto.UserResponse
 		expectedToken  string
 	}{
 		{
@@ -45,11 +44,10 @@ func TestHandler_Register(t *testing.T) {
 			body: validBody,
 			mockBehavior: func(m *MockUseCase) {
 				m.RegisterFunc = func(ctx context.Context, regInput dto.RegistrationRequest) (*dto.UserResponse, string, error) {
-					return &dto.UserResponse{Email: "test@mail.ru", Username: "testuser"}, "mock-token", nil
+					return &dto.UserResponse{Username: "username", Nickname: "nick"}, "mock-token", nil
 				}
 			},
 			expectedStatus: http.StatusOK,
-			expectedBody:   &dto.UserResponse{Email: "test@mail.ru", Username: "testuser"},
 			expectedToken:  "mock-token",
 		},
 		{
@@ -110,15 +108,13 @@ func TestHandler_Register(t *testing.T) {
 				require.NoError(t, json.NewDecoder(w.Body).Decode(&errResp))
 				require.Equal(t, tt.expectedErrMsg, errResp.Error)
 
-			case tt.expectedBody != nil:
+			case tt.expectedToken != "":
 				cookies := w.Result().Cookies()
 				require.Len(t, cookies, 1)
 				require.Equal(t, "token", cookies[0].Name)
 				require.Equal(t, tt.expectedToken, cookies[0].Value)
 
-				var respBody dto.UserResponse
-				require.NoError(t, json.NewDecoder(w.Body).Decode(&respBody))
-				require.Equal(t, *tt.expectedBody, respBody)
+				require.JSONEq(t, `{"username":"username","nickname":"nick"}`, w.Body.String())
 			}
 		})
 	}
@@ -143,7 +139,6 @@ func TestHandler_Login(t *testing.T) {
 		mockBehavior   func(m *MockUseCase)
 		expectedStatus int
 		expectedErrMsg string
-		expectedBody   *dto.UserResponse
 		expectedToken  string
 	}{
 		{
@@ -151,19 +146,18 @@ func TestHandler_Login(t *testing.T) {
 			body: validBody,
 			mockBehavior: func(m *MockUseCase) {
 				m.LoginFunc = func(ctx context.Context, loginInput dto.LoginRequest) (*dto.UserResponse, string, error) {
-					return &dto.UserResponse{Email: "test@mail.ru"}, "mock-token", nil
+					return &dto.UserResponse{Username: "username", Nickname: "nick"}, "mock-token", nil
 				}
 			},
 			expectedStatus: http.StatusOK,
-			expectedBody:   &dto.UserResponse{Email: "test@mail.ru"},
 			expectedToken:  "mock-token",
 		},
 		{
 			name:           "Decode Error (Bad JSON)",
 			body:           []byte(`{bad-json`),
 			mockBehavior:   func(m *MockUseCase) {},
-			expectedStatus: http.StatusUnauthorized,
-			expectedErrMsg: "unauthorized",
+			expectedStatus: http.StatusBadRequest,
+			expectedErrMsg: "bad request",
 		},
 		{
 			name:           "Validation Error",
@@ -216,15 +210,13 @@ func TestHandler_Login(t *testing.T) {
 				require.NoError(t, json.NewDecoder(w.Body).Decode(&errResp))
 				require.Equal(t, tt.expectedErrMsg, errResp.Error)
 
-			case tt.expectedBody != nil:
+			case tt.expectedToken != "":
 				cookies := w.Result().Cookies()
 				require.Len(t, cookies, 1)
 				require.Equal(t, "token", cookies[0].Name)
 				require.Equal(t, tt.expectedToken, cookies[0].Value)
 
-				var respBody dto.UserResponse
-				require.NoError(t, json.NewDecoder(w.Body).Decode(&respBody))
-				require.Equal(t, *tt.expectedBody, respBody)
+				require.JSONEq(t, `{"username":"username","nickname":"nick"}`, w.Body.String())
 			}
 		})
 	}

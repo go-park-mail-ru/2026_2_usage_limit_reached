@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/testutils"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,8 +46,6 @@ func TestRegistrationRequest_Validate(t *testing.T) {
 }
 
 func TestLoginRequest_Validate(t *testing.T) {
-	v := testutils.SetupValidator()
-
 	tests := []struct {
 		name    string
 		req     dto.LoginRequest
@@ -62,7 +60,7 @@ func TestLoginRequest_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.req.Validate(v)
+			err := tt.req.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {

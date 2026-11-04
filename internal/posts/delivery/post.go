@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery/cursor"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
@@ -19,10 +18,15 @@ import (
 const (
 	sortByNew     = "new"
 	sortByPopular = "popular"
+	sortField     = "sort"
 	limitField    = "limit"
+	cursorFiled   = "cursor"
 	defaultLimit  = 20
 	maxLimit      = 50
 )
+
+type getNewPostsFunc func(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error)
+type getPopularPostsFunc func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)
 
 // Feed возвращает ленту опубликованных постов
 // @Summary Лента постов
@@ -39,14 +43,14 @@ const (
 func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	limit := parseLimit(r.URL.Query().Get(limitField))
-	rawCursor := r.URL.Query().Get("cursor")
+	rawCursor := r.URL.Query().Get(cursorFiled)
 
 	var (
 		resp dto.PostsPageResponse
 		err  error
 	)
 	userID := h.getUserIDFromContext(ctx)
-	sort := r.URL.Query().Get("sort")
+	sort := r.URL.Query().Get(sortField)
 	switch sort {
 	case sortByNew:
 		resp, err = h.feedNew(ctx, userID, rawCursor, limit, h.uc.GetNewPosts)
@@ -59,12 +63,6 @@ func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 		h.handleError(ctx, w, "feed", "get feed", err)
 		return
 	}
-	h.logger.InfoContext(ctx, "feed sent successfully",
-		slog.String("user_id", uid(userID)),
-		slog.String("sort", sort),
-		slog.Int("limit", limit),
-		slog.Int("items_sent", len(resp.Items)),
-	)
 	response.WriteJSON(w, http.StatusOK, resp)
 }
 
@@ -85,14 +83,14 @@ func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 func (h *PostHandler) MyPosts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	limit := parseLimit(r.URL.Query().Get(limitField))
-	rawCursor := r.URL.Query().Get("cursor")
+	rawCursor := r.URL.Query().Get(cursorFiled)
 
 	var (
 		resp dto.PostsPageResponse
 		err  error
 	)
 	userID := h.getUserIDFromContext(ctx)
-	sort := r.URL.Query().Get("sort")
+	sort := r.URL.Query().Get(sortField)
 	switch sort {
 	case sortByNew:
 		resp, err = h.feedNew(ctx, userID, rawCursor, limit, h.uc.GetMyNewPosts)
@@ -105,11 +103,6 @@ func (h *PostHandler) MyPosts(w http.ResponseWriter, r *http.Request) {
 		h.handleError(ctx, w, "my posts", "get my posts", err)
 		return
 	}
-	h.logger.InfoContext(ctx, "my posts sent successfully",
-		slog.String("sort", sort),
-		slog.Int("limit", limit),
-		slog.Int("items_sent", len(resp.Items)),
-	)
 	response.WriteJSON(w, http.StatusOK, resp)
 }
 
@@ -130,14 +123,14 @@ func (h *PostHandler) MyPosts(w http.ResponseWriter, r *http.Request) {
 func (h *PostHandler) MyDrafts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	limit := parseLimit(r.URL.Query().Get(limitField))
-	rawCursor := r.URL.Query().Get("cursor")
+	rawCursor := r.URL.Query().Get(cursorFiled)
 
 	var (
 		resp dto.PostsPageResponse
 		err  error
 	)
 	userID := h.getUserIDFromContext(ctx)
-	switch r.URL.Query().Get("sort") {
+	switch r.URL.Query().Get(sortField) {
 	case sortByNew:
 		resp, err = h.feedNew(ctx, userID, rawCursor, limit, h.uc.GetMyDrafts)
 	default:
@@ -147,10 +140,6 @@ func (h *PostHandler) MyDrafts(w http.ResponseWriter, r *http.Request) {
 		h.handleError(ctx, w, "my drafts", "get my drafts", err)
 		return
 	}
-	h.logger.InfoContext(ctx, "my drafts sent successfully",
-		slog.Int("limit", limit),
-		slog.Int("items_sent", len(resp.Items)),
-	)
 	response.WriteJSON(w, http.StatusOK, resp)
 }
 
@@ -167,8 +156,8 @@ func (h *PostHandler) feedNew(
 	userID *uuid.UUID,
 	rawCursor string,
 	limit int,
-	getNewPosts func(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error)) (dto.PostsPageResponse, error) {
-	cur, err := cursor.NewPosts.Decode(rawCursor)
+	getNewPosts getNewPostsFunc) (dto.PostsPageResponse, error) {
+	cur, err := NewPostsCursor.Decode(rawCursor)
 	if err != nil {
 		return dto.PostsPageResponse{}, fmt.Errorf("decode cursor: %w: %w", validator.ErrValidation, err)
 	}
@@ -176,7 +165,7 @@ func (h *PostHandler) feedNew(
 	if err != nil {
 		return dto.PostsPageResponse{}, err
 	}
-	next, err := cursor.NewPosts.Encode(page.Next)
+	next, err := NewPostsCursor.Encode(page.Next)
 	if err != nil {
 		return dto.PostsPageResponse{}, err
 	}
@@ -187,8 +176,8 @@ func (h *PostHandler) feedPopular(ctx context.Context,
 	userID *uuid.UUID,
 	rawCursor string,
 	limit int,
-	getPopularPosts func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)) (dto.PostsPageResponse, error) {
-	cur, err := cursor.PopularPosts.Decode(rawCursor)
+	getPopularPosts getPopularPostsFunc) (dto.PostsPageResponse, error) {
+	cur, err := PopularPostsCursor.Decode(rawCursor)
 	if err != nil {
 		return dto.PostsPageResponse{}, fmt.Errorf("decode cursor: %w: %w", validator.ErrValidation, err)
 	}
@@ -196,7 +185,7 @@ func (h *PostHandler) feedPopular(ctx context.Context,
 	if err != nil {
 		return dto.PostsPageResponse{}, err
 	}
-	next, err := cursor.PopularPosts.Encode(page.Next)
+	next, err := PopularPostsCursor.Encode(page.Next)
 	if err != nil {
 		return dto.PostsPageResponse{}, err
 	}
@@ -228,10 +217,6 @@ func (h *PostHandler) ViewPost(w http.ResponseWriter, r *http.Request) {
 		h.handleError(ctx, w, "view post", "get post error", err)
 		return
 	}
-	h.logger.InfoContext(ctx, "view post success",
-		slog.String("post_id", post.ID.String()),
-		slog.String("user_id", uid(userID)),
-	)
 	response.WriteJSON(w, http.StatusOK, post)
 }
 
@@ -386,10 +371,6 @@ func (h *PostHandler) LikePost(w http.ResponseWriter, r *http.Request) {
 		h.handleError(ctx, w, "like post", "like post error", err)
 		return
 	}
-	h.logger.InfoContext(ctx, "post liked",
-		slog.String("post_id", postID.String()),
-		slog.String("user_id", userID.String()),
-	)
 	response.WriteJSON(w, http.StatusOK, dto.PostLikeResponse{LikesCount: likesCount, LikedByUser: true})
 }
 
@@ -419,10 +400,6 @@ func (h *PostHandler) UnlikePost(w http.ResponseWriter, r *http.Request) {
 		h.handleError(ctx, w, "unlike post", "like post error", err)
 		return
 	}
-	h.logger.InfoContext(ctx, "post like deleted",
-		slog.String("post_id", postID.String()),
-		slog.String("user_id", userID.String()),
-	)
 	response.WriteJSON(w, http.StatusOK, dto.PostLikeResponse{LikesCount: likesCount, LikedByUser: false})
 }
 

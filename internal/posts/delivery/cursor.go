@@ -1,4 +1,4 @@
-package cursor
+package posthandlers
 
 import (
 	"github.com/google/uuid"
@@ -13,13 +13,13 @@ const (
 )
 
 var (
-	NewPosts = cursor.Codec[dto.NewPostsCursor]{
+	NewPostsCursor = cursor.Codec[dto.NewPostsCursor]{
 		Kind: typeNewPosts,
 		Valid: func(c *dto.NewPostsCursor) bool {
 			return !c.PublishedOrUpdatedAt.IsZero() && c.PostID != uuid.Nil
 		},
 	}
-	PopularPosts = cursor.Codec[dto.PopularPostsCursor]{
+	PopularPostsCursor = cursor.Codec[dto.PopularPostsCursor]{
 		Kind: typePopularPosts,
 		Valid: func(c *dto.PopularPostsCursor) bool {
 			return c.Likes >= 0 && !c.PublishedAt.IsZero() && c.PostID != uuid.Nil

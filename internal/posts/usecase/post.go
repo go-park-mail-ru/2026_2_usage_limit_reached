@@ -2,6 +2,7 @@ package postusecase
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
@@ -10,6 +11,9 @@ import (
 )
 
 func (uc *PostUsecase) CreatePost(ctx context.Context, userID *uuid.UUID, p dto.PostRequest) (uuid.UUID, error) {
+	if userID == nil {
+		return uuid.Nil, fmt.Errorf("%s: %w", "create post", ErrUnauthorized)
+	}
 	post := models.Post{
 		Title:  p.Title,
 		Body:   p.Body,
@@ -31,6 +35,9 @@ func (uc *PostUsecase) GetPost(ctx context.Context, userID *uuid.UUID, postID uu
 }
 
 func (uc *PostUsecase) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error) {
+	if userID == nil {
+		return nil, fmt.Errorf("%s: %w", "get my new posts", ErrUnauthorized)
+	}
 	posts, err := uc.repo.GetMyNewPosts(ctx, userID, cursor, limit+1)
 	if err != nil {
 		return nil, mapRepoError("get my new posts", err)
@@ -42,6 +49,9 @@ func (uc *PostUsecase) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cur
 }
 
 func (uc *PostUsecase) GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error) {
+	if userID == nil {
+		return nil, fmt.Errorf("%s: %w", "get my popular posts", ErrUnauthorized)
+	}
 	posts, err := uc.repo.GetMyPopularPosts(ctx, userID, cursor, limit+1)
 	if err != nil {
 		return nil, mapRepoError("get my popular posts", err)
@@ -53,6 +63,9 @@ func (uc *PostUsecase) GetMyPopularPosts(ctx context.Context, userID *uuid.UUID,
 }
 
 func (uc *PostUsecase) GetMyDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error) {
+	if userID == nil {
+		return nil, fmt.Errorf("%s: %w", "get my drafts", ErrUnauthorized)
+	}
 	posts, err := uc.repo.GetMyDrafts(ctx, userID, cursor, limit+1)
 	if err != nil {
 		return nil, mapRepoError("get my drafts", err)
@@ -95,6 +108,9 @@ func paginate[C any](items []*dto.PostPreview, limit int, cursorOf func(*dto.Pos
 }
 
 func (uc *PostUsecase) UpdatePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID, p dto.PostRequest, lastUpdatedAt time.Time) error {
+	if userID == nil {
+		return fmt.Errorf("%s: %w", "update post (unauthorized)", ErrNotFound)
+	}
 	post := models.Post{
 		ID:     postID,
 		Title:  p.Title,
@@ -108,6 +124,9 @@ func (uc *PostUsecase) UpdatePost(ctx context.Context, userID *uuid.UUID, postID
 }
 
 func (uc *PostUsecase) DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error {
+	if userID == nil {
+		return fmt.Errorf("%s: %w", "delete post (unauthorized)", ErrNotFound)
+	}
 	if err := uc.repo.DeletePost(ctx, userID, postID); err != nil {
 		return mapRepoError("delete post", err)
 	}
@@ -115,6 +134,9 @@ func (uc *PostUsecase) DeletePost(ctx context.Context, userID *uuid.UUID, postID
 }
 
 func (uc *PostUsecase) LikePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
+	if userID == nil {
+		return 0, fmt.Errorf("%s: %w", "like post (unauthorized)", ErrNotFound)
+	}
 	likes, err := uc.repo.LikePost(ctx, userID, postID)
 	if err != nil {
 		return 0, mapRepoError("like post", err)
@@ -123,6 +145,9 @@ func (uc *PostUsecase) LikePost(ctx context.Context, userID *uuid.UUID, postID u
 }
 
 func (uc *PostUsecase) DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
+	if userID == nil {
+		return 0, fmt.Errorf("%s: %w", "unlike post (unauthorized)", ErrNotFound)
+	}
 	likes, err := uc.repo.DeletePostLike(ctx, userID, postID)
 	if err != nil {
 		return 0, err

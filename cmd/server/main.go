@@ -25,7 +25,7 @@ import (
 
 // @title Patreon Clone API
 // @version 1.0
-// @description Регистрация, вход, выход, профиль пользователя и посты.
+// @description REST API для платформы публикации контента (аналог Patreon).
 // @securityDefinitions.apikey CookieAuth
 // @in cookie
 // @name token

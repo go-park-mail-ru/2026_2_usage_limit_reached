@@ -30,10 +30,6 @@ func (r *PostRepository) CreatePost(ctx context.Context, userID *uuid.UUID, p mo
 		RETURNING id
 	`
 
-	if userID == nil {
-		return uuid.Nil, models.ErrPostNotFound
-	}
-
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "create post"),
 		slog.String("userID", userID.String()),
@@ -45,29 +41,12 @@ func (r *PostRepository) CreatePost(ctx context.Context, userID *uuid.UUID, p mo
 		err = postgres.ParseError(err)
 		switch {
 		case errors.Is(err, postgres.ErrFKViolation):
-			r.logger.WarnContext(ctx, "failed to create post: forbidden",
-				slog.String("op", "create post"),
-				slog.String("userID", userID.String()),
-			)
 			return uuid.Nil, models.ErrInvalidAuthorID
 		case errors.Is(err, postgres.ErrCheckViolation):
-			r.logger.WarnContext(ctx, "failed to create post: validation error",
-				slog.String("op", "create post"),
-				slog.String("userID", userID.String()),
-			)
 			return uuid.Nil, models.ErrPostValidation
 		}
-		r.logger.ErrorContext(ctx, "failed to create post",
-			slog.String("op", "create post"),
-			slog.String("userID", userID.String()),
-			slog.String("error", err.Error()),
-		)
 		return uuid.Nil, fmt.Errorf("create post error: %w", err)
 	}
-	r.logger.InfoContext(ctx, "post created successfully",
-		slog.String("op", "create post"),
-		slog.String("userID", userID.String()),
-	)
 	return postID, nil
 }
 
@@ -112,27 +91,10 @@ func (r *PostRepository) GetPost(ctx context.Context, userID *uuid.UUID, postID 
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			r.logger.WarnContext(ctx, "post not found",
-				slog.String("op", "get post"),
-				slog.String("postID", postID.String()),
-				slog.String("userID", uid(userID)),
-			)
 			return nil, models.ErrPostNotFound
 		}
-		r.logger.ErrorContext(ctx, "failed to get post",
-			slog.String("op", "get post"),
-			slog.String("postID", postID.String()),
-			slog.String("userID", uid(userID)),
-			slog.String("error", err.Error()),
-		)
 		return nil, fmt.Errorf("get post error: %w", err)
 	}
-	r.logger.DebugContext(ctx, "post fetched successfully",
-		slog.String("op", "get post"),
-		slog.String("postID", postID.String()),
-		slog.String("userID", uid(userID)),
-		slog.Bool("locked", post.Locked),
-	)
 	return post, nil
 }
 
@@ -151,10 +113,6 @@ func (r *PostRepository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, c
 		LIMIT $4
 	`
 
-	if userID == nil {
-		return nil, models.ErrUnauthorized
-	}
-
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "get my new posts"),
 		slog.String("userID", userID.String()),
@@ -172,27 +130,12 @@ func (r *PostRepository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, c
 
 	rows, err := r.pool.Query(ctx, query, userID, ts, id, limit)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to get my new posts",
-			slog.String("op", "get my new posts"),
-			slog.String("userID", userID.String()),
-			slog.String("error", err.Error()),
-		)
 		return nil, fmt.Errorf("get my new posts error: %w", err)
 	}
 	posts, err := scanPosts(rows)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to scan my new posts",
-			slog.String("op", "get my new posts"),
-			slog.String("userID", userID.String()),
-			slog.String("error", err.Error()),
-		)
 		return nil, fmt.Errorf("get my new posts error: %w", err)
 	}
-	r.logger.DebugContext(ctx, "my new posts fetched",
-		slog.String("op", "get my new posts"),
-		slog.String("userID", userID.String()),
-		slog.Int("count", len(posts)),
-	)
 	return posts, nil
 }
 
@@ -210,10 +153,6 @@ func (r *PostRepository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUI
 		ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC
 		LIMIT $5
 	`
-
-	if userID == nil {
-		return nil, models.ErrUnauthorized
-	}
 
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "get my popular posts"),
@@ -233,27 +172,12 @@ func (r *PostRepository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUI
 
 	rows, err := r.pool.Query(ctx, query, userID, likes, ts, id, limit)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to get my popular posts",
-			slog.String("op", "get my popular posts"),
-			slog.String("userID", userID.String()),
-			slog.String("error", err.Error()),
-		)
 		return nil, fmt.Errorf("get my popular posts error: %w", err)
 	}
 	posts, err := scanPosts(rows)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to scan my popular posts",
-			slog.String("op", "get my popular posts"),
-			slog.String("userID", userID.String()),
-			slog.String("error", err.Error()),
-		)
 		return nil, fmt.Errorf("get my popular posts error: %w", err)
 	}
-	r.logger.DebugContext(ctx, "my popular posts fetched",
-		slog.String("op", "get my popular posts"),
-		slog.String("userID", userID.String()),
-		slog.Int("count", len(posts)),
-	)
 	return posts, nil
 }
 
@@ -270,10 +194,6 @@ func (r *PostRepository) GetMyDrafts(ctx context.Context, userID *uuid.UUID, cur
 		ORDER BY p.updated_at DESC, p.id DESC
 		LIMIT $4
 	`
-
-	if userID == nil {
-		return nil, models.ErrUnauthorized
-	}
 
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "get my drafts"),
@@ -292,27 +212,12 @@ func (r *PostRepository) GetMyDrafts(ctx context.Context, userID *uuid.UUID, cur
 
 	rows, err := r.pool.Query(ctx, query, userID, ts, id, limit)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to get my drafts",
-			slog.String("op", "get my drafts"),
-			slog.String("userID", userID.String()),
-			slog.String("error", err.Error()),
-		)
 		return nil, fmt.Errorf("get my new posts error: %w", err)
 	}
 	posts, err := scanPosts(rows)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to scan my drafts",
-			slog.String("op", "get my drafts"),
-			slog.String("userID", userID.String()),
-			slog.String("error", err.Error()),
-		)
 		return nil, fmt.Errorf("get my new posts error: %w", err)
 	}
-	r.logger.DebugContext(ctx, "my drafts fetched",
-		slog.String("op", "get my drafts"),
-		slog.String("userID", userID.String()),
-		slog.Int("count", len(posts)),
-	)
 	return posts, nil
 }
 
@@ -359,27 +264,12 @@ func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cur
 
 	rows, err := r.pool.Query(ctx, query, userID, ts, id, limit)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to get new posts",
-			slog.String("op", "get new posts"),
-			slog.String("userID", uid(userID)),
-			slog.String("error", err.Error()),
-		)
 		return nil, fmt.Errorf("get new posts error: %w", err)
 	}
 	posts, err := scanPosts(rows)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to scan new posts",
-			slog.String("op", "get new posts"),
-			slog.String("userID", uid(userID)),
-			slog.String("error", err.Error()),
-		)
 		return nil, fmt.Errorf("get new posts error: %w", err)
 	}
-	r.logger.DebugContext(ctx, "new posts fetched",
-		slog.String("op", "get new posts"),
-		slog.String("userID", uid(userID)),
-		slog.Int("count", len(posts)),
-	)
 	return posts, nil
 }
 
@@ -425,27 +315,12 @@ func (r *PostRepository) GetPopularPosts(ctx context.Context, userID *uuid.UUID,
 
 	rows, err := r.pool.Query(ctx, query, userID, likes, ts, id, limit)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to get popular posts",
-			slog.String("op", "get popular posts"),
-			slog.String("userID", uid(userID)),
-			slog.String("error", err.Error()),
-		)
 		return nil, fmt.Errorf("get popular posts error: %w", err)
 	}
 	posts, err := scanPosts(rows)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to scan popular posts",
-			slog.String("op", "get popular posts"),
-			slog.String("userID", uid(userID)),
-			slog.String("error", err.Error()),
-		)
 		return nil, fmt.Errorf("get popular posts error: %w", err)
 	}
-	r.logger.DebugContext(ctx, "popular posts fetched",
-		slog.String("op", "get popular posts"),
-		slog.String("userID", uid(userID)),
-		slog.Int("count", len(posts)),
-	)
 	return posts, nil
 }
 
@@ -490,10 +365,6 @@ func (r *PostRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p mo
 		WHERE id = $1 AND author_id = $2 AND updated_at = $6
 	`
 
-	if userID == nil {
-		return models.ErrPostNotFound
-	}
-
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "update post"),
 		slog.String("postID", p.ID.String()),
@@ -505,19 +376,8 @@ func (r *PostRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p mo
 	if err != nil {
 		err = postgres.ParseError(err)
 		if errors.Is(err, postgres.ErrCheckViolation) {
-			r.logger.WarnContext(ctx, "failed to update post: validation error",
-				slog.String("op", "update post"),
-				slog.String("postID", p.ID.String()),
-				slog.String("userID", userID.String()),
-			)
 			return models.ErrPostValidation
 		}
-		r.logger.ErrorContext(ctx, "failed to update post",
-			slog.String("op", "update post"),
-			slog.String("postID", p.ID.String()),
-			slog.String("userID", userID.String()),
-			slog.String("error", err.Error()),
-		)
 		return fmt.Errorf("update post error: %w", err)
 	}
 
@@ -532,19 +392,8 @@ func (r *PostRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p mo
 		)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
-			r.logger.WarnContext(ctx, "update post: not found",
-				slog.String("op", "update post"),
-				slog.String("postID", p.ID.String()),
-				slog.String("userID", userID.String()),
-			)
 			return models.ErrPostNotFound
 		case err != nil:
-			r.logger.ErrorContext(ctx, "failed to fetch post for update check",
-				slog.String("op", "update post"),
-				slog.String("postID", p.ID.String()),
-				slog.String("userID", userID.String()),
-				slog.String("error", err.Error()),
-			)
 			return fmt.Errorf("update post error: get post: %w", err)
 		case id != *userID:
 			r.logger.WarnContext(ctx, "update post: forbidden (not author)",
@@ -565,19 +414,10 @@ func (r *PostRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p mo
 			return models.ErrPostConflict
 		}
 	}
-	r.logger.InfoContext(ctx, "post updated successfully",
-		slog.String("op", "update post"),
-		slog.String("postID", p.ID.String()),
-		slog.String("userID", userID.String()),
-	)
 	return nil
 }
 
 func (r *PostRepository) DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error {
-	if userID == nil {
-		return models.ErrPostNotFound
-	}
-
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "delete post"),
 		slog.String("postID", postID.String()),
@@ -586,27 +426,11 @@ func (r *PostRepository) DeletePost(ctx context.Context, userID *uuid.UUID, post
 
 	result, err := r.pool.Exec(ctx, `DELETE FROM post WHERE id = $1 AND author_id = $2`, postID, userID)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "failed to delete post",
-			slog.String("op", "delete post"),
-			slog.String("postID", postID.String()),
-			slog.String("userID", userID.String()),
-			slog.String("error", err.Error()),
-		)
 		return fmt.Errorf("delete post error: %w", err)
 	}
 	if result.RowsAffected() == 0 {
-		r.logger.WarnContext(ctx, "delete post: not found or not author",
-			slog.String("op", "delete post"),
-			slog.String("postID", postID.String()),
-			slog.String("userID", userID.String()),
-		)
 		return models.ErrPostNotFound
 	}
-	r.logger.InfoContext(ctx, "post deleted successfully",
-		slog.String("op", "delete post"),
-		slog.String("postID", postID.String()),
-		slog.String("userID", userID.String()),
-	)
 	return nil
 }
 
@@ -629,10 +453,6 @@ func (r *PostRepository) LikePost(ctx context.Context, userID *uuid.UUID, postID
 		VALUES ($1, 'post_liked', $2)`
 	const getLikesCount = `SELECT likes_count FROM post WHERE id = $1`
 
-	if userID == nil {
-		return 0, models.ErrPostNotFound
-	}
-
 	r.logger.DebugContext(ctx, "executing transaction",
 		slog.String("op", "like post"),
 		slog.String("postID", postID.String()),
@@ -644,11 +464,6 @@ func (r *PostRepository) LikePost(ctx context.Context, userID *uuid.UUID, postID
 		var authorID uuid.UUID
 		err := tx.QueryRow(ctx, getPostAuthor, userID, postID).Scan(&authorID)
 		if errors.Is(err, pgx.ErrNoRows) {
-			r.logger.WarnContext(ctx, "like post: post not found or locked",
-				slog.String("op", "like post"),
-				slog.String("postID", postID.String()),
-				slog.String("userID", userID.String()),
-			)
 			return models.ErrPostNotFound
 		}
 		if err != nil {
@@ -679,32 +494,14 @@ func (r *PostRepository) LikePost(ctx context.Context, userID *uuid.UUID, postID
 		return nil
 	})
 	if err != nil {
-		if !errors.Is(err, models.ErrPostNotFound) {
-			r.logger.ErrorContext(ctx, "failed to like post",
-				slog.String("op", "like post"),
-				slog.String("postID", postID.String()),
-				slog.String("userID", userID.String()),
-				slog.String("error", err.Error()),
-			)
-		}
 		return 0, err
 	}
-	r.logger.InfoContext(ctx, "post liked successfully",
-		slog.String("op", "like post"),
-		slog.String("postID", postID.String()),
-		slog.String("userID", userID.String()),
-		slog.Int64("likesCount", likesCount),
-	)
 	return likesCount, nil
 }
 
 func (r *PostRepository) DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
 	const deletePostLike = `DELETE FROM post_like WHERE post_id = $1 AND user_id = $2`
 	const getLikesCount = `SELECT likes_count FROM post WHERE id = $1`
-
-	if userID == nil {
-		return 0, models.ErrPostNotFound
-	}
 
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "unlike post"),
@@ -713,31 +510,13 @@ func (r *PostRepository) DeletePostLike(ctx context.Context, userID *uuid.UUID, 
 	)
 
 	if _, err := r.pool.Exec(ctx, deletePostLike, postID, userID); err != nil {
-		r.logger.ErrorContext(ctx, "failed to delete post like",
-			slog.String("op", "unlike post"),
-			slog.String("postID", postID.String()),
-			slog.String("userID", userID.String()),
-			slog.String("error", err.Error()),
-		)
 		return 0, fmt.Errorf("delete post like error: %w", err)
 	}
 
 	var likesCount int64
 	if err := r.pool.QueryRow(ctx, getLikesCount, postID).Scan(&likesCount); err != nil {
-		r.logger.ErrorContext(ctx, "failed to count likes after unlike",
-			slog.String("op", "unlike post"),
-			slog.String("postID", postID.String()),
-			slog.String("userID", userID.String()),
-			slog.String("error", err.Error()),
-		)
 		return 0, fmt.Errorf("delete post like error: count likes: %w", err)
 	}
-	r.logger.InfoContext(ctx, "post like delete successfully",
-		slog.String("op", "unlike post"),
-		slog.String("postID", postID.String()),
-		slog.String("userID", userID.String()),
-		slog.Int64("likesCount", likesCount),
-	)
 	return likesCount, nil
 }
 

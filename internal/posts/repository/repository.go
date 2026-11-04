@@ -19,8 +19,8 @@ type PostRepository struct {
 	logger *slog.Logger
 }
 
-func NewPostRepository(pool postgres.DB, logger *slog.Logger) *PostRepository {
-	return &PostRepository{pool: pool, logger: logger}
+func NewPostRepository(db *postgres.DBClient, logger *slog.Logger) *PostRepository {
+	return &PostRepository{pool: db.Pool, logger: logger}
 }
 
 func (r *PostRepository) CreatePost(ctx context.Context, userID *uuid.UUID, p models.Post) (uuid.UUID, error) {

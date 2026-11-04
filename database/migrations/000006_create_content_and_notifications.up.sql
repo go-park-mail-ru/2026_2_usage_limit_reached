@@ -6,7 +6,6 @@ CREATE TABLE post (
     body          TEXT NOT NULL DEFAULT '',
     status        TEXT NOT NULL DEFAULT 'draft',
     published_at  TIMESTAMPTZ,
-    likes_count   BIGINT DEFAULT 0,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT fk_post_author
@@ -23,8 +22,6 @@ CREATE TABLE post (
 );
 
 CREATE INDEX post_author_id_idx ON post (author_id);
-CREATE INDEX idx_post_published_sorted ON post (published_at DESC, id DESC) 
-WHERE status = 'published';
 
 CREATE TRIGGER trg_post_set_updated_at
     BEFORE UPDATE ON post
@@ -103,40 +100,11 @@ CREATE TABLE post_like (
 );
 
 CREATE INDEX post_like_user_id_idx ON post_like (user_id);
-CREATE INDEX post_like_post_id_user_id_idx ON post_like (post_id, user_id);
 
 CREATE TRIGGER trg_post_like_set_updated_at
     BEFORE UPDATE ON post_like
     FOR EACH ROW
     EXECUTE FUNCTION set_updated_at();
-
-CREATE OR REPLACE FUNCTION update_post_likes_count()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF TG_OP = 'INSERT' THEN
-        UPDATE post SET likes_count = likes_count + 1 WHERE id = NEW.post_id;
-        RETURN NEW;
-    ELSIF TG_OP = 'DELETE' THEN
-        UPDATE post SET likes_count = likes_count - 1 WHERE id = OLD.post_id;
-        RETURN OLD;
-    END IF;
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_post_like_insert
-    AFTER INSERT ON post_like
-    FOR EACH ROW
-    EXECUTE FUNCTION update_post_likes_count();
-
-CREATE TRIGGER trg_post_like_delete
-    AFTER DELETE ON post_like
-    FOR EACH ROW
-    EXECUTE FUNCTION update_post_likes_count();
-
-CREATE INDEX idx_post_popular_feed 
-    ON post (likes_count DESC, published_at DESC, id DESC) 
-    WHERE status = 'published';
 
 -- Комментарии к посту
 CREATE TABLE comment (

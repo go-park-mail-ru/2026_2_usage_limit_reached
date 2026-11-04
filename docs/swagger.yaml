@@ -6,6 +6,7 @@ components:
           example: i am author
           type: string
         category:
+          description: null, если категории нет
           example: Cars
           type: string
       type: object
@@ -19,52 +20,52 @@ components:
           example: secret_password_123
           type: string
       type: object
-    dto.PostResponse:
-      properties:
-        body:
-          example: smth in body
-          type: string
-        id:
-          example: 00000000-0000-4000-8000-000000000101
-          type: string
-        published_at:
-          example: "2026-09-01T12:00:00Z"
-          type: string
-        status:
-          example: published
-          type: string
-        title:
-          example: my title
-          type: string
-      type: object
-    dto.ProfilePostsResponse:
-      properties:
-        posts:
-          items:
-            $ref: '#/components/schemas/dto.PostResponse'
-          type: array
-          uniqueItems: false
-        user_id:
-          example: 00000000-0000-4000-8000-000000000001
-          type: string
-      type: object
     dto.ProfileResponse:
       properties:
         author:
           $ref: '#/components/schemas/dto.AuthorResponse'
+          description: Нет, если пользователь не автор
         user:
           $ref: '#/components/schemas/dto.ProfileUserResponse'
       type: object
     dto.ProfileUserResponse:
       properties:
-        avatar_key:
-          example: avatars/user-1.png
+        avatar_url:
+          description: Нет, если аватара нет
+          example: http://localhost:8333/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
           type: string
         created_at:
           example: "2026-08-01T12:00:00Z"
           type: string
         email:
           example: user@example.com
+          type: string
+        id:
+          example: 00000000-0000-4000-8000-000000000001
+          type: string
+        nickname:
+          example: nickname_123
+          type: string
+        username:
+          example: username123
+          type: string
+      type: object
+    dto.PublicProfileResponse:
+      properties:
+        author:
+          $ref: '#/components/schemas/dto.AuthorResponse'
+          description: Нет, если пользователь не автор
+        user:
+          $ref: '#/components/schemas/dto.PublicProfileUserResponse'
+      type: object
+    dto.PublicProfileUserResponse:
+      properties:
+        avatar_url:
+          description: Нет, если аватара нет
+          example: http://localhost:8333/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          type: string
+        created_at:
+          example: "2026-08-01T12:00:00Z"
           type: string
         id:
           example: 00000000-0000-4000-8000-000000000001
@@ -91,10 +92,28 @@ components:
           example: username123
           type: string
       type: object
+    dto.UpdateAuthorRequest:
+      properties:
+        bio:
+          example: i am author
+          type: string
+        category:
+          example: Cars
+          type: string
+      type: object
+    dto.UpdateProfileRequest:
+      properties:
+        author:
+          $ref: '#/components/schemas/dto.UpdateAuthorRequest'
+          description: Отправляет только автор. Если блока нет, данные автора не меняются
+        nickname:
+          example: nickname_123
+          type: string
+      type: object
     dto.UserResponse:
       properties:
-        email:
-          example: user@example.com
+        avatar_url:
+          example: http://localhost:8333/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
           type: string
         nickname:
           example: nickname_123
@@ -117,7 +136,7 @@ externalDocs:
   description: ""
   url: ""
 info:
-  description: Регистрация, вход, выход и профиль пользователя.
+  description: API для Patreon Clone
   title: Patreon Clone API
   version: "1.0"
 openapi: 3.1.0
@@ -157,7 +176,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
-          description: Неверный логин или пароль
+          description: Неверный логин или пароль, либо аккаунт неактивен
         "500":
           content:
             application/json:
@@ -172,12 +191,6 @@ paths:
       description: Удаляет авторизационную cookie с токеном
       responses:
         "200":
-          content:
-            application/json:
-              schema:
-                additionalProperties:
-                  type: string
-                type: object
           description: Успешный выход из системы
           headers:
             Set-Cookie:
@@ -190,21 +203,48 @@ paths:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
           description: Пользователь неавторизован
+      security:
+      - CookieAuth: []
+      summary: Деавторизация пользователя
+      tags:
+      - auth
+  /profile/{username}:
+    get:
+      description: Возвращает публичные данные пользователя без email. Блок author
+        есть только у автора, avatar_url - только при наличии аватара
+      parameters:
+      - description: Username пользователя
+        in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PublicProfileResponse'
+          description: Публичный профиль пользователя
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден, заблокирован или удалён
         "500":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
           description: Внутренняя ошибка сервера
-      security:
-      - CookieAuth: []
-      summary: Деавторизация пользователя
+      summary: Получение публичного профиля пользователя
       tags:
-      - auth
+      - profile
   /profile/me:
     get:
-      description: Возвращает данные пользователя и информацию о том, является ли
-        он автором
+      description: Возвращает данные пользователя. Блок author есть только у автора,
+        avatar_url - только при наличии аватара
       responses:
         "200":
           content:
@@ -218,6 +258,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
           description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь заблокирован или удалён
         "404":
           content:
             application/json:
@@ -235,23 +281,49 @@ paths:
       summary: Получение профиля текущего пользователя
       tags:
       - profile
-  /profile/me/posts:
-    get:
-      description: Возвращает посты текущего пользователя; если постов нет, возвращает
-        пустой список
+    put:
+      description: Сохраняет nickname и, если передан блок author, bio и category.
+        Если category нет или она null, категория очищается
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.UpdateProfileRequest'
+              description: Новые данные профиля
+              summary: request
+        description: Новые данные профиля
+        required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/dto.ProfilePostsResponse'
-          description: Посты пользователя
+                $ref: '#/components/schemas/dto.ProfileResponse'
+          description: Профиль изменен
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации
         "401":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
           description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не является автором, заблокирован или удалён
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
         "500":
           content:
             application/json:
@@ -260,7 +332,7 @@ paths:
           description: Внутренняя ошибка сервера
       security:
       - CookieAuth: []
-      summary: Получение постов текущего пользователя
+      summary: Изменение профиля текущего пользователя
       tags:
       - profile
   /signup:
@@ -282,6 +354,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/dto.UserResponse'
           description: Пользователь успешно зарегистрирован
+          headers:
+            Set-Cookie:
+              description: token=JWT_TOKEN; Path=/; HttpOnly; SameSite=Lax
+              schema:
+                type: string
         "400":
           content:
             application/json:

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,16 +20,13 @@ const (
 	UsernameField = "username"
 )
 
-type PgxCliPool interface {
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-}
-
 type UserRepository struct {
-	pool PgxCliPool
+	pool   postgres.DB
+	logger *slog.Logger
 }
 
-func NewUserRepository(pool PgxCliPool) *UserRepository {
-	return &UserRepository{pool: pool}
+func NewUserRepository(pool postgres.DB, logger *slog.Logger) *UserRepository {
+	return &UserRepository{pool: pool, logger: logger}
 }
 
 func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*models.User, error) {
@@ -37,6 +35,12 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*model
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at, updated_at
 	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "create user"),
+		slog.String("email", u.Email),
+	)
+
 	var (
 		id        uuid.UUID
 		createdAt time.Time
@@ -46,13 +50,28 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*model
 	if err != nil {
 		err = postgres.ParseError(err)
 		if errors.Is(postgres.ErrUniqViolation, err) {
+			r.logger.WarnContext(ctx, "failed to create user: already exists",
+				slog.String("op", "create user"),
+				slog.String("email", u.Email),
+			)
 			return nil, models.ErrUserExists
 		}
+		r.logger.ErrorContext(ctx, "failed to create user",
+			slog.String("op", "create user"),
+			slog.String("email", u.Email),
+			slog.String("error", err.Error()),
+		)
 		return nil, fmt.Errorf("Create user error: %w", err)
 	}
 	u.ID = id
 	u.CreatedAt = createdAt
 	u.UpdatedAt = updatedAt
+
+	r.logger.InfoContext(ctx, "user created successfully",
+		slog.String("op", "create user"),
+		slog.String("userID", id.String()),
+		slog.String("email", u.Email),
+	)
 	return u, nil
 }
 
@@ -81,8 +100,20 @@ func (r *UserRepository) getUser(ctx context.Context, field string, v any) (*mod
 	case EmailField, UsernameField:
 		v = v.(string)
 	default:
+		r.logger.ErrorContext(ctx, "failed to get user: invalid search field",
+			slog.String("op", "get user"),
+			slog.String("field", field),
+			slog.Any("value", v),
+		)
 		return nil, fmt.Errorf("Invalid search field")
 	}
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get user"),
+		slog.String("field", field),
+		slog.Any("value", v),
+	)
+
 	query := fmt.Sprintf(getQuery, field)
 
 	var user models.User
@@ -99,9 +130,25 @@ func (r *UserRepository) getUser(ctx context.Context, field string, v any) (*mod
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			r.logger.WarnContext(ctx, "user not found",
+				slog.String("op", "get user"),
+				slog.String("field", field),
+				slog.Any("value", v),
+			)
 			return nil, models.ErrUserNotFound
 		}
+		r.logger.ErrorContext(ctx, "failed to get user",
+			slog.String("op", "get user"),
+			slog.String("field", field),
+			slog.Any("value", v),
+			slog.String("error", err.Error()),
+		)
 		return nil, fmt.Errorf("Get user error: %w", err)
 	}
+	r.logger.DebugContext(ctx, "user fetched successfully",
+		slog.String("op", "get user"),
+		slog.String("userID", user.ID.String()),
+		slog.String("field", field),
+	)
 	return &user, nil
 }

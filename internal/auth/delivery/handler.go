@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 	"github.com/gorilla/mux"
 )
 

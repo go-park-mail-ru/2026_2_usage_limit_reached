@@ -26,8 +26,8 @@ func (m *MockTokenVerifier) Verify(tokenString string) (json.RawMessage, error) 
 }
 
 func TestAuthMiddleware(t *testing.T) {
-	expectedUserID := uuid.New()
-	validPayload, _ := json.Marshal(jwt.UserPayload{UserID: expectedUserID})
+	expectedUserPayload := jwt.UserPayload{UserID: uuid.New(), Username: "user", Email: "email@example.com", Role: "user"}
+	validPayload, _ := json.Marshal(expectedUserPayload)
 
 	tests := []struct {
 		name           string
@@ -90,9 +90,9 @@ func TestAuthMiddleware(t *testing.T) {
 			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				nextCalled = true
 
-				extractedID, ok := middleware.UserIDFromContext(r.Context())
+				extractedUserPayload, ok := middleware.UserInfoFromContext(r.Context())
 				require.True(t, ok)
-				require.Equal(t, expectedUserID, extractedID, "expected UserID %v, got %v", expectedUserID, extractedID)
+				require.Equal(t, expectedUserPayload, *extractedUserPayload, "expected user payload %v, got %v", expectedUserPayload, *extractedUserPayload)
 
 				w.WriteHeader(http.StatusOK)
 			})
@@ -111,12 +111,12 @@ func TestAuthMiddleware(t *testing.T) {
 	}
 }
 
-func TestUserIDFromContext_NotFound(t *testing.T) {
+func TestUserFromContext_NotFound(t *testing.T) {
 	ctx := context.Background()
-	id, ok := middleware.UserIDFromContext(ctx)
-
+	user, ok := middleware.UserInfoFromContext(ctx)
+	var nilPayload *jwt.UserPayload
 	require.False(t, ok)
-	require.Equal(t, uuid.Nil, id, "expected uuid.Nil, got %v", id)
+	require.Equal(t, nilPayload, user, "expected nil, got %v", user)
 }
 
 func TestCORSMiddleware(t *testing.T) {

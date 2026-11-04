@@ -8,6 +8,10 @@ import (
 	AuthRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/user"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
+	PostHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery"
+	PostRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/repository"
+	PostUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/usecase"
 	ProfileHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery"
 	ProfileRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/memory"
 	ProfileUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
@@ -16,13 +20,12 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 	"github.com/gorilla/mux"
 )
 
 // @title Patreon Clone API
 // @version 1.0
-// @description Регистрация, вход, выход и профиль пользователя.
+// @description REST API для платформы публикации контента (аналог Patreon).
 // @securityDefinitions.apikey CookieAuth
 // @in cookie
 // @name token
@@ -42,14 +45,15 @@ func main() {
 		log.Fatalf("token manager initialization error: %v", err)
 	}
 
-	postgresCli, err := postgres.NewClient(cfg.Postgres)
+	postgresClient, err := postgres.NewClient(cfg.Postgres)
 	if err != nil {
 		log.Fatalf("databse pool initialization error: %v", err)
 	}
-	defer postgresCli.Close()
+	defer postgresClient.Close()
 
-	userRepo := AuthRepo.NewUserRepository(postgresCli.Pool)
+	userRepo := AuthRepo.NewUserRepository(postgresClient.Pool, appLogger)
 	profileRepo := ProfileRepo.NewProfileRepository()
+	postRepo := PostRepo.NewPostRepository(postgresClient.Pool, appLogger)
 
 	uc := usecase.NewUsecase(userRepo, tokens)
 	valid, err := validator.NewValidator(cfg.Validation)
@@ -58,20 +62,30 @@ func main() {
 	}
 	authHandler := AuthHandlers.NewHandler(uc, valid, appLogger)
 	authMiddleware := middleware.AuthMiddleware(tokens)
+	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(tokens)
 
 	profileUc := ProfileUsecase.NewProfileUsecase(uc, profileRepo)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, appLogger)
 
+	postUc := PostUsecase.NewPostUsecase(postRepo)
+	postHandler := PostHandlers.NewHandler(postUc, valid, appLogger)
+
 	r := mux.NewRouter()
-	private := r.NewRoute().Subrouter()
-	private.Use(authMiddleware)
-	authHandler.RegisterRoutes(r, private)
-	profileHandler.RegisterRoutes(r, private)
 	r.Use(
 		middleware.RecoverMiddleware(appLogger),
 		middleware.AccessLogMiddleware(appLogger),
 		middleware.CORSMiddleware(cfg.CORS),
 	)
+
+	public := r.NewRoute().Subrouter()
+	public.Use(optionalAuthMiddleware)
+
+	private := r.NewRoute().Subrouter()
+	private.Use(authMiddleware)
+
+	authHandler.RegisterRoutes(public, private)
+	profileHandler.RegisterRoutes(public, private)
+	postHandler.RegisterRoutes(public, private)
 
 	srv, err := httpserver.New(cfg.HTTP, appLogger)
 	if err != nil {

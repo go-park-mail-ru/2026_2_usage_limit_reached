@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -88,6 +89,13 @@ func (c PostgresConfig) Validate() error {
 		errs = append(errs, fmt.Errorf("postgres: max_conn_idle_time must be >= 0, got %s", c.MaxConnIdleTime))
 	}
 	return errors.Join(errs...)
+}
+
+type DB interface {
+	Query(ctx context.Context, query string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, query string, args ...any) (pgconn.CommandTag, error)
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
 }
 
 type PgxClient struct {

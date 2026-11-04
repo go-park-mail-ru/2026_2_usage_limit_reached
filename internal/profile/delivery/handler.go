@@ -30,7 +30,7 @@ func NewProfileHandler(uc ProfileUsecase, logger *slog.Logger) *ProfileHandler {
 
 func (h *ProfileHandler) RegisterRoutes(public *mux.Router, private *mux.Router) {
 	private.HandleFunc("/profile/me", h.GetMe).Methods(http.MethodGet, http.MethodOptions)
-	private.HandleFunc("/profile/me/posts", h.GetMePosts).Methods(http.MethodGet, http.MethodOptions)
+	// private.HandleFunc("/profile/me/posts", h.GetMePosts).Methods(http.MethodGet, http.MethodOptions)
 }
 
 // GetMe возвращает профиль текущего пользователя
@@ -45,13 +45,13 @@ func (h *ProfileHandler) RegisterRoutes(public *mux.Router, private *mux.Router)
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /profile/me [get]
 func (h *ProfileHandler) GetMe(w http.ResponseWriter, r *http.Request) {
-	id, ok := middleware.UserIDFromContext(r.Context())
-	if !ok || id == uuid.Nil {
+	user, ok := middleware.UserInfoFromContext(r.Context())
+	if !ok || user == nil {
 		response.ErrorUnauthorized(w)
 		return
 	}
 
-	profile, err := h.uc.GetMyProfile(r.Context(), id)
+	profile, err := h.uc.GetMyProfile(r.Context(), user.UserID)
 	if err != nil {
 		h.handleError(r.Context(), w, "get my profile", err)
 		return
@@ -70,13 +70,13 @@ func (h *ProfileHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /profile/me/posts [get]
 func (h *ProfileHandler) GetMePosts(w http.ResponseWriter, r *http.Request) {
-	id, ok := middleware.UserIDFromContext(r.Context())
-	if !ok || id == uuid.Nil {
+	user, ok := middleware.UserInfoFromContext(r.Context())
+	if !ok || user == nil {
 		response.ErrorUnauthorized(w)
 		return
 	}
 
-	posts, err := h.uc.GetMyPosts(r.Context(), id)
+	posts, err := h.uc.GetMyPosts(r.Context(), user.UserID)
 	if err != nil {
 		h.handleError(r.Context(), w, "get my posts", err)
 		return

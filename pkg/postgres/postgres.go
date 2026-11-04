@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -88,11 +89,16 @@ func (c PostgresConfig) Validate() error {
 	return errors.Join(errs...)
 }
 
-type PgxClient struct {
-	Pool *pgxpool.Pool
+type Querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
-func NewClient(pCfg PostgresConfig) (*PgxClient, error) {
+type Client struct {
+	*pgxpool.Pool
+}
+
+func NewClient(pCfg PostgresConfig) (*Client, error) {
 	cfg, err := pgxpool.ParseConfig(pCfg.DSN())
 	if err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
@@ -114,11 +120,7 @@ func NewClient(pCfg PostgresConfig) (*PgxClient, error) {
 		return nil, fmt.Errorf("database ping error: %w", err)
 	}
 
-	return &PgxClient{Pool: pool}, nil
-}
-
-func (c *PgxClient) Close() {
-	c.Pool.Close()
+	return &Client{Pool: pool}, nil
 }
 
 func ParseError(err error) error {

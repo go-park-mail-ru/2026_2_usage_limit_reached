@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/testutils"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +23,7 @@ func TestValidator_IsValidEmail(t *testing.T) {
 		},
 		{
 			name:     "Email exceeds max length",
-			email:    "verylongemailaddressthatfail@mail.ru",
+			email:    strings.Repeat("a", 250) + "@mail.ru",
 			expected: false,
 		},
 		{
@@ -103,8 +103,13 @@ func TestValidator_IsValidNickname(t *testing.T) {
 			expected: false,
 		},
 		{
+			name:     "Whitespace only nickname",
+			nickname: "   ",
+			expected: false,
+		},
+		{
 			name:     "Too long nickname",
-			nickname: strings.Repeat("n", 33),
+			nickname: strings.Repeat("n", 65),
 			expected: false,
 		},
 	}
@@ -137,7 +142,7 @@ func TestValidator_IsValidPassword(t *testing.T) {
 		},
 		{
 			name:     "Too long",
-			password: "very_very_long_secret_password_123",
+			password: strings.Repeat("p", 73),
 			expected: false,
 		},
 	}
@@ -146,6 +151,28 @@ func TestValidator_IsValidPassword(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := v.IsValidPassword(tt.password)
 			require.Equal(t, tt.expected, got, "IsValidPassword(%q) = %v, expected %v", tt.password, got, tt.expected)
+		})
+	}
+}
+
+func TestValidator_IsValidCategory(t *testing.T) {
+	v := testutils.SetupValidator()
+
+	tests := []struct {
+		name     string
+		category string
+		expected bool
+	}{
+		{name: "Valid category", category: "Cars", expected: true},
+		{name: "Empty category", category: "", expected: false},
+		{name: "Whitespace only category", category: "   ", expected: false},
+		{name: "Too long category", category: strings.Repeat("c", 65), expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := v.IsValidCategory(tt.category)
+			require.Equal(t, tt.expected, got, "IsValidCategory(%q) = %v, expected %v", tt.category, got, tt.expected)
 		})
 	}
 }

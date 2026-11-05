@@ -13,18 +13,12 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type PgxCliPool interface {
-	Query(ctx context.Context, query string, args ...any) (pgx.Rows, error)
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
-}
-
 type DonationRepository struct {
-	pool PgxCliPool
+	pool postgres.DB
 }
 
-func NewDonationRepository(pool PgxCliPool) *DonationRepository {
-	return &DonationRepository{pool: pool}
+func NewDonationRepository(db postgres.DBClient) *DonationRepository {
+	return &DonationRepository{pool: db.Pool}
 }
 
 func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UUID, req *dto.CreateDonationRequest) (*dto.SentDonation, error) {
@@ -46,9 +40,7 @@ func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UU
 
 		if errors.Is(err, pgx.ErrNoRows) {
 			result, err = checkExistingOrder(ctx, tx, req)
-			if err != nil {
-				return err
-			}
+			return err // do nothing on existing order
 		} else if err != nil {
 			err = postgres.ParseError(err)
 			if errors.Is(err, postgres.ErrFKViolation) {
@@ -67,7 +59,7 @@ func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UU
 		if err != nil {
 			err = postgres.ParseError(err)
 			if errors.Is(err, postgres.ErrFKViolation) {
-				return models.ErrDonationValidation
+				return models.ErrAuthorNotFound
 			}
 			return fmt.Errorf("create donation: %w", err)
 		}
@@ -84,13 +76,14 @@ func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UU
 		}
 
 		result = &dto.SentDonation{
-			PaymentOrderID: orderID,
-			Message:        req.Message,
-			IsAnonymous:    req.IsAnonymous,
-			AmountMinor:    req.AmountMinor,
-			Currency:       req.Currency,
-			Status:         "pending",
-			CreatedAt:      donationCreatedAt,
+			PaymentOrderID:   orderID,
+			PaymentAttemptID: &attemptID,
+			Message:          req.Message,
+			IsAnonymous:      req.IsAnonymous,
+			AmountMinor:      req.AmountMinor,
+			Currency:         req.Currency,
+			Status:           "pending",
+			CreatedAt:        donationCreatedAt,
 		}
 
 		return nil

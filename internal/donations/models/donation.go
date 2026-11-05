@@ -1,4 +1,4 @@
-package donationmodels
+package models
 
 import (
 	"errors"
@@ -9,6 +9,7 @@ import (
 
 var (
 	ErrDonationNotFound   = errors.New("donation not found")
+	ErrAuthorNotFound     = errors.New("author not found")
 	ErrDonationValidation = errors.New("donation validation error")
 	ErrSelfDonation       = errors.New("self donation is not allowed")
 )

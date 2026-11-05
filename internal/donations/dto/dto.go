@@ -27,7 +27,7 @@ type ReceivedDonation struct {
 
 type SentDonation struct {
 	PaymentOrderID   uuid.UUID
-	PaymentAttemptID uuid.UUID
+	PaymentAttemptID *uuid.UUID
 	Message          *string
 	IsAnonymous      bool
 	AmountMinor      int64

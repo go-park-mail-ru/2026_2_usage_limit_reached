@@ -10,6 +10,9 @@ import (
 	AuthorUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
+	PostHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery"
+	PostRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/repository"
+	PostUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/usecase"
 	ProfileHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery"
 	ProfileRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/profile"
 	ProfileUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
@@ -25,7 +28,7 @@ import (
 
 // @title Patreon Clone API
 // @version 1.0
-// @description API для Patreon Clone
+// @description REST API для платформы публикации контента (аналог Patreon).
 // @securityDefinitions.apikey CookieAuth
 // @in cookie
 // @name token
@@ -54,6 +57,7 @@ func main() {
 	userRepo := UserRepo.NewUserRepository(postgresClient)
 	authorRepo := AuthorRepo.NewAuthorRepository(postgresClient)
 	profileRepo := ProfileRepo.NewProfileRepository(postgresClient)
+	postRepo := PostRepo.NewPostRepository(postgresClient, appLogger)
 
 	userUc := UserUsecase.NewUsecase(userRepo)
 	uc := usecase.NewUsecase(userUc, tokens)
@@ -63,21 +67,31 @@ func main() {
 	}
 	authHandler := AuthHandlers.NewHandler(uc, valid, appLogger)
 	authMiddleware := middleware.AuthMiddleware(tokens)
+	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(tokens)
 
 	authorUc := AuthorUsecase.NewUsecase(authorRepo)
 	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, profileRepo)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, valid, appLogger)
 
+	postUc := PostUsecase.NewPostUsecase(postRepo)
+	postHandler := PostHandlers.NewHandler(postUc, valid, appLogger)
+
 	r := mux.NewRouter()
-	private := r.NewRoute().Subrouter()
-	private.Use(authMiddleware)
-	authHandler.RegisterRoutes(r, private)
-	profileHandler.RegisterRoutes(r, private)
 	r.Use(
 		middleware.RecoverMiddleware(appLogger),
 		middleware.AccessLogMiddleware(appLogger),
 		middleware.CORSMiddleware(cfg.CORS),
 	)
+
+	public := r.NewRoute().Subrouter()
+	public.Use(optionalAuthMiddleware)
+
+	private := r.NewRoute().Subrouter()
+	private.Use(authMiddleware)
+
+	authHandler.RegisterRoutes(public, private)
+	profileHandler.RegisterRoutes(public, private)
+	postHandler.RegisterRoutes(public, private)
 
 	srv, err := httpserver.New(cfg.HTTP, appLogger)
 	if err != nil {

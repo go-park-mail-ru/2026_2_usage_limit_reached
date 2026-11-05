@@ -54,14 +54,25 @@ func (s profileUsecaseMock) UpdateMyProfile(_ context.Context, id uuid.UUID, _ d
 }
 
 type tokenVerifierMock struct {
-	userID uuid.UUID
+	userID   uuid.UUID
+	email    string
+	username string
+	role     string
 }
 
 func (v tokenVerifierMock) Verify(token string) (json.RawMessage, error) {
 	if token != "test-token" {
 		return nil, errors.New("invalid test token")
 	}
-	return json.Marshal(jwt.UserPayload{UserID: v.userID, Role: "user"})
+	if v.userID == uuid.Nil {
+		return nil, errors.New("nil user id")
+	}
+	return json.Marshal(jwt.UserPayload{
+		UserID:   v.userID,
+		Email:    v.email,
+		Username: v.username,
+		Role:     v.role,
+	})
 }
 
 func newTestRouter(uc profilehandlers.ProfileUsecase, userID uuid.UUID) http.Handler {
@@ -86,7 +97,6 @@ func requestProfile(router http.Handler, path, token string) *httptest.ResponseR
 
 func TestProfileHandler_GetMe_Success(t *testing.T) {
 	t.Parallel()
-
 	path := "avatars/ivan.png"
 	avatar := &path
 	user := dto.ProfileUserResponse{
@@ -127,7 +137,6 @@ func TestProfileHandler_GetMe_Success(t *testing.T) {
 
 func TestProfileHandler_GetMe_Errors(t *testing.T) {
 	t.Parallel()
-
 	tests := []struct {
 		name     string
 		ucErr    error
@@ -151,7 +160,6 @@ func TestProfileHandler_GetMe_Errors(t *testing.T) {
 
 func TestProfileHandler_ErrorLogLevel(t *testing.T) {
 	t.Parallel()
-
 	tests := []struct {
 		name      string
 		err       error
@@ -207,7 +215,7 @@ func TestProfileHandler_GetByUsername(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			recorder := requestProfile(newTestRouter(tt.uc, testUserID), "/profile/ivan001", "")
+			recorder := requestProfile(newTestRouter(tt.uc, testUserID), "/users/ivan001", "")
 
 			require.Equal(t, tt.wantCode, recorder.Code)
 			require.JSONEq(t, tt.wantJSON, recorder.Body.String())
@@ -217,17 +225,13 @@ func TestProfileHandler_GetByUsername(t *testing.T) {
 
 func TestProfileHandler_MeRouteIsNotPublicProfile(t *testing.T) {
 	t.Parallel()
-
 	uc := profileUsecaseMock{publicProfile: &dto.PublicProfileResponse{}}
-
 	recorder := requestProfile(newTestRouter(uc, testUserID), "/profile/me", "")
-
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
 }
 
 func TestProfileHandler_Unauthorized(t *testing.T) {
 	t.Parallel()
-
 	tests := []struct {
 		name   string
 		path   string
@@ -250,7 +254,6 @@ func TestProfileHandler_Unauthorized(t *testing.T) {
 
 func TestProfileHandler_RegisterRoutes(t *testing.T) {
 	t.Parallel()
-
 	router := newTestRouter(profileUsecaseMock{}, testUserID)
 
 	for _, path := range []string{"/profile/me"} {

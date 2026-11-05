@@ -72,8 +72,10 @@ type JWTManager struct {
 }
 
 type UserPayload struct {
-	UserID uuid.UUID `json:"user_id"`
-	Role   string    `json:"role"`
+	UserID   uuid.UUID `json:"user_id"`
+	Email    string    `json:"email"`
+	Username string    `json:"username"`
+	Role     string    `json:"role"`
 }
 
 func NewJWTManager(cfg JWTConfig) (*JWTManager, error) {

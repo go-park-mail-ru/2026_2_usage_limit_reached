@@ -1,13 +1,9 @@
 components:
   schemas:
-    dto.AuthorResponse:
+    dto.CreatePostResponse:
       properties:
-        bio:
-          example: i am author
-          type: string
-        category:
-          description: null, если категории нет
-          example: Cars
+        id:
+          example: 00000000-0000-4000-8000-000000000101
           type: string
       type: object
     dto.LoginRequest:
@@ -20,10 +16,109 @@ components:
           example: secret_password_123
           type: string
       type: object
+    dto.PostInfo:
+      properties:
+        author:
+          $ref: '#/components/schemas/internal_posts_dto.AuthorResponse'
+        body:
+          example: Текст поста
+          type: string
+        created_at:
+          example: "2026-09-01T11:00:00Z"
+          type: string
+        id:
+          example: 00000000-0000-4000-8000-000000000101
+          type: string
+        liked_by_user:
+          example: true
+          type: boolean
+        likes_count:
+          example: 12
+          type: integer
+        locked:
+          example: false
+          type: boolean
+        published_at:
+          example: "2026-09-01T12:00:00Z"
+          type: string
+        status:
+          example: published
+          type: string
+        title:
+          example: Мой первый пост
+          type: string
+        updated_at:
+          example: "2026-09-01T12:00:00Z"
+          type: string
+      type: object
+    dto.PostLikeResponse:
+      properties:
+        liked_by_user:
+          example: true
+          type: boolean
+        likes_count:
+          example: 13
+          type: integer
+      type: object
+    dto.PostPreview:
+      properties:
+        author:
+          $ref: '#/components/schemas/internal_posts_dto.AuthorResponse'
+        body_preview:
+          example: Первые 200 символов текста поста
+          type: string
+        id:
+          example: 00000000-0000-4000-8000-000000000101
+          type: string
+        liked_by_user:
+          example: true
+          type: boolean
+        likes_count:
+          example: 12
+          type: integer
+        locked:
+          example: false
+          type: boolean
+        published_or_updated_at:
+          example: "2026-09-01T12:00:00Z"
+          type: string
+        title:
+          example: Мой первый пост
+          type: string
+      type: object
+    dto.PostRequest:
+      properties:
+        body:
+          example: Текст поста
+          type: string
+        last_updated_at:
+          example: "2026-11-02T12:00:00Z"
+          type: string
+        status:
+          enum:
+          - draft
+          - published
+          example: published
+          type: string
+        title:
+          example: Мой первый пост
+          type: string
+      type: object
+    dto.PostsPageResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/dto.PostPreview'
+          type: array
+          uniqueItems: false
+        next_cursor:
+          example: eyJraW5kIjoibmV3X3Bvc3RzIn0
+          type: string
+      type: object
     dto.ProfileResponse:
       properties:
         author:
-          $ref: '#/components/schemas/dto.AuthorResponse'
+          $ref: '#/components/schemas/internal_profile_dto.AuthorResponse'
           description: Нет, если пользователь не автор
         user:
           $ref: '#/components/schemas/dto.ProfileUserResponse'
@@ -53,7 +148,7 @@ components:
     dto.PublicProfileResponse:
       properties:
         author:
-          $ref: '#/components/schemas/dto.AuthorResponse'
+          $ref: '#/components/schemas/internal_profile_dto.AuthorResponse'
           description: Нет, если пользователь не автор
         user:
           $ref: '#/components/schemas/dto.PublicProfileUserResponse'
@@ -122,6 +217,31 @@ components:
           example: username123
           type: string
       type: object
+    internal_posts_dto.AuthorResponse:
+      properties:
+        avatar_key:
+          example: avatars/user-1.png
+          type: string
+        id:
+          example: 00000000-0000-4000-8000-000000000001
+          type: string
+        nickname:
+          example: nickname_123
+          type: string
+        username:
+          example: username123
+          type: string
+      type: object
+    internal_profile_dto.AuthorResponse:
+      properties:
+        bio:
+          example: i am author
+          type: string
+        category:
+          description: null, если категории нет
+          example: Cars
+          type: string
+      type: object
     response.ErrorResponse:
       properties:
         error:
@@ -136,11 +256,64 @@ externalDocs:
   description: ""
   url: ""
 info:
-  description: API для Patreon Clone
+  description: REST API для платформы публикации контента (аналог Patreon).
   title: Patreon Clone API
   version: "1.0"
 openapi: 3.1.0
 paths:
+  /feed:
+    get:
+      description: 'Возвращает опубликованные посты страницами. Авторизация необязательна:
+        для авторизованного пользователя заполняется liked_by_user. У закрытых постов
+        (locked = true) body_preview пустой. Чтобы получить следующую страницу, передайте
+        next_cursor из ответа в параметр cursor; значение null означает, что страниц
+        больше нет.'
+      parameters:
+      - description: Порядок сортировки
+        in: query
+        name: sort
+        required: true
+        schema:
+          enum:
+          - new
+          - popular
+          type: string
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
+          не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostsPageResponse'
+          description: Страница постов
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный sort или cursor
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Лента постов
+      tags:
+      - posts
   /login:
     post:
       description: Принимает учетные данные, проверяет их и выпускает токен
@@ -208,39 +381,304 @@ paths:
       summary: Деавторизация пользователя
       tags:
       - auth
-  /profile/{username}:
-    get:
-      description: Возвращает публичные данные пользователя без email. Блок author
-        есть только у автора, avatar_url - только при наличии аватара
-      parameters:
-      - description: Username пользователя
-        in: path
-        name: username
+  /posts:
+    post:
+      description: Создаёт пост от имени текущего пользователя. Создавать посты могут
+        только авторы. Поле last_updated_at при создании не используется. Для статуса
+        published дата публикации проставляется автоматически.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.PostRequest'
+              description: Данные поста
+              summary: request
+        description: Данные поста
         required: true
-        schema:
-          type: string
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/dto.PublicProfileResponse'
-          description: Публичный профиль пользователя
-        "404":
+                $ref: '#/components/schemas/dto.CreatePostResponse'
+          description: ID созданного поста
+        "400":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
-          description: Пользователь не найден, заблокирован или удалён
+          description: Ошибка валидации
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не является автором
         "500":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
           description: Внутренняя ошибка сервера
-      summary: Получение публичного профиля пользователя
+      security:
+      - CookieAuth: []
+      summary: Создание поста
       tags:
-      - profile
+      - posts
+  /posts/{id}:
+    delete:
+      description: Удаляет пост текущего пользователя вместе с лайками, комментариями
+        и уведомлениями.
+      parameters:
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+          description: Пост удалён
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Некорректный ID поста
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пост не найден или принадлежит другому пользователю
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Удаление поста
+      tags:
+      - posts
+    get:
+      description: 'Возвращает пост целиком. Авторизация необязательна: автор видит
+        свои неопубликованные посты, для остальных они недоступны (404). У закрытого
+        поста (locked = true) поле body пустое.'
+      parameters:
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostInfo'
+          description: Пост
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Некорректный ID поста
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пост не найден или недоступен
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Просмотр поста
+      tags:
+      - posts
+    put:
+      description: 'Полностью заменяет title, body и status поста. Используется оптимистическая
+        блокировка: в last_updated_at нужно передать значение updated_at, полученное
+        при последнем чтении поста. Если пост успели изменить, вернётся 409, и пост
+        нужно перечитать.'
+      parameters:
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.PostRequest'
+              description: Новые данные поста (last_updated_at обязателен)
+              summary: request
+        description: Новые данные поста (last_updated_at обязателен)
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+          description: Пост обновлён
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации или не передан last_updated_at
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пост принадлежит другому пользователю
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пост не найден
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пост уже был изменён (устаревший last_updated_at)
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Изменение поста
+      tags:
+      - posts
+  /posts/{id}/like:
+    delete:
+      description: 'Снимает лайк пользователя с поста. Операция идемпотентна: если
+        лайка нет, счётчик не меняется.'
+      parameters:
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostLikeResponse'
+          description: Актуальное число лайков
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Некорректный ID поста
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Снятие лайка с поста
+      tags:
+      - posts
+    post:
+      description: 'Ставит лайк опубликованному посту. Операция идемпотентна: повторный
+        лайк не увеличивает счётчик. Лайкнуть можно только пост, доступный пользователю;
+        автору о лайке своего поста уведомление не отправляется.'
+      parameters:
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostLikeResponse'
+          description: Актуальное число лайков
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Некорректный ID поста
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пост не найден или недоступен
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Лайк поста
+      tags:
+      - posts
   /profile/me:
     get:
       description: Возвращает данные пользователя. Блок author есть только у автора,
@@ -335,6 +773,121 @@ paths:
       summary: Изменение профиля текущего пользователя
       tags:
       - profile
+  /profile/me/drafts:
+    get:
+      description: Возвращает черновики авторизованного пользователя страницами. Поддерживается
+        только sort=new.
+      parameters:
+      - description: Порядок сортировки (поддерживается только new)
+        in: query
+        name: sort
+        required: true
+        schema:
+          enum:
+          - new
+          type: string
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
+          не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostsPageResponse'
+          description: Страница черновиков
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный sort или cursor
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Черновики текущего пользователя
+      tags:
+      - posts
+  /profile/me/posts:
+    get:
+      description: Возвращает опубликованные посты авторизованного пользователя страницами.
+        Черновики доступны через /profile/me/drafts.
+      parameters:
+      - description: Порядок сортировки
+        in: query
+        name: sort
+        required: true
+        schema:
+          enum:
+          - new
+          - popular
+          type: string
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
+          не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostsPageResponse'
+          description: Страница постов
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный sort или cursor
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Посты текущего пользователя
+      tags:
+      - posts
   /signup:
     post:
       description: Принимает регистрационные данные, валидирует и создает новый аккаунт
@@ -381,3 +934,36 @@ paths:
       summary: Регистрация пользователя
       tags:
       - auth
+  /users/{username}:
+    get:
+      description: Возвращает публичные данные пользователя без email. Блок author
+        есть только у автора, avatar_url - только при наличии аватара
+      parameters:
+      - description: Username пользователя
+        in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PublicProfileResponse'
+          description: Публичный профиль пользователя
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден, заблокирован или удалён
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Получение публичного профиля пользователя
+      tags:
+      - profile

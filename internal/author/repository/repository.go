@@ -13,11 +13,11 @@ import (
 )
 
 type AuthorRepository struct {
-	pool postgres.Querier
+	pool postgres.DB
 }
 
-func NewAuthorRepository(pool postgres.Querier) *AuthorRepository {
-	return &AuthorRepository{pool: pool}
+func NewAuthorRepository(db *postgres.DBClient) *AuthorRepository {
+	return &AuthorRepository{pool: db.Pool}
 }
 
 func (r *AuthorRepository) GetAuthorByID(ctx context.Context, id uuid.UUID) (*models.Author, error) {

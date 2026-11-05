@@ -13,7 +13,12 @@ import (
 
 const testSecret = "0123456789abcdef0123456789abcdef"
 
-var testUserID = uuid.MustParse("00000000-0000-4000-8000-000000000001")
+var (
+	testUserID   = uuid.MustParse("00000000-0000-4000-8000-000000000001")
+	testEmail    = "email@example.com"
+	testUsername = "user"
+	testRole     = "user"
+)
 
 func newTestManager(t *testing.T, secret string) *jwt.JWTManager {
 	t.Helper()
@@ -27,7 +32,7 @@ func signedToken(t *testing.T, expiresAt int64) string {
 	token := jwtv5.NewWithClaims(jwtv5.SigningMethodHS256, jwtv5.MapClaims{
 		"sub":     testUserID.String(),
 		"exp":     expiresAt,
-		"payload": jwt.UserPayload{UserID: testUserID, Role: "user"},
+		"payload": jwt.UserPayload{UserID: testUserID, Email: testEmail, Username: testUsername, Role: testRole},
 	})
 	signed, err := token.SignedString([]byte(testSecret))
 	require.NoError(t, err)
@@ -84,8 +89,8 @@ func TestJWTManager_Generate_Success(t *testing.T) {
 	}{
 		{
 			name:    "user payload",
-			payload: jwt.UserPayload{UserID: testUserID, Role: "user"},
-			want:    map[string]any{"user_id": testUserID.String(), "role": "user"},
+			payload: jwt.UserPayload{UserID: testUserID, Email: testEmail, Username: testUsername, Role: testRole},
+			want:    map[string]any{"user_id": testUserID.String(), "email": testEmail, "username": testUsername, "role": testRole},
 		},
 		{name: "nil payload", want: nil},
 	}
@@ -138,14 +143,14 @@ func TestJWTManager_Generate_Errors(t *testing.T) {
 func TestJWTManager_GenerateVerify_RoundTrip(t *testing.T) {
 	t.Parallel()
 	manager := newTestManager(t, testSecret)
-	payload := jwt.UserPayload{UserID: testUserID, Role: "user"}
+	payload := jwt.UserPayload{UserID: testUserID, Email: testEmail, Username: testUsername, Role: testRole}
 
 	token, err := manager.Generate(testUserID, payload)
 	require.NoError(t, err)
 
 	got, err := manager.Verify(token)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"user_id":"00000000-0000-4000-8000-000000000001","role":"user"}`, string(got))
+	require.JSONEq(t, `{"user_id":"00000000-0000-4000-8000-000000000001","email":"email@example.com","username":"user","role":"user"}`, string(got))
 }
 
 func TestJWTManager_Verify_Success(t *testing.T) {
@@ -153,12 +158,12 @@ func TestJWTManager_Verify_Success(t *testing.T) {
 	token := signedToken(t, 4102444800)
 	got, err := newTestManager(t, testSecret).Verify(token)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"user_id":"00000000-0000-4000-8000-000000000001","role":"user"}`, string(got))
+	require.JSONEq(t, `{"user_id":"00000000-0000-4000-8000-000000000001","email":"email@example.com","username":"user","role":"user"}`, string(got))
 }
 
 func TestJWTManager_Verify_Errors(t *testing.T) {
 	t.Parallel()
-	token, err := newTestManager(t, testSecret).Generate(testUserID, jwt.UserPayload{UserID: testUserID, Role: "user"})
+	token, err := newTestManager(t, testSecret).Generate(testUserID, jwt.UserPayload{UserID: testUserID, Email: testEmail, Username: testUsername, Role: testRole})
 	require.NoError(t, err)
 	parts := strings.Split(token, ".")
 

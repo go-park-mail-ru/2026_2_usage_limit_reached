@@ -12,11 +12,11 @@ import (
 )
 
 type ProfileRepository struct {
-	pool postgres.Querier
+	pool postgres.DB
 }
 
-func NewProfileRepository(pool postgres.Querier) *ProfileRepository {
-	return &ProfileRepository{pool: pool}
+func NewProfileRepository(db *postgres.DBClient) *ProfileRepository {
+	return &ProfileRepository{pool: db.Pool}
 }
 
 func (r *ProfileRepository) GetProfileByID(ctx context.Context, userID uuid.UUID) (*models.ProfileReadModel, error) {

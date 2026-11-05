@@ -19,11 +19,11 @@ const (
 )
 
 type UserRepository struct {
-	pool postgres.Querier
+	pool postgres.DB
 }
 
-func NewUserRepository(pool postgres.Querier) *UserRepository {
-	return &UserRepository{pool: pool}
+func NewUserRepository(db *postgres.DBClient) *UserRepository {
+	return &UserRepository{pool: db.Pool}
 }
 
 func (r *UserRepository) CreateUser(ctx context.Context, u models.User) (*models.User, error) {
@@ -39,6 +39,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, u models.User) (*models
 		if errors.Is(err, postgres.ErrUniqViolation) {
 			return nil, models.ErrUserExists
 		}
+
 		return nil, fmt.Errorf("Create user error: %w", err)
 	}
 
@@ -94,6 +95,7 @@ func (r *UserRepository) getUser(ctx context.Context, field string, v any) (*mod
 	default:
 		return nil, fmt.Errorf("Invalid search field")
 	}
+
 	query := fmt.Sprintf(getQuery, field)
 
 	var user models.User
@@ -112,7 +114,9 @@ func (r *UserRepository) getUser(ctx context.Context, field string, v any) (*mod
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, models.ErrUserNotFound
 		}
-		return nil, fmt.Errorf("Get user error: %w", err)
+
+		return nil, fmt.Errorf("get user error: %w", err)
 	}
+
 	return &user, nil
 }

@@ -35,7 +35,7 @@ func NewProfileHandler(uc ProfileUsecase, validator *validator.Validator, logger
 func (h *ProfileHandler) RegisterRoutes(public *mux.Router, private *mux.Router) {
 	private.HandleFunc("/profile/me", h.GetMe).Methods(http.MethodGet, http.MethodOptions)
 	private.HandleFunc("/profile/me", h.UpdateMe).Methods(http.MethodPut, http.MethodOptions)
-	public.HandleFunc("/profile/{username}", h.GetByUsername).Methods(http.MethodGet, http.MethodOptions)
+	public.HandleFunc("/users/{username}", h.GetByUsername).Methods(http.MethodGet, http.MethodOptions)
 }
 
 // GetMe возвращает профиль текущего пользователя
@@ -51,13 +51,13 @@ func (h *ProfileHandler) RegisterRoutes(public *mux.Router, private *mux.Router)
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /profile/me [get]
 func (h *ProfileHandler) GetMe(w http.ResponseWriter, r *http.Request) {
-	id, ok := middleware.UserIDFromContext(r.Context())
-	if !ok || id == uuid.Nil {
+	user, ok := middleware.UserInfoFromContext(r.Context())
+	if !ok || user == nil || user.UserID == uuid.Nil {
 		response.ErrorUnauthorized(w)
 		return
 	}
 
-	profile, err := h.uc.GetMyProfile(r.Context(), id)
+	profile, err := h.uc.GetMyProfile(r.Context(), user.UserID)
 	if err != nil {
 		h.handleError(r.Context(), w, "get my profile", err)
 		return
@@ -74,7 +74,7 @@ func (h *ProfileHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} dto.PublicProfileResponse "Публичный профиль пользователя"
 // @Failure 404 {object} response.ErrorResponse "Пользователь не найден, заблокирован или удалён"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
-// @Router /profile/{username} [get]
+// @Router /users/{username} [get]
 func (h *ProfileHandler) GetByUsername(w http.ResponseWriter, r *http.Request) {
 	profile, err := h.uc.GetPublicProfile(r.Context(), mux.Vars(r)["username"])
 	if err != nil {
@@ -101,8 +101,8 @@ func (h *ProfileHandler) GetByUsername(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /profile/me [put]
 func (h *ProfileHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
-	id, ok := middleware.UserIDFromContext(r.Context())
-	if !ok || id == uuid.Nil {
+	user, ok := middleware.UserInfoFromContext(r.Context())
+	if !ok || user == nil || user.UserID == uuid.Nil {
 		response.ErrorUnauthorized(w)
 		return
 	}
@@ -118,7 +118,7 @@ func (h *ProfileHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	profile, err := h.uc.UpdateMyProfile(r.Context(), id, req)
+	profile, err := h.uc.UpdateMyProfile(r.Context(), user.UserID, req)
 	if err != nil {
 		h.handleError(r.Context(), w, "update my profile", err)
 		return

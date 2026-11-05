@@ -9,12 +9,15 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var (
-	ErrUniqViolation = errors.New("unique constraint violation")
+	ErrUniqViolation  = errors.New("unique constraint violation")
+	ErrFKViolation    = errors.New("foreign key violation")
+	ErrCheckViolation = errors.New("check constraint violation")
 )
 
 type PostgresConfig struct {
@@ -88,11 +91,18 @@ func (c PostgresConfig) Validate() error {
 	return errors.Join(errs...)
 }
 
-type PgxClient struct {
+type DB interface {
+	Query(ctx context.Context, query string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, query string, args ...any) (pgconn.CommandTag, error)
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+}
+
+type DBClient struct {
 	Pool *pgxpool.Pool
 }
 
-func NewClient(pCfg PostgresConfig) (*PgxClient, error) {
+func NewClient(pCfg PostgresConfig) (*DBClient, error) {
 	cfg, err := pgxpool.ParseConfig(pCfg.DSN())
 	if err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
@@ -114,10 +124,10 @@ func NewClient(pCfg PostgresConfig) (*PgxClient, error) {
 		return nil, fmt.Errorf("database ping error: %w", err)
 	}
 
-	return &PgxClient{Pool: pool}, nil
+	return &DBClient{Pool: pool}, nil
 }
 
-func (c *PgxClient) Close() {
+func (c *DBClient) Close() {
 	c.Pool.Close()
 }
 
@@ -126,6 +136,10 @@ func ParseError(err error) error {
 	switch {
 	case errors.As(err, &pgErr) && pgErr.Code == "23505":
 		return ErrUniqViolation
+	case errors.As(err, &pgErr) && pgErr.Code == "23503":
+		return ErrFKViolation
+	case errors.As(err, &pgErr) && pgErr.Code == "23514":
+		return ErrCheckViolation
 	default:
 		return fmt.Errorf("postgres error: %w", err)
 	}

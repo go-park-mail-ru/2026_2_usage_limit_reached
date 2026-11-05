@@ -1,7 +1,7 @@
 package testutils
 
 import (
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 )
 
 func SetupValidator() *validator.Validator {
@@ -16,6 +16,11 @@ func SetupValidator() *validator.Validator {
 		Email: validator.EmailRules{
 			MaxLen: 32,
 			Regexp: `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`,
+		},
+		Post: validator.PostRules{
+			MaxTitleLen:       255,
+			MaxBodyLen:        20000,
+			AllowedPostStatus: []string{"published", "draft", "archived"},
 		},
 	})
 	if err != nil {

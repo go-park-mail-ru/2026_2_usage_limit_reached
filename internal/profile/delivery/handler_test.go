@@ -49,14 +49,25 @@ func (s profileUsecaseMock) GetMyPosts(_ context.Context, id uuid.UUID) (*dto.Pr
 }
 
 type tokenVerifierMock struct {
-	userID uuid.UUID
+	userID   uuid.UUID
+	email    string
+	username string
+	role     string
 }
 
 func (v tokenVerifierMock) Verify(token string) (json.RawMessage, error) {
 	if token != "test-token" {
 		return nil, errors.New("invalid test token")
 	}
-	return json.Marshal(jwt.UserPayload{UserID: v.userID, Role: "user"})
+	if v.userID == uuid.Nil {
+		return nil, errors.New("nil user id")
+	}
+	return json.Marshal(jwt.UserPayload{
+		UserID:   v.userID,
+		Email:    v.email,
+		Username: v.username,
+		Role:     v.role,
+	})
 }
 
 func newTestRouter(uc profilehandlers.ProfileUsecase, userID uuid.UUID) http.Handler {
@@ -81,7 +92,6 @@ func requestProfile(router http.Handler, path, token string) *httptest.ResponseR
 
 func TestProfileHandler_GetMe_Success(t *testing.T) {
 	t.Parallel()
-
 	path := "avatars/ivan.png"
 	avatar := &path
 	user := dto.ProfileUserResponse{
@@ -118,7 +128,6 @@ func TestProfileHandler_GetMe_Success(t *testing.T) {
 
 func TestProfileHandler_GetMe_Errors(t *testing.T) {
 	t.Parallel()
-
 	tests := []struct {
 		name     string
 		ucErr    error
@@ -141,7 +150,6 @@ func TestProfileHandler_GetMe_Errors(t *testing.T) {
 
 func TestProfileHandler_GetMePosts_Success(t *testing.T) {
 	t.Parallel()
-
 	tests := []struct {
 		name     string
 		response *dto.ProfilePostsResponse
@@ -174,7 +182,6 @@ func TestProfileHandler_GetMePosts_Success(t *testing.T) {
 
 func TestProfileHandler_GetMePosts_Error(t *testing.T) {
 	t.Parallel()
-
 	uc := profileUsecaseMock{postsErr: errors.New("posts storage unavailable")}
 	recorder := requestProfile(newTestRouter(uc, testUserID), "/profile/me/posts", "test-token")
 	require.Equal(t, http.StatusInternalServerError, recorder.Code)
@@ -183,7 +190,6 @@ func TestProfileHandler_GetMePosts_Error(t *testing.T) {
 
 func TestProfileHandler_Unauthorized(t *testing.T) {
 	t.Parallel()
-
 	tests := []struct {
 		name   string
 		path   string
@@ -208,7 +214,6 @@ func TestProfileHandler_Unauthorized(t *testing.T) {
 
 func TestProfileHandler_RegisterRoutes(t *testing.T) {
 	t.Parallel()
-
 	router := newTestRouter(profileUsecaseMock{}, testUserID)
 	for _, path := range []string{"/profile/me", "/profile/me/posts"} {
 		req := httptest.NewRequest(http.MethodPost, path, nil)

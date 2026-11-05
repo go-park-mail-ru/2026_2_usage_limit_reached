@@ -30,8 +30,16 @@ func ErrorUnauthorized(w http.ResponseWriter) {
 	write(w, http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
 }
 
+func ErrorForbidden(w http.ResponseWriter) {
+	write(w, http.StatusForbidden, ErrorResponse{Error: "forbidden"})
+}
+
 func ErrorUserConflict(w http.ResponseWriter) {
 	write(w, http.StatusConflict, ErrorResponse{Error: "user already exist"})
+}
+
+func ErrorPostConflict(w http.ResponseWriter) {
+	write(w, http.StatusConflict, ErrorResponse{Error: "post has already been changed"})
 }
 
 func ErrorNotFound(w http.ResponseWriter) {
@@ -42,6 +50,7 @@ func write(w http.ResponseWriter, code int, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
 		ErrorInternal(w)
+		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)

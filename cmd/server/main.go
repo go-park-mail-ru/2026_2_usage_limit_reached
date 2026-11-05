@@ -51,9 +51,9 @@ func main() {
 	}
 	defer postgresClient.Close()
 
-	userRepo := AuthRepo.NewUserRepository(postgresClient.Pool, appLogger)
+	userRepo := AuthRepo.NewUserRepository(postgresClient, appLogger)
 	profileRepo := ProfileRepo.NewProfileRepository()
-	postRepo := PostRepo.NewPostRepository(postgresClient.Pool, appLogger)
+	postRepo := PostRepo.NewPostRepository(postgresClient, appLogger)
 
 	uc := usecase.NewUsecase(userRepo, tokens)
 	valid, err := validator.NewValidator(cfg.Validation)

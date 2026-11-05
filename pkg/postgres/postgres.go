@@ -98,11 +98,11 @@ type DB interface {
 	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
 }
 
-type PgxClient struct {
+type DBClient struct {
 	Pool *pgxpool.Pool
 }
 
-func NewClient(pCfg PostgresConfig) (*PgxClient, error) {
+func NewClient(pCfg PostgresConfig) (*DBClient, error) {
 	cfg, err := pgxpool.ParseConfig(pCfg.DSN())
 	if err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
@@ -124,10 +124,10 @@ func NewClient(pCfg PostgresConfig) (*PgxClient, error) {
 		return nil, fmt.Errorf("database ping error: %w", err)
 	}
 
-	return &PgxClient{Pool: pool}, nil
+	return &DBClient{Pool: pool}, nil
 }
 
-func (c *PgxClient) Close() {
+func (c *DBClient) Close() {
 	c.Pool.Close()
 }
 

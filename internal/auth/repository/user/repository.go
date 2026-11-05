@@ -25,8 +25,8 @@ type UserRepository struct {
 	logger *slog.Logger
 }
 
-func NewUserRepository(pool postgres.DB, logger *slog.Logger) *UserRepository {
-	return &UserRepository{pool: pool, logger: logger}
+func NewUserRepository(db *postgres.DBClient, logger *slog.Logger) *UserRepository {
+	return &UserRepository{pool: db.Pool, logger: logger}
 }
 
 func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*models.User, error) {

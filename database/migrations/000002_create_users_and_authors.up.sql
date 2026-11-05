@@ -7,15 +7,12 @@ CREATE TABLE "user" (
     password_hash  TEXT NOT NULL,
     avatar_key     TEXT,
     status         TEXT NOT NULL DEFAULT 'active',
-    role           TEXT NOT NULL DEFAULT 'user',
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uk_user_username UNIQUE (username),
     CONSTRAINT uk_user_email UNIQUE (email),
     CONSTRAINT chk_user_status
-        CHECK (status IN ('active', 'blocked', 'deleted')),
-    CONSTRAINT chk_user_role
-        CHECK (role IN ('user', 'admin', 'support'))
+        CHECK (status IN ('active', 'blocked', 'deleted'))
 );
 
 CREATE TRIGGER trg_user_set_updated_at

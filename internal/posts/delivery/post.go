@@ -421,10 +421,3 @@ func getPostID(r *http.Request) (uuid.UUID, error) {
 	}
 	return id, nil
 }
-
-func uid(id *uuid.UUID) string {
-	if id == nil {
-		return "-"
-	}
-	return id.String()
-}

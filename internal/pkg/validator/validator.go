@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/google/uuid"
+	"golang.org/x/text/currency"
 )
 
 var (
@@ -39,9 +42,19 @@ type EmailRules struct {
 }
 
 type PostRules struct {
-	MaxTitleLen       int      `mapstructure:"max_title_len"`
-	MaxBodyLen        int      `mapstructure:"max_body_len"`
-	AllowedPostStatus []string `mapstructure:"allowed_post_status"`
+	MaxTitleLen       int             `mapstructure:"max_title_len"`
+	MaxBodyLen        int             `mapstructure:"max_body_len"`
+	AllowedPostStatus map[string]bool `mapstructure:"allowed_post_status"`
+}
+
+type PaymentRules struct {
+	RequestKeyLen   int                    `mapstructure:"request_key_len"`
+	MinAmountMinor  int                    `mapstructure:"min_amount_minor"`
+	AllowedCurrency map[currency.Unit]bool `mapstructure:"allowed_currency"`
+}
+
+type DonationRules struct {
+	MaxMessageLen int `mapstructure:"max_message_len"`
 }
 
 type ValidationConfig struct {
@@ -50,6 +63,8 @@ type ValidationConfig struct {
 	Password PasswordRules `mapstructure:"password"`
 	Email    EmailRules    `mapstructure:"email"`
 	Post     PostRules     `mapstructure:"post"`
+	Payment  PaymentRules  `mapstructure:"payment"`
+	Donation DonationRules `mapstructure:"donation"`
 }
 
 func DefaultConfig() ValidationConfig {
@@ -68,7 +83,15 @@ func DefaultConfig() ValidationConfig {
 		Post: PostRules{
 			MaxTitleLen:       255,
 			MaxBodyLen:        20000,
-			AllowedPostStatus: []string{postPublishedStatus, postDraftStatus, postArchivedStatus},
+			AllowedPostStatus: map[string]bool{postPublishedStatus: true, postDraftStatus: true, postArchivedStatus: true},
+		},
+		Payment: PaymentRules{
+			RequestKeyLen:   36,
+			MinAmountMinor:  5,
+			AllowedCurrency: map[currency.Unit]bool{currency.RUB: true},
+		},
+		Donation: DonationRules{
+			MaxMessageLen: 5000,
 		},
 	}
 }
@@ -88,6 +111,9 @@ func (c ValidationConfig) Validate() error {
 		{"email.max_len", c.Email.MaxLen},
 		{"post.max_title_len", c.Post.MaxTitleLen},
 		{"post.max_body_len", c.Post.MaxBodyLen},
+		{"payment.request_key_len", c.Payment.RequestKeyLen},
+		{"payment.min_amount_minor", c.Payment.MinAmountMinor},
+		{"donation.max_message_len", c.Donation.MaxMessageLen},
 	}
 	for _, p := range positive {
 		if p.value <= 0 {
@@ -109,6 +135,9 @@ func (c ValidationConfig) Validate() error {
 	}
 	if len(c.Post.AllowedPostStatus) == 0 {
 		errs = append(errs, errors.New("validator: post.allowed_post_status must not be empty"))
+	}
+	if len(c.Payment.AllowedCurrency) == 0 {
+		errs = append(errs, errors.New("validator: payment.allowed_currency must not be empty"))
 	}
 
 	return errors.Join(errs...)
@@ -180,10 +209,24 @@ func (v Validator) IsValidPostBody(body string) bool {
 }
 
 func (v Validator) IsValidPostStatus(status string) bool {
-	for _, st := range v.cfg.Post.AllowedPostStatus {
-		if status == st {
-			return true
-		}
-	}
-	return false
+	return v.cfg.Post.AllowedPostStatus[strings.TrimSpace(status)]
+}
+
+func (v Validator) IsValidPaymentReqKey(reqKey string) bool {
+	reqKey = strings.TrimSpace(reqKey)
+	_, err := uuid.Parse(reqKey)
+	return len([]rune(reqKey)) == v.cfg.Payment.RequestKeyLen && err == nil
+}
+
+func (v Validator) IsValidPaymentAmountMinor(amount int64) bool {
+	return int64(v.cfg.Payment.MinAmountMinor) <= amount
+}
+
+func (v Validator) IsValidPaymentCurrency(cur string) bool {
+	unit, err := currency.ParseISO(cur)
+	return v.cfg.Payment.AllowedCurrency[unit] && err == nil
+}
+
+func (v Validator) IsValidDonationMessage(mes string) bool {
+	return len([]rune(strings.TrimSpace(mes))) < v.cfg.Donation.MaxMessageLen
 }

@@ -8,27 +8,25 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/dto"
 	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
-	providermock "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/provider/mock"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/provider"
 	"github.com/google/uuid"
 )
 
 var (
-	ErrForbidden    = errors.New("forbidden")
-	ErrUnauthorized = errors.New("unauthorized")
-	ErrValidation   = errors.New("validation error")
-	ErrNotFound     = errors.New("not found")
-	ErrConflict     = errors.New("post update conflict")
+	ErrForbidden            = errors.New("forbidden")
+	ErrUnauthorized         = errors.New("unauthorized")
+	ErrValidation           = errors.New("validation error")
+	ErrNotFound             = errors.New("not found")
+	ErrIdempotencyKeyReused = errors.New("request key conflict")
 )
 
 type PaymentOrderRepo interface {
 	GetOrderByID(ctx context.Context, id uuid.UUID) (*models.PaymentOrder, error)
 	CompleteSuccessfulAttempt(ctx context.Context, attempt dto.AttemptToComplete) (bool, error)
 	FailAttempt(ctx context.Context, orderID, attemptID uuid.UUID, reason string) error
-	Cancel(ctx context.Context, userID, orderID uuid.UUID, failureReason string) error
 }
 
 type PaymentAttemptRepo interface {
-	Create(ctx context.Context, attempt *models.PaymentAttempt) (*models.PaymentAttempt, error)
 	GetAttemptByID(ctx context.Context, id uuid.UUID) (*models.PaymentAttempt, error)
 }
 
@@ -38,13 +36,13 @@ var repoErrors = []struct{ from, to error }{
 	{models.ErrForbiddenUpdate, ErrForbidden},
 	{models.ErrPaymentOrderValidation, ErrValidation},
 	{models.ErrPaymentAttemptValidation, ErrValidation},
-	{models.ErrDuplicateRequestKey, ErrConflict},
+	{models.ErrDuplicateRequestKey, ErrIdempotencyKeyReused},
 }
 
 func mapRepoError(op string, err error) error {
 	for _, e := range repoErrors {
 		if errors.Is(err, e.from) {
-			return fmt.Errorf("%s: %w: %w", op, e.to, err)
+			return fmt.Errorf("%s: %w", op, e.to)
 		}
 	}
 	return fmt.Errorf("%s: %w", op, err)
@@ -53,10 +51,10 @@ func mapRepoError(op string, err error) error {
 type PaymentUsecase struct {
 	orders   PaymentOrderRepo
 	attempts PaymentAttemptRepo
-	provider providermock.Provider
+	provider provider.Provider
 }
 
-func NewPaymentUsecase(orders PaymentOrderRepo, attempts PaymentAttemptRepo, provider providermock.Provider) *PaymentUsecase {
+func NewPaymentUsecase(orders PaymentOrderRepo, attempts PaymentAttemptRepo, provider provider.Provider) *PaymentUsecase {
 	return &PaymentUsecase{orders: orders, attempts: attempts, provider: provider}
 }
 
@@ -81,7 +79,7 @@ func (uc *PaymentUsecase) Pay(ctx context.Context, orderID, attemptID uuid.UUID)
 		return order.Status, nil
 	}
 
-	res, err := uc.provider.Charge(ctx, providermock.ChargeRequest{
+	res, err := uc.provider.Charge(ctx, provider.ChargeRequest{
 		AttemptID:   attemptID,
 		AmountMinor: order.ExpectedAmountMinor,
 		Currency:    order.Currency,
@@ -91,7 +89,7 @@ func (uc *PaymentUsecase) Pay(ctx context.Context, orderID, attemptID uuid.UUID)
 	}
 
 	switch res.Status {
-	case providermock.ChargeSucceeded:
+	case provider.ChargeSucceeded:
 		if _, err := uc.orders.CompleteSuccessfulAttempt(ctx, dto.AttemptToComplete{
 			ID:                    attemptID,
 			OrderID:               orderID,
@@ -102,7 +100,7 @@ func (uc *PaymentUsecase) Pay(ctx context.Context, orderID, attemptID uuid.UUID)
 		}); err != nil {
 			return "", mapRepoError("complete attempt", err)
 		}
-	case providermock.ChargeFailed:
+	case provider.ChargeFailed:
 		if err := uc.orders.FailAttempt(ctx, orderID, attemptID, res.FailureReason); err != nil {
 			return "", mapRepoError("fail attempt", err)
 		}

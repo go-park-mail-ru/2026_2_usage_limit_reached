@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/dto"
@@ -14,25 +15,43 @@ import (
 )
 
 type DonationRepository struct {
-	pool postgres.DB
+	pool   postgres.DB
+	logger *slog.Logger
 }
 
-func NewDonationRepository(db *postgres.DBClient) *DonationRepository {
-	return &DonationRepository{pool: db.Pool}
+func NewDonationRepository(db *postgres.DBClient, logger *slog.Logger) *DonationRepository {
+	return &DonationRepository{pool: db.Pool, logger: logger}
 }
 
 func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UUID, req *dto.CreateDonationRequest) (*dto.SentDonation, error) {
+	const insertOrder = `
+		INSERT INTO payment_order (payer_id, request_key, purpose, origin, expected_amount_minor, currency, status)
+		VALUES ($1, $2, 'donation', 'manual', $3, $4, 'pending')
+		ON CONFLICT (request_key) DO NOTHING
+		RETURNING id
+	`
+	const insertDonation = `
+		INSERT INTO donation (payment_order_id, author_id, message, is_anonymous)
+		VALUES ($1, $2, $3, $4)
+		RETURNING created_at
+	`
+	const insertAttempt = `
+		INSERT INTO payment_attempt (payment_order_id, provider, status)
+		VALUES ($1, 'mock', 'created')
+		RETURNING id
+	`
+
+	r.logger.DebugContext(ctx, "executing transaction",
+		slog.String("op", "create donation"),
+		slog.String("userID", payerID.String()),
+		slog.String("authorID", req.AuthorID.String()),
+		slog.String("request_key", req.RequestKey),
+	)
+
 	var result *dto.SentDonation
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
-		const insertOrder = `
-			INSERT INTO payment_order (payer_id, request_key, purpose, origin, expected_amount_minor, currency, status)
-			VALUES ($1, $2, 'donation', 'manual', $3, $4, 'pending')
-			ON CONFLICT (request_key) DO NOTHING
-			RETURNING id
-		`
 		var orderID uuid.UUID
 		err := tx.QueryRow(ctx, insertOrder, payerID, req.RequestKey, req.AmountMinor, req.Currency).Scan(&orderID)
-
 		if errors.Is(err, pgx.ErrNoRows) {
 			result, err = checkExistingOrder(ctx, tx, req)
 			return err // do nothing on existing order
@@ -44,11 +63,6 @@ func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UU
 			return fmt.Errorf("create payment order: %w", err)
 		}
 
-		const insertDonation = `
-			INSERT INTO donation (payment_order_id, author_id, message, is_anonymous)
-			VALUES ($1, $2, $3, $4)
-			RETURNING created_at
-		`
 		var donationCreatedAt time.Time
 		err = tx.QueryRow(ctx, insertDonation, orderID, req.AuthorID, req.Message, req.IsAnonymous).Scan(&donationCreatedAt)
 		if err != nil {
@@ -59,11 +73,6 @@ func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UU
 			return fmt.Errorf("create donation: %w", err)
 		}
 
-		const insertAttempt = `
-			INSERT INTO payment_attempt (payment_order_id, provider, status)
-			VALUES ($1, 'mock', 'created')
-			RETURNING id
-		`
 		var attemptID uuid.UUID
 		err = tx.QueryRow(ctx, insertAttempt, orderID).Scan(&attemptID)
 		if err != nil {
@@ -134,7 +143,7 @@ func checkExistingOrder(ctx context.Context, tx pgx.Tx, req *dto.CreateDonationR
 		donation.AmountMinor != req.AmountMinor ||
 		donation.Currency != req.Currency ||
 		donation.IsAnonymous != req.IsAnonymous {
-		return nil, models.ErrDonationValidation
+		return nil, models.ErrIdempotencyKeyReused
 	}
 
 	return &donation, nil
@@ -169,6 +178,13 @@ func (r *DonationRepository) GetReceivedDonations(ctx context.Context, authorID 
 		ORDER BY po.paid_at DESC, d.payment_order_id DESC
 		LIMIT $4
 	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get received donations"),
+		slog.String("authorID", authorID.String()),
+		slog.Int("limit", limit),
+		slog.Bool("hasCursor", cursor != nil),
+	)
 
 	var (
 		ts *time.Time
@@ -242,6 +258,13 @@ func (r *DonationRepository) GetSentDonations(ctx context.Context, payerID uuid.
 		ORDER BY d.created_at DESC, d.payment_order_id DESC
 		LIMIT $4
 	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get sent donations"),
+		slog.String("payerID", payerID.String()),
+		slog.Int("limit", limit),
+		slog.Bool("hasCursor", cursor != nil),
+	)
 
 	var (
 		ts *time.Time

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
@@ -12,50 +13,35 @@ import (
 )
 
 type PaymentAttemptRepository struct {
-	pool postgres.DB
+	pool   postgres.DB
+	logger *slog.Logger
 }
 
-func NewPaymentAttemptRepository(db *postgres.DBClient) *PaymentAttemptRepository {
-	return &PaymentAttemptRepository{pool: db.Pool}
-}
-
-const paymentAttemptColumns = `id, payment_order_id, provider, external_transaction_id, status, charged_amount_minor, charged_currency, failure_reason, completed_at, created_at, updated_at`
-
-func (r *PaymentAttemptRepository) Create(ctx context.Context, attempt *models.PaymentAttempt) (*models.PaymentAttempt, error) {
-	const query = `
-		INSERT INTO payment_attempt (payment_order_id, provider, status)
-		SELECT po.id, $2, 'created'
-		FROM payment_order po
-		WHERE po.id = $1 AND po.status IN ('pending', 'processing')
-		FOR SHARE OF po
-		RETURNING id, status, created_at, updated_at
-	`
-
-	err := r.pool.QueryRow(ctx, query, attempt.PaymentOrderID, attempt.Provider).Scan(
-		&attempt.ID,
-		&attempt.Status,
-		&attempt.CreatedAt,
-		&attempt.UpdatedAt,
-	)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, models.ErrPaymentOrderNotFound
-		}
-		parsed := postgres.ParseError(err)
-		if errors.Is(parsed, postgres.ErrFKViolation) ||
-			errors.Is(parsed, postgres.ErrCheckViolation) ||
-			errors.Is(parsed, postgres.ErrUniqViolation) {
-			return nil, models.ErrPaymentAttemptValidation
-		}
-
-		return nil, fmt.Errorf("create payment attempt: %w", err)
-	}
-
-	return attempt, nil
+func NewPaymentAttemptRepository(db *postgres.DBClient, logger *slog.Logger) *PaymentAttemptRepository {
+	return &PaymentAttemptRepository{pool: db.Pool, logger: logger}
 }
 
 func (r *PaymentAttemptRepository) GetAttemptByID(ctx context.Context, id uuid.UUID) (*models.PaymentAttempt, error) {
-	const query = `SELECT ` + paymentAttemptColumns + ` FROM payment_attempt WHERE id = $1`
+	const query = `
+		SELECT 
+			id, 
+			payment_order_id, 
+			provider, 
+			external_transaction_id, 
+			status, 
+			charged_amount_minor, 
+			charged_currency, 
+			failure_reason, 
+			completed_at, 
+			created_at, 
+			updated_at 
+		FROM payment_attempt WHERE id = $1
+	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get attempt by ID"),
+		slog.String("id", id.String()),
+	)
 
 	attempt := &models.PaymentAttempt{}
 	err := r.pool.QueryRow(ctx, query, id).Scan(

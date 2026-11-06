@@ -9,14 +9,13 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/models"
 	paymentmodels "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
 	paymentsusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase"
-	providermock "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/provider/mock"
 	"github.com/google/uuid"
 )
 
 var (
 	ErrValidation = errors.New("validation error")
 	ErrNotFound   = errors.New("not found")
-	ErrForbidden  = errors.New("forbidden to donate to yourself")
+	ErrForbidden  = errors.New("forbidden")
 	ErrConflict   = errors.New("payment conflict")
 )
 
@@ -34,13 +33,14 @@ var repoErrors = []struct{ from, to error }{
 	{models.ErrDonationNotFound, ErrNotFound},
 	{models.ErrAuthorNotFound, ErrNotFound},
 	{models.ErrSelfDonation, ErrForbidden},
+	{models.ErrIdempotencyKeyReused, ErrConflict},
 	{models.ErrDonationValidation, ErrValidation},
 }
 
 func mapRepoError(op string, err error) error {
 	for _, e := range repoErrors {
 		if errors.Is(err, e.from) {
-			return fmt.Errorf("%s: %w: %w", op, e.to, err)
+			return fmt.Errorf("%s: %w", op, e.to)
 		}
 	}
 	return fmt.Errorf("%s: %w", op, err)
@@ -49,11 +49,10 @@ func mapRepoError(op string, err error) error {
 type DonationUsecase struct {
 	repo     DonationRepository
 	payments PaymentProcessor
-	provider providermock.Provider
 }
 
-func NewDonationUsecase(repo DonationRepository, payments PaymentProcessor, provider providermock.Provider) *DonationUsecase {
-	return &DonationUsecase{repo: repo, payments: payments, provider: provider}
+func NewDonationUsecase(repo DonationRepository, payments PaymentProcessor) *DonationUsecase {
+	return &DonationUsecase{repo: repo, payments: payments}
 }
 
 func (uc *DonationUsecase) Donate(ctx context.Context, payerID uuid.UUID, donationReq dto.CreateDonationRequest) (*dto.SentDonation, error) {
@@ -81,8 +80,8 @@ func (uc *DonationUsecase) Donate(ctx context.Context, payerID uuid.UUID, donati
 
 	status, err := uc.payments.Pay(ctx, d.PaymentOrderID, *d.PaymentAttemptID)
 	if err != nil {
-		if errors.Is(err, paymentsusecase.ErrConflict) {
-			return nil, ErrConflict
+		if errors.Is(err, paymentsusecase.ErrIdempotencyKeyReused) {
+			return nil, fmt.Errorf("%w: %w", ErrConflict, err)
 		}
 		return nil, fmt.Errorf("pay: %w", err)
 	}

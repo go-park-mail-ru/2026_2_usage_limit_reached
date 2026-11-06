@@ -86,7 +86,7 @@ func DefaultConfig() ValidationConfig {
 			AllowedPostStatus: map[string]bool{postPublishedStatus: true, postDraftStatus: true, postArchivedStatus: true},
 		},
 		Payment: PaymentRules{
-			RequestKeyLen:   64,
+			RequestKeyLen:   36,
 			MinAmountMinor:  5,
 			AllowedCurrency: map[currency.Unit]bool{currency.RUB: true},
 		},
@@ -219,7 +219,7 @@ func (v Validator) IsValidPaymentReqKey(reqKey string) bool {
 }
 
 func (v Validator) IsValidPaymentAmountMinor(amount int64) bool {
-	return int64(v.cfg.Payment.MinAmountMinor) < amount
+	return int64(v.cfg.Payment.MinAmountMinor) <= amount
 }
 
 func (v Validator) IsValidPaymentCurrency(cur string) bool {

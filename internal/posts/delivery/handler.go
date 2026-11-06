@@ -60,7 +60,7 @@ func (h *PostHandler) handleError(ctx context.Context, w http.ResponseWriter, ha
 	)
 	switch {
 	case errors.Is(err, postusecase.ErrConflict):
-		response.ErrorPostConflict(w)
+		response.ErrorConflict(w)
 	case errors.Is(err, postusecase.ErrForbidden):
 		response.ErrorForbidden(w)
 	case errors.Is(err, postusecase.ErrUnauthorized):

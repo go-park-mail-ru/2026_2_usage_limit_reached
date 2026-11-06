@@ -1,4 +1,4 @@
-package providermock
+package provider
 
 import (
 	"context"
@@ -30,25 +30,4 @@ type ChargeResult struct {
 type Provider interface {
 	Name() string
 	Charge(ctx context.Context, req ChargeRequest) (ChargeResult, error)
-}
-
-type MockProvider struct {
-	name string
-}
-
-func NewMockProvider() *MockProvider {
-	return &MockProvider{name: "mock"}
-}
-
-func (m *MockProvider) Charge(_ context.Context, req ChargeRequest) (ChargeResult, error) {
-	return ChargeResult{
-		Status:      ChargeSucceeded,
-		ExternalID:  "mock_" + req.AttemptID.String(),
-		AmountMinor: req.AmountMinor,
-		Currency:    req.Currency,
-	}, nil
-}
-
-func (m *MockProvider) Name() string {
-	return m.name
 }

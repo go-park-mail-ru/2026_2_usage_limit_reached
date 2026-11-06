@@ -60,9 +60,9 @@ func main() {
 	userRepo := AuthRepo.NewUserRepository(postgresClient, appLogger)
 	profileRepo := ProfileRepo.NewProfileRepository()
 	postRepo := PostRepo.NewPostRepository(postgresClient, appLogger)
-	paymentOrderRepo := PaymentsRepo.NewPaymentRepository(postgresClient)
-	paymentAtemptRepo := PaymentsRepo.NewPaymentAttemptRepository(postgresClient)
-	donationRepo := DonationRepo.NewDonationRepository(postgresClient)
+	paymentOrderRepo := PaymentsRepo.NewPaymentRepository(postgresClient, appLogger)
+	paymentAtemptRepo := PaymentsRepo.NewPaymentAttemptRepository(postgresClient, appLogger)
+	donationRepo := DonationRepo.NewDonationRepository(postgresClient, appLogger)
 
 	uc := usecase.NewUsecase(userRepo, tokens)
 	valid, err := validator.NewValidator(cfg.Validation)
@@ -82,7 +82,7 @@ func main() {
 	provider := providermock.NewMockProvider()
 	paymentUc := PaymentsUsecase.NewPaymentUsecase(paymentOrderRepo, paymentAtemptRepo, provider)
 
-	donationUc := DonationUsecase.NewDonationUsecase(donationRepo, paymentUc, provider)
+	donationUc := DonationUsecase.NewDonationUsecase(donationRepo, paymentUc)
 	donationHandler := DonationHandlers.NewHandler(donationUc, valid, appLogger)
 
 	r := mux.NewRouter()

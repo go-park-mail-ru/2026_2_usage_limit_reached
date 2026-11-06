@@ -8,10 +8,11 @@ import (
 )
 
 var (
-	ErrDonationNotFound   = errors.New("donation not found")
-	ErrAuthorNotFound     = errors.New("author not found")
-	ErrDonationValidation = errors.New("donation validation error")
-	ErrSelfDonation       = errors.New("self donation is not allowed")
+	ErrDonationNotFound     = errors.New("donation not found")
+	ErrAuthorNotFound       = errors.New("author not found")
+	ErrDonationValidation   = errors.New("donation validation error")
+	ErrIdempotencyKeyReused = errors.New("duplicate request_key with order")
+	ErrSelfDonation         = errors.New("self donation is not allowed")
 )
 
 type Donation struct {

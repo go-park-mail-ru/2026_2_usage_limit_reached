@@ -41,7 +41,7 @@ func (h *DonationHandler) SendDonation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := donationReq.Validate(h.validator); err != nil {
-		h.handleError(ctx, w, "new post", "validation error", err)
+		h.handleError(ctx, w, "send donation", "validation error", err)
 		return
 	}
 

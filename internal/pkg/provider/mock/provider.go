@@ -36,6 +36,10 @@ type MockProvider struct {
 	name string
 }
 
+func NewMockProvider() *MockProvider {
+	return &MockProvider{name: "mock"}
+}
+
 func (m *MockProvider) Charge(_ context.Context, req ChargeRequest) (ChargeResult, error) {
 	return ChargeResult{
 		Status:      ChargeSucceeded,

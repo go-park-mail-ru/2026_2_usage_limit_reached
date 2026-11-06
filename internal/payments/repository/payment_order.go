@@ -15,15 +15,15 @@ import (
 
 const (
 	reasonDuplicatePayment = "duplicate_payment"
-	reasonOrderCanceled = "order_canceled"
-	reasonAmountMismatch = "amount_mismatch"
+	reasonOrderCanceled    = "order_canceled"
+	reasonAmountMismatch   = "amount_mismatch"
 )
 
 type PaymentOrderRepository struct {
-	pool postgres.DB
+	pool         postgres.DB
 }
 
-func NewPaymentOrderRepository(db postgres.DBClient) *PaymentOrderRepository {
+func NewPaymentRepository(db *postgres.DBClient) *PaymentOrderRepository {
 	return &PaymentOrderRepository{pool: db.Pool}
 }
 

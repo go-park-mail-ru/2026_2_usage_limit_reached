@@ -15,7 +15,7 @@ type PaymentAttemptRepository struct {
 	pool postgres.DB
 }
 
-func NewPaymentAttemptRepository(db postgres.DBClient) *PaymentAttemptRepository {
+func NewPaymentAttemptRepository(db *postgres.DBClient) *PaymentAttemptRepository {
 	return &PaymentAttemptRepository{pool: db.Pool}
 }
 

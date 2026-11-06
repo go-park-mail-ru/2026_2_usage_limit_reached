@@ -8,6 +8,12 @@ import (
 	AuthRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/user"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
+	DonationHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/delivery"
+	DonationRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/repository"
+	DonationUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/usecase"
+	PaymentsRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/repository"
+	PaymentsUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase"
+	providermock "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/provider/mock"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	PostHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery"
 	PostRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/repository"
@@ -54,6 +60,9 @@ func main() {
 	userRepo := AuthRepo.NewUserRepository(postgresClient, appLogger)
 	profileRepo := ProfileRepo.NewProfileRepository()
 	postRepo := PostRepo.NewPostRepository(postgresClient, appLogger)
+	paymentOrderRepo := PaymentsRepo.NewPaymentRepository(postgresClient)
+	paymentAtemptRepo := PaymentsRepo.NewPaymentAttemptRepository(postgresClient)
+	donationRepo := DonationRepo.NewDonationRepository(postgresClient)
 
 	uc := usecase.NewUsecase(userRepo, tokens)
 	valid, err := validator.NewValidator(cfg.Validation)
@@ -69,6 +78,12 @@ func main() {
 
 	postUc := PostUsecase.NewPostUsecase(postRepo)
 	postHandler := PostHandlers.NewHandler(postUc, valid, appLogger)
+
+	provider := providermock.NewMockProvider()
+	paymentUc := PaymentsUsecase.NewPaymentUsecase(paymentOrderRepo, paymentAtemptRepo, provider)
+
+	donationUc := DonationUsecase.NewDonationUsecase(donationRepo, paymentUc, provider)
+	donationHandler := DonationHandlers.NewHandler(donationUc, valid, appLogger)
 
 	r := mux.NewRouter()
 	r.Use(
@@ -86,6 +101,7 @@ func main() {
 	authHandler.RegisterRoutes(public, private)
 	profileHandler.RegisterRoutes(public, private)
 	postHandler.RegisterRoutes(public, private)
+	donationHandler.RegisterRoutes(private)
 
 	srv, err := httpserver.New(cfg.HTTP, appLogger)
 	if err != nil {

@@ -32,19 +32,20 @@ type PaymentAttemptRepo interface {
 	GetAttemptByID(ctx context.Context, id uuid.UUID) (*models.PaymentAttempt, error)
 }
 
-var repoErrors = map[error]error{
-	models.ErrPaymentOrderNotFound:     ErrNotFound,
-	models.ErrPaymentAttemptNotFound:   ErrNotFound,
-	models.ErrForbiddenUpdate:          ErrForbidden,
-	models.ErrPaymentOrderValidation:   ErrValidation,
-	models.ErrPaymentAttemptValidation: ErrValidation,
-	models.ErrDuplicateRequestKey:      ErrConflict,
+var repoErrors = []struct{ from, to error }{
+	{models.ErrPaymentOrderNotFound, ErrNotFound},
+	{models.ErrPaymentAttemptNotFound, ErrNotFound},
+	{models.ErrForbiddenUpdate, ErrForbidden},
+	{models.ErrPaymentOrderValidation, ErrValidation},
+	{models.ErrPaymentAttemptValidation, ErrValidation},
+	{models.ErrDuplicateRequestKey, ErrConflict},
 }
 
 func mapRepoError(op string, err error) error {
-	to, ok := repoErrors[err]
-	if ok {
-		return fmt.Errorf("%s: %w", op, to)
+	for _, e := range repoErrors {
+		if errors.Is(err, e.from) {
+			return fmt.Errorf("%s: %w: %w", op, e.to, err)
+		}
 	}
 	return fmt.Errorf("%s: %w", op, err)
 }
@@ -53,6 +54,10 @@ type PaymentUsecase struct {
 	orders   PaymentOrderRepo
 	attempts PaymentAttemptRepo
 	provider providermock.Provider
+}
+
+func NewPaymentUsecase(orders PaymentOrderRepo, attempts PaymentAttemptRepo, provider providermock.Provider) *PaymentUsecase {
+	return &PaymentUsecase{orders: orders, attempts: attempts, provider: provider}
 }
 
 func (uc *PaymentUsecase) Pay(ctx context.Context, orderID, attemptID uuid.UUID) (models.PaymentOrderStatus, error) {
@@ -70,8 +75,9 @@ func (uc *PaymentUsecase) Pay(ctx context.Context, orderID, attemptID uuid.UUID)
 		return "", ErrValidation
 	}
 
-	switch order.Status {
-	case models.StatusPaid, models.StatusFailed, models.StatusCanceled:
+	if order.Status == models.StatusPaid ||
+		order.Status == models.StatusFailed ||
+		order.Status == models.StatusCanceled {
 		return order.Status, nil
 	}
 

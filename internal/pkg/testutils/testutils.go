@@ -20,7 +20,7 @@ func SetupValidator() *validator.Validator {
 		Post: validator.PostRules{
 			MaxTitleLen:       255,
 			MaxBodyLen:        20000,
-			AllowedPostStatus: []string{"published", "draft", "archived"},
+			AllowedPostStatus: map[string]bool{"published": true, "draft": true, "archived": true},
 		},
 	})
 	if err != nil {

@@ -17,17 +17,12 @@ type DonationRepository struct {
 	pool postgres.DB
 }
 
-func NewDonationRepository(db postgres.DBClient) *DonationRepository {
+func NewDonationRepository(db *postgres.DBClient) *DonationRepository {
 	return &DonationRepository{pool: db.Pool}
 }
 
 func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UUID, req *dto.CreateDonationRequest) (*dto.SentDonation, error) {
-	if payerID == req.AuthorID {
-		return nil, models.ErrSelfDonation
-	}
-
 	var result *dto.SentDonation
-
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
 		const insertOrder = `
 			INSERT INTO payment_order (payer_id, request_key, purpose, origin, expected_amount_minor, currency, status)
@@ -152,26 +147,38 @@ func equalPtr(a, b *string) bool {
 	return *a == *b
 }
 
-func (r *DonationRepository) GetReceivedDonations(ctx context.Context, authorID uuid.UUID, limit int) ([]*dto.ReceivedDonation, error) {
+func (r *DonationRepository) GetReceivedDonations(ctx context.Context, authorID uuid.UUID, cursor *dto.DonationCursor, limit int) ([]*dto.GetDonationResponse, error) {
 	const query = `
-		SELECT 
+		SELECT
 			d.payment_order_id,
 			d.message,
 			d.is_anonymous,
 			po.expected_amount_minor,
 			po.currency,
+			po.status,
 			po.paid_at,
     		CASE WHEN d.is_anonymous THEN NULL ELSE u.username END AS donor_username,
+			CASE WHEN d.is_anonymous THEN NULL ELSE u.nickname END AS donot_nickname,
     		CASE WHEN d.is_anonymous THEN NULL ELSE u.avatar_key END AS donor_avatar_key
 		FROM donation d
 		JOIN payment_order po ON po.id = d.payment_order_id
 		JOIN "user" u ON u.id = po.payer_id
 		WHERE d.author_id = $1
 		  AND po.status = 'paid'
+		  AND ($2::timestamptz IS NULL OR (po.paid_at, po.id) < ($2::timestamptz, $3::uuid))
 		ORDER BY po.paid_at DESC, d.payment_order_id DESC
-		LIMIT $2
+		LIMIT $4
 	`
-	rows, err := r.pool.Query(ctx, query, authorID, limit)
+
+	var (
+		ts *time.Time
+		id *uuid.UUID
+	)
+	if cursor != nil {
+		ts, id = &cursor.CreatedOrPaidAt, &cursor.DonationID
+	}
+
+	rows, err := r.pool.Query(ctx, query, authorID, ts, id, limit)
 	if err != nil {
 		return nil, fmt.Errorf("get received donations: %w", err)
 	}
@@ -180,9 +187,43 @@ func (r *DonationRepository) GetReceivedDonations(ctx context.Context, authorID 
 	return scanReceivedDonations(rows)
 }
 
-func (r *DonationRepository) GetSentDonations(ctx context.Context, payerID uuid.UUID, limit int) ([]*dto.SentDonation, error) {
+func scanReceivedDonations(rows pgx.Rows) ([]*dto.GetDonationResponse, error) {
+	donations := make([]*dto.GetDonationResponse, 0)
+	for rows.Next() {
+		d := &dto.GetDonationResponse{}
+		var donorUsername, donorNickname, donorAvatar *string
+
+		err := rows.Scan(
+			&d.PaymentOrderID,
+			&d.Message,
+			&d.IsAnonymous,
+			&d.AmountMinor,
+			&d.Currency,
+			&d.Status,
+			&d.CreatedOrPaidAt,
+			&donorUsername,
+			&donorNickname,
+			&donorAvatar,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan received donation: %w", err)
+		}
+
+		if donorUsername != nil {
+			d.User = &dto.DonationUserInfo{
+				Username:  *donorUsername,
+				Nickname:  *donorNickname,
+				AvatarUrl: donorAvatar,
+			}
+		}
+		donations = append(donations, d)
+	}
+	return donations, rows.Err()
+}
+
+func (r *DonationRepository) GetSentDonations(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) ([]*dto.GetDonationResponse, error) {
 	const query = `
-		SELECT 
+		SELECT
 			d.payment_order_id,
 			d.message,
 			d.is_anonymous,
@@ -191,15 +232,26 @@ func (r *DonationRepository) GetSentDonations(ctx context.Context, payerID uuid.
 			po.status,
 			d.created_at,
 			u.username,
+			u.nickname,
 			u.avatar_key
 		FROM donation d
 		JOIN payment_order po ON po.id = d.payment_order_id
 		JOIN "user" u ON u.id = d.author_id
 		WHERE po.payer_id = $1
+			AND ($2::timestamptz IS NULL OR (po.created_at, po.id) < ($2::timestamptz, $3::uuid))
 		ORDER BY d.created_at DESC, d.payment_order_id DESC
-		LIMIT $2
+		LIMIT $4
 	`
-	rows, err := r.pool.Query(ctx, query, payerID, limit)
+
+	var (
+		ts *time.Time
+		id *uuid.UUID
+	)
+	if cursor != nil {
+		ts, id = &cursor.CreatedOrPaidAt, &cursor.DonationID
+	}
+
+	rows, err := r.pool.Query(ctx, query, payerID, ts, id, limit)
 	if err != nil {
 		return nil, fmt.Errorf("get sent donations: %w", err)
 	}
@@ -208,53 +260,36 @@ func (r *DonationRepository) GetSentDonations(ctx context.Context, payerID uuid.
 	return scanSentDonations(rows)
 }
 
-func scanReceivedDonations(rows pgx.Rows) ([]*dto.ReceivedDonation, error) {
-	donations := make([]*dto.ReceivedDonation, 0)
+func scanSentDonations(rows pgx.Rows) ([]*dto.GetDonationResponse, error) {
+	donations := make([]*dto.GetDonationResponse, 0)
 	for rows.Next() {
-		d := &dto.ReceivedDonation{}
-		var donorUsername, donorAvatar *string
-
-		err := rows.Scan(
-			&d.PaymentOrderID, &d.Message, &d.IsAnonymous,
-			&d.AmountMinor, &d.Currency, &d.PaidAt,
-			&donorUsername, &donorAvatar,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("scan received donation: %w", err)
-		}
-
-		if donorUsername != nil {
-			d.Donor = &dto.DonationUserInfo{
-				Username:  *donorUsername,
-				AvatarKey: donorAvatar,
-			}
-		}
-		donations = append(donations, d)
-	}
-	return donations, rows.Err()
-}
-
-func scanSentDonations(rows pgx.Rows) ([]*dto.SentDonation, error) {
-	donations := make([]*dto.SentDonation, 0)
-	for rows.Next() {
-		d := &dto.SentDonation{}
+		d := &dto.GetDonationResponse{}
 		var (
 			authorUsername string
+			authorNickname string
 			authorAvatar   *string
 		)
 
 		err := rows.Scan(
-			&d.PaymentOrderID, &d.Message, &d.IsAnonymous,
-			&d.AmountMinor, &d.Currency, &d.Status, &d.CreatedAt,
-			&authorUsername, &authorAvatar,
+			&d.PaymentOrderID,
+			&d.Message,
+			&d.IsAnonymous,
+			&d.AmountMinor,
+			&d.Currency,
+			&d.Status,
+			&d.CreatedOrPaidAt,
+			&authorUsername,
+			&authorNickname,
+			&authorAvatar,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan sent donation: %w", err)
 		}
 
-		d.Author = &dto.DonationUserInfo{
+		d.User = &dto.DonationUserInfo{
 			Username:  authorUsername,
-			AvatarKey: authorAvatar,
+			Nickname:  authorNickname,
+			AvatarUrl: authorAvatar,
 		}
 		donations = append(donations, d)
 	}

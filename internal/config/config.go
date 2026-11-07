@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/s3"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/validator"
 	"github.com/spf13/viper"
 )
 

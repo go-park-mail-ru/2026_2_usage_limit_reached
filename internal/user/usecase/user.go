@@ -46,6 +46,18 @@ func (uc *Usecase) UpdateNickname(ctx context.Context, userID uuid.UUID, nicknam
 	return updated, nil
 }
 
+func (uc *Usecase) UpdateAvatarKey(ctx context.Context, userID uuid.UUID, key *string) (*string, error) {
+	oldKey, err := uc.repo.UpdateAvatarKey(ctx, userID, key)
+	if err != nil {
+		if errors.Is(err, models.ErrUserNotFound) {
+			return nil, fmt.Errorf("update avatar key: %w", ErrUserNotFound)
+		}
+		return nil, fmt.Errorf("update avatar key: %w", err)
+	}
+
+	return oldKey, nil
+}
+
 func (uc *Usecase) FindUserByID(ctx context.Context, userID uuid.UUID) (*dto.UserInfo, error) {
 	user, err := uc.repo.GetUserByID(ctx, userID)
 	if err != nil {

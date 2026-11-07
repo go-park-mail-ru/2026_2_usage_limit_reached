@@ -28,7 +28,24 @@ services:
       - ./database/migrations:/migrations
     command: ["-path=/migrations", "-database=${MIGRATE_DATABASE_URL}", "up"]
     restart: "no"
-      
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48
+    # mini запускает master, volume, filer и S3 в одном процессе, бакет S3_BUCKET создаётся при старте
+    command: ["mini", "-dir=/data", "-s3.config=/etc/seaweedfs/s3.json"]
+    environment:
+      S3_BUCKET: media
+    ports:
+      - "8333:8333"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8333/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./configs/s3.json:/etc/seaweedfs/s3.json:ro
+      - seaweedfsdata:/data
+
   app:
     build:
       context: .
@@ -41,9 +58,12 @@ services:
     depends_on:
       db_migrate:
         condition: service_completed_successfully
+      seaweedfs:
+        condition: service_healthy
     volumes:
       - ./configs/prod.yaml:/etc/app/config.yaml:ro
     restart: unless-stopped
 
 volumes:
     pgdata:
+    seaweedfsdata:

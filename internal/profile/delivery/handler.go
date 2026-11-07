@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
@@ -16,10 +18,17 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const (
+	avatarFormField      = "avatar"
+	maxAvatarRequestSize = profileusecase.MaxAvatarSize + 1<<20
+)
+
 type ProfileUsecase interface {
 	GetMyProfile(ctx context.Context, userID uuid.UUID) (*dto.ProfileResponse, error)
 	GetPublicProfile(ctx context.Context, username string) (*dto.PublicProfileResponse, error)
 	UpdateMyProfile(ctx context.Context, userID uuid.UUID, req dto.UpdateProfileRequest) (*dto.ProfileResponse, error)
+	UploadAvatar(ctx context.Context, userID uuid.UUID, file io.ReadSeeker, size int64) (string, error)
+	DeleteAvatar(ctx context.Context, userID uuid.UUID) error
 }
 
 type ProfileHandler struct {
@@ -35,6 +44,8 @@ func NewProfileHandler(uc ProfileUsecase, validator *validator.Validator, logger
 func (h *ProfileHandler) RegisterRoutes(public *mux.Router, private *mux.Router) {
 	private.HandleFunc("/profile/me", h.GetMe).Methods(http.MethodGet, http.MethodOptions)
 	private.HandleFunc("/profile/me", h.UpdateMe).Methods(http.MethodPut, http.MethodOptions)
+	private.HandleFunc("/profile/me/avatar", h.UploadAvatar).Methods(http.MethodPut, http.MethodOptions)
+	private.HandleFunc("/profile/me/avatar", h.DeleteAvatar).Methods(http.MethodDelete, http.MethodOptions)
 	public.HandleFunc("/users/{username}", h.GetByUsername).Methods(http.MethodGet, http.MethodOptions)
 }
 
@@ -127,12 +138,109 @@ func (h *ProfileHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, http.StatusOK, profile)
 }
 
+// UploadAvatar загружает аватар текущего пользователя
+// @Summary Загрузка аватара текущего пользователя
+// @Description Принимает изображение jpeg, png или webp до 5 МБ в поле avatar и заменяет им текущий аватар. Формат определяется по содержимому файла
+// @Tags profile
+// @Accept mpfd
+// @Produce json
+// @Security CookieAuth
+// @Param avatar formData file true "Изображение аватара"
+// @Success 200 {object} dto.AvatarResponse "Аватар загружен"
+// @Failure 400 {object} response.ErrorResponse "Запрос не multipart/form-data или в нем нет файла"
+// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 413 {object} response.ErrorResponse "Файл больше 5 МБ"
+// @Failure 404 {object} response.ErrorResponse "Пользователь не найден"
+// @Failure 415 {object} response.ErrorResponse "Неподдерживаемый формат изображения"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /profile/me/avatar [put]
+func (h *ProfileHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	user, ok := middleware.UserInfoFromContext(ctx)
+	if !ok || user == nil || user.UserID == uuid.Nil {
+		response.ErrorUnauthorized(w)
+		return
+	}
+
+	file, size, err := readAvatar(w, r)
+	if err != nil {
+		h.handleError(ctx, w, "upload avatar", err)
+		return
+	}
+	defer file.Close()
+
+	avatarURL, err := h.uc.UploadAvatar(ctx, user.UserID, file, size)
+	if err != nil {
+		h.handleError(ctx, w, "upload avatar", err)
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, dto.ToAvatarResponse(avatarURL))
+}
+
+func readAvatar(w http.ResponseWriter, r *http.Request) (multipart.File, int64, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxAvatarRequestSize)
+	if err := r.ParseMultipartForm(maxAvatarRequestSize); err != nil {
+		var maxBytesErr *http.MaxBytesError
+
+		if errors.As(err, &maxBytesErr) {
+			return nil, 0, fmt.Errorf("%w: %w", profileusecase.ErrAvatarTooLarge, err)
+		}
+
+		return nil, 0, fmt.Errorf("%w: %w", validator.ErrValidation, err)
+	}
+
+	file, header, err := r.FormFile(avatarFormField)
+	if err != nil {
+		return nil, 0, fmt.Errorf("%w: %w", validator.ErrValidation, err)
+	}
+
+	if header.Size == 0 {
+		file.Close()
+		return nil, 0, fmt.Errorf("%w: empty avatar file", validator.ErrValidation)
+	}
+
+	return file, header.Size, nil
+}
+
+// DeleteAvatar удаляет аватар текущего пользователя
+// @Summary Удаление аватара текущего пользователя
+// @Description Удаляет текущий аватар. Если аватара нет, тоже возвращает 204
+// @Tags profile
+// @Security CookieAuth
+// @Success 204 "Аватар удален"
+// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 404 {object} response.ErrorResponse "Пользователь не найден"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /profile/me/avatar [delete]
+func (h *ProfileHandler) DeleteAvatar(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	user, ok := middleware.UserInfoFromContext(ctx)
+	if !ok || user == nil || user.UserID == uuid.Nil {
+		response.ErrorUnauthorized(w)
+		return
+	}
+
+	if err := h.uc.DeleteAvatar(ctx, user.UserID); err != nil {
+		h.handleError(ctx, w, "delete avatar", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *ProfileHandler) handleError(ctx context.Context, w http.ResponseWriter, handler string, err error) {
 	level := slog.LevelInfo
 
 	switch {
 	case errors.Is(err, profileusecase.ErrProfileNotFound):
 		response.ErrorNotFound(w)
+	case errors.Is(err, profileusecase.ErrAvatarTooLarge):
+		response.ErrorPayloadTooLarge(w)
+	case errors.Is(err, profileusecase.ErrUnsupportedAvatarType):
+		response.ErrorUnsupportedMediaType(w)
 	case errors.Is(err, validator.ErrValidation):
 		response.ErrorBadRequest(w)
 	case errors.Is(err, profileusecase.ErrNotAuthor), errors.Is(err, profileusecase.ErrUserInactive):

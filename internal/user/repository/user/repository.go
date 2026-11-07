@@ -68,6 +68,29 @@ func (r *UserRepository) UpdateNickname(ctx context.Context, id uuid.UUID, nickn
 	return updated, nil
 }
 
+func (r *UserRepository) UpdateAvatarKey(ctx context.Context, id uuid.UUID, key *string) (*string, error) {
+	const query = `
+		UPDATE "user" AS u
+		SET avatar_key = $2
+		FROM (SELECT id, avatar_key FROM "user" WHERE id = $1 FOR UPDATE) AS old
+		WHERE u.id = old.id
+		RETURNING old.avatar_key
+	`
+
+	var oldKey *string
+
+	err := r.pool.QueryRow(ctx, query, id, key).Scan(&oldKey)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, models.ErrUserNotFound
+		}
+
+		return nil, fmt.Errorf("update avatar key error: %w", err)
+	}
+
+	return oldKey, nil
+}
+
 func (r *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	return r.getUser(ctx, IDField, id)
 }

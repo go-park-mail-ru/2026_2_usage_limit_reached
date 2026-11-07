@@ -9,7 +9,7 @@ import (
 
 var ErrProfileNotFound = errors.New("no profile found")
 
-type ProfileReadModel struct {
+type Profile struct {
 	UserID    uuid.UUID
 	Username  string
 	Nickname  string
@@ -17,10 +17,10 @@ type ProfileReadModel struct {
 	AvatarKey *string
 	CreatedAt time.Time
 	Status    string
-	Author    *ProfileAuthorReadModel
+	Author    *ProfileAuthor
 }
 
-type ProfileAuthorReadModel struct {
+type ProfileAuthor struct {
 	Bio      string
 	Category *string
 }

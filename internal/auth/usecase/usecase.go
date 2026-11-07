@@ -14,7 +14,7 @@ var (
 	ErrLoginFailed        = errors.New("login failed")
 )
 
-type UserProvider interface {
+type UserUsecase interface {
 	CreateUser(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error)
 	FindCredentialsByLogin(ctx context.Context, login string) (*userdto.UserCredentials, error)
 }
@@ -25,10 +25,10 @@ type TokenManager interface {
 }
 
 type Usecase struct {
-	users          UserProvider
+	users          UserUsecase
 	tokenGenerator TokenManager
 }
 
-func NewUsecase(u UserProvider, t TokenManager) *Usecase {
+func NewUsecase(u UserUsecase, t TokenManager) *Usecase {
 	return &Usecase{users: u, tokenGenerator: t}
 }

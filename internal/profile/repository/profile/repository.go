@@ -19,31 +19,27 @@ func NewProfileRepository(db *postgres.DBClient) *ProfileRepository {
 	return &ProfileRepository{pool: db.Pool}
 }
 
-func (r *ProfileRepository) GetProfileByID(ctx context.Context, userID uuid.UUID) (*models.ProfileReadModel, error) {
-	const query = `
-		SELECT u.id, u.username, u.nickname, u.email, u.avatar_key, u.created_at, u.status, a.bio, a.category
-		FROM "user" u
-		LEFT JOIN author a ON a.id = u.id
-		WHERE u.id = $1
-	`
+const selectProfile = `
+	SELECT u.id, u.username, u.nickname, u.email, u.avatar_key, u.created_at, u.status, a.bio, a.category
+	FROM "user" u
+	LEFT JOIN author a ON a.id = u.id
+`
+
+func (r *ProfileRepository) GetProfileByID(ctx context.Context, userID uuid.UUID) (*models.Profile, error) {
+	const query = selectProfile + `WHERE u.id = $1`
 
 	return scanProfile(r.pool.QueryRow(ctx, query, userID))
 }
 
-func (r *ProfileRepository) GetProfileByUsername(ctx context.Context, username string) (*models.ProfileReadModel, error) {
-	const query = `
-		SELECT u.id, u.username, u.nickname, u.email, u.avatar_key, u.created_at, u.status, a.bio, a.category
-		FROM "user" u
-		LEFT JOIN author a ON a.id = u.id
-		WHERE u.username = $1
-	`
+func (r *ProfileRepository) GetProfileByUsername(ctx context.Context, username string) (*models.Profile, error) {
+	const query = selectProfile + `WHERE u.username = $1`
 
 	return scanProfile(r.pool.QueryRow(ctx, query, username))
 }
 
-func scanProfile(row pgx.Row) (*models.ProfileReadModel, error) {
+func scanProfile(row pgx.Row) (*models.Profile, error) {
 	var (
-		profile  models.ProfileReadModel
+		profile  models.Profile
 		bio      *string
 		category *string
 	)
@@ -68,7 +64,7 @@ func scanProfile(row pgx.Row) (*models.ProfileReadModel, error) {
 	}
 
 	if bio != nil {
-		profile.Author = &models.ProfileAuthorReadModel{Bio: *bio, Category: category}
+		profile.Author = &models.ProfileAuthor{Bio: *bio, Category: category}
 	}
 
 	return &profile, nil

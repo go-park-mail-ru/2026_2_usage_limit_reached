@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	ErrUserNotFound    = models.ErrUserNotFound
-	ErrUserExists      = models.ErrUserExists
+	ErrUserNotFound    = errors.New("user not found")
+	ErrUserExists      = errors.New("user already exists")
 	ErrInvalidNickname = errors.New("invalid nickname")
 )
 

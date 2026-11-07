@@ -2,19 +2,30 @@ package handlers
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery/mock_auth_delivery"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+func setupTestHandler(uc UseCase) *Handler {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	val := testutils.SetupValidator()
+	return NewHandler(uc, val, logger)
+}
 
 func TestHandler_Register(t *testing.T) {
 	validReq := dto.RegistrationRequest{
@@ -34,7 +45,7 @@ func TestHandler_Register(t *testing.T) {
 	tests := []struct {
 		name           string
 		body           []byte
-		mockBehavior   func(m *MockUseCase)
+		mockBehavior   func(m *mock_auth_delivery.MockUseCase)
 		expectedStatus int
 		expectedErrMsg string
 		expectedToken  string
@@ -42,10 +53,9 @@ func TestHandler_Register(t *testing.T) {
 		{
 			name: "Success",
 			body: validBody,
-			mockBehavior: func(m *MockUseCase) {
-				m.RegisterFunc = func(ctx context.Context, regInput dto.RegistrationRequest) (*dto.UserResponse, string, error) {
-					return &dto.UserResponse{Username: "username", Nickname: "nick"}, "mock-token", nil
-				}
+			mockBehavior: func(m *mock_auth_delivery.MockUseCase) {
+				m.EXPECT().Register(mock.Anything, validReq).Return(&dto.UserResponse{Username: "username", Nickname: "nick"}, "mock-token", nil)
+				m.EXPECT().TokenTTL().Return(24 * time.Hour)
 			},
 			expectedStatus: http.StatusOK,
 			expectedToken:  "mock-token",
@@ -53,24 +63,22 @@ func TestHandler_Register(t *testing.T) {
 		{
 			name:           "Decode Error (Bad JSON)",
 			body:           []byte(`{bad-json`),
-			mockBehavior:   func(m *MockUseCase) {},
+			mockBehavior:   func(m *mock_auth_delivery.MockUseCase) {},
 			expectedStatus: http.StatusBadRequest,
 			expectedErrMsg: "bad request",
 		},
 		{
 			name:           "Validation Error",
 			body:           invalidBody,
-			mockBehavior:   func(m *MockUseCase) {},
+			mockBehavior:   func(m *mock_auth_delivery.MockUseCase) {},
 			expectedStatus: http.StatusBadRequest,
 			expectedErrMsg: "bad request",
 		},
 		{
 			name: "Usecase Error - User Exists (Conflict)",
 			body: validBody,
-			mockBehavior: func(m *MockUseCase) {
-				m.RegisterFunc = func(ctx context.Context, regInput dto.RegistrationRequest) (*dto.UserResponse, string, error) {
-					return nil, "", usecase.ErrRegistrationFailed
-				}
+			mockBehavior: func(m *mock_auth_delivery.MockUseCase) {
+				m.EXPECT().Register(mock.Anything, validReq).Return(nil, "", usecase.ErrRegistrationFailed)
 			},
 			expectedStatus: http.StatusConflict,
 			expectedErrMsg: "user already exist",
@@ -78,10 +86,8 @@ func TestHandler_Register(t *testing.T) {
 		{
 			name: "Internal Server Error",
 			body: validBody,
-			mockBehavior: func(m *MockUseCase) {
-				m.RegisterFunc = func(ctx context.Context, regInput dto.RegistrationRequest) (*dto.UserResponse, string, error) {
-					return nil, "", errors.New("internal server error")
-				}
+			mockBehavior: func(m *mock_auth_delivery.MockUseCase) {
+				m.EXPECT().Register(mock.Anything, validReq).Return(nil, "", errors.New("internal server error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
 			expectedErrMsg: "internal server error",
@@ -90,7 +96,7 @@ func TestHandler_Register(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockUC := &MockUseCase{}
+			mockUC := mock_auth_delivery.NewMockUseCase(t)
 			tt.mockBehavior(mockUC)
 
 			h := setupTestHandler(mockUC)
@@ -136,7 +142,7 @@ func TestHandler_Login(t *testing.T) {
 	tests := []struct {
 		name           string
 		body           []byte
-		mockBehavior   func(m *MockUseCase)
+		mockBehavior   func(m *mock_auth_delivery.MockUseCase)
 		expectedStatus int
 		expectedErrMsg string
 		expectedToken  string
@@ -144,10 +150,9 @@ func TestHandler_Login(t *testing.T) {
 		{
 			name: "Success",
 			body: validBody,
-			mockBehavior: func(m *MockUseCase) {
-				m.LoginFunc = func(ctx context.Context, loginInput dto.LoginRequest) (*dto.UserResponse, string, error) {
-					return &dto.UserResponse{Username: "username", Nickname: "nick"}, "mock-token", nil
-				}
+			mockBehavior: func(m *mock_auth_delivery.MockUseCase) {
+				m.EXPECT().Login(mock.Anything, validReq).Return(&dto.UserResponse{Username: "username", Nickname: "nick"}, "mock-token", nil)
+				m.EXPECT().TokenTTL().Return(24 * time.Hour)
 			},
 			expectedStatus: http.StatusOK,
 			expectedToken:  "mock-token",
@@ -155,24 +160,22 @@ func TestHandler_Login(t *testing.T) {
 		{
 			name:           "Decode Error (Bad JSON)",
 			body:           []byte(`{bad-json`),
-			mockBehavior:   func(m *MockUseCase) {},
+			mockBehavior:   func(m *mock_auth_delivery.MockUseCase) {},
 			expectedStatus: http.StatusBadRequest,
 			expectedErrMsg: "bad request",
 		},
 		{
 			name:           "Validation Error",
 			body:           invalidBody,
-			mockBehavior:   func(m *MockUseCase) {},
+			mockBehavior:   func(m *mock_auth_delivery.MockUseCase) {},
 			expectedStatus: http.StatusBadRequest,
 			expectedErrMsg: "bad request",
 		},
 		{
 			name: "Usecase Error - Unauthorized",
 			body: validBody,
-			mockBehavior: func(m *MockUseCase) {
-				m.LoginFunc = func(ctx context.Context, loginInput dto.LoginRequest) (*dto.UserResponse, string, error) {
-					return nil, "", usecase.ErrLoginFailed
-				}
+			mockBehavior: func(m *mock_auth_delivery.MockUseCase) {
+				m.EXPECT().Login(mock.Anything, validReq).Return(nil, "", usecase.ErrLoginFailed)
 			},
 			expectedStatus: http.StatusUnauthorized,
 			expectedErrMsg: "unauthorized",
@@ -180,10 +183,8 @@ func TestHandler_Login(t *testing.T) {
 		{
 			name: "Internal Server Error",
 			body: validBody,
-			mockBehavior: func(m *MockUseCase) {
-				m.LoginFunc = func(ctx context.Context, loginInput dto.LoginRequest) (*dto.UserResponse, string, error) {
-					return nil, "", errors.New("db disconnect")
-				}
+			mockBehavior: func(m *mock_auth_delivery.MockUseCase) {
+				m.EXPECT().Login(mock.Anything, validReq).Return(nil, "", errors.New("db disconnect"))
 			},
 			expectedStatus: http.StatusInternalServerError,
 			expectedErrMsg: "internal server error",
@@ -192,7 +193,7 @@ func TestHandler_Login(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockUC := &MockUseCase{}
+			mockUC := mock_auth_delivery.NewMockUseCase(t)
 			tt.mockBehavior(mockUC)
 
 			h := setupTestHandler(mockUC)
@@ -223,7 +224,7 @@ func TestHandler_Login(t *testing.T) {
 }
 
 func TestHandler_Logout(t *testing.T) {
-	mockUC := &MockUseCase{}
+	mockUC := mock_auth_delivery.NewMockUseCase(t)
 	h := setupTestHandler(mockUC)
 
 	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
@@ -243,7 +244,7 @@ func TestHandler_Logout(t *testing.T) {
 }
 
 func TestHandler_RegisterRoutes(t *testing.T) {
-	h := setupTestHandler(&MockUseCase{})
+	h := setupTestHandler(mock_auth_delivery.NewMockUseCase(t))
 
 	publicRouter := mux.NewRouter()
 	privateRouter := mux.NewRouter()

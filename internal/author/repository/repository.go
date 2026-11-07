@@ -49,7 +49,7 @@ func (r *AuthorRepository) GetAuthorByID(ctx context.Context, id uuid.UUID) (*mo
 	return &author, nil
 }
 
-func (r *AuthorRepository) UpdateAuthor(ctx context.Context, id uuid.UUID, bio string, category *string) (*models.Author, error) {
+func (r *AuthorRepository) UpdateAuthor(ctx context.Context, id uuid.UUID, details models.AuthorDetails) (*models.Author, error) {
 	const query = `
 		UPDATE author
 		SET bio = $2, category = $3
@@ -59,7 +59,7 @@ func (r *AuthorRepository) UpdateAuthor(ctx context.Context, id uuid.UUID, bio s
 
 	var author models.Author
 
-	err := r.pool.QueryRow(ctx, query, id, bio, category).Scan(&author.ID, &author.Bio, &author.Category)
+	err := r.pool.QueryRow(ctx, query, id, details.Bio, details.Category).Scan(&author.ID, &author.Bio, &author.Category)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, models.ErrAuthorNotFound

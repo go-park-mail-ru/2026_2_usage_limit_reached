@@ -1,11 +1,10 @@
 package dto
 
 import (
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/avatar"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
 )
 
-func ToProfileResponse(profile *models.ProfileReadModel) *ProfileResponse {
+func ToProfileResponse(profile *models.Profile) *ProfileResponse {
 	if profile == nil {
 		return nil
 	}
@@ -15,7 +14,7 @@ func ToProfileResponse(profile *models.ProfileReadModel) *ProfileResponse {
 	}
 }
 
-func ToPublicProfileResponse(profile *models.ProfileReadModel) *PublicProfileResponse {
+func ToPublicProfileResponse(profile *models.Profile) *PublicProfileResponse {
 	if profile == nil {
 		return nil
 	}
@@ -26,24 +25,23 @@ func ToPublicProfileResponse(profile *models.ProfileReadModel) *PublicProfileRes
 	}
 }
 
-func toUserResponse(profile *models.ProfileReadModel) ProfileUserResponse {
+func toUserResponse(profile *models.Profile) ProfileUserResponse {
 	return ProfileUserResponse{
 		PublicProfileUserResponse: toPublicUserResponse(profile),
 		Email:                     profile.Email,
 	}
 }
 
-func toPublicUserResponse(profile *models.ProfileReadModel) PublicProfileUserResponse {
+func toPublicUserResponse(profile *models.Profile) PublicProfileUserResponse {
 	return PublicProfileUserResponse{
 		ID:        profile.UserID,
 		Username:  profile.Username,
 		Nickname:  profile.Nickname,
-		AvatarURL: avatar.URL(profile.AvatarKey),
 		CreatedAt: profile.CreatedAt,
 	}
 }
 
-func toAuthorResponse(author *models.ProfileAuthorReadModel) *AuthorResponse {
+func toAuthorResponse(author *models.ProfileAuthor) *AuthorResponse {
 	if author == nil {
 		return nil
 	}

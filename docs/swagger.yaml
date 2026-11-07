@@ -127,7 +127,7 @@ components:
       properties:
         avatar_url:
           description: Нет, если аватара нет
-          example: http://localhost:8333/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
           type: string
         created_at:
           example: "2026-08-01T12:00:00Z"
@@ -157,7 +157,7 @@ components:
       properties:
         avatar_url:
           description: Нет, если аватара нет
-          example: http://localhost:8333/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
           type: string
         created_at:
           example: "2026-08-01T12:00:00Z"
@@ -187,19 +187,10 @@ components:
           example: username123
           type: string
       type: object
-    dto.UpdateAuthorRequest:
-      properties:
-        bio:
-          example: i am author
-          type: string
-        category:
-          example: Cars
-          type: string
-      type: object
     dto.UpdateProfileRequest:
       properties:
         author:
-          $ref: '#/components/schemas/dto.UpdateAuthorRequest'
+          $ref: '#/components/schemas/internal_profile_dto.UpdateAuthorRequest'
           description: Отправляет только автор. Если блока нет, данные автора не меняются
         nickname:
           example: nickname_123
@@ -208,7 +199,7 @@ components:
     dto.UserResponse:
       properties:
         avatar_url:
-          example: http://localhost:8333/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
           type: string
         nickname:
           example: nickname_123
@@ -238,7 +229,15 @@ components:
           example: i am author
           type: string
         category:
-          description: null, если категории нет
+          example: Cars
+          type: string
+      type: object
+    internal_profile_dto.UpdateAuthorRequest:
+      properties:
+        bio:
+          example: i am author
+          type: string
+        category:
           example: Cars
           type: string
       type: object

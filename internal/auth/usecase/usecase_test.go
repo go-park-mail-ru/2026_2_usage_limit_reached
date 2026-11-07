@@ -9,9 +9,12 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase/mock_auth_usecase"
 	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 	userusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -24,11 +27,19 @@ func TestUsecase_Register(t *testing.T) {
 		Nickname: "Nickname",
 		Password: "password123",
 	}
+	createdUser := &userdto.UserInfo{ID: uuid.New(), Email: "test@mail.ru", Username: "testuser"}
+	createdPayload := jwt.UserPayload{UserID: createdUser.ID, Email: createdUser.Email, Username: createdUser.Username, Role: "user"}
+	validCreateUserRequest := mock.MatchedBy(func(req userdto.CreateUserRequest) bool {
+		return req.Email == validInput.Email &&
+			req.Username == validInput.Username &&
+			req.Nickname == validInput.Nickname &&
+			bcrypt.CompareHashAndPassword([]byte(req.PasswordHash), []byte(validInput.Password)) == nil
+	})
 
 	tests := []struct {
 		name          string
 		input         dto.RegistrationRequest
-		setupMocks    func(r *MockUserProvider, tm *MockTokenManager)
+		setupMocks    func(r *mock_auth_usecase.MockUserUsecase, tm *mock_auth_usecase.MockTokenManager)
 		expectedErr   error
 		errContains   string
 		checkResponse bool
@@ -36,13 +47,9 @@ func TestUsecase_Register(t *testing.T) {
 		{
 			name:  "Success",
 			input: validInput,
-			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.CreateUserFunc = func(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error) {
-					return &userdto.UserInfo{Email: req.Email, Username: req.Username}, nil
-				}
-				tm.GenerateFunc = func(ID uuid.UUID, payload any) (string, error) {
-					return "jwt-token", nil
-				}
+			setupMocks: func(r *mock_auth_usecase.MockUserUsecase, tm *mock_auth_usecase.MockTokenManager) {
+				r.EXPECT().CreateUser(mock.Anything, validCreateUserRequest).Return(createdUser, nil)
+				tm.EXPECT().Generate(createdUser.ID, createdPayload).Return("jwt-token", nil)
 			},
 			checkResponse: true,
 		},
@@ -56,33 +63,25 @@ func TestUsecase_Register(t *testing.T) {
 		{
 			name:  "Repo error: User already exists",
 			input: validInput,
-			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.CreateUserFunc = func(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error) {
-					return nil, userusecase.ErrUserExists
-				}
+			setupMocks: func(r *mock_auth_usecase.MockUserUsecase, tm *mock_auth_usecase.MockTokenManager) {
+				r.EXPECT().CreateUser(mock.Anything, validCreateUserRequest).Return(nil, userusecase.ErrUserExists)
 			},
 			expectedErr: usecase.ErrRegistrationFailed,
 		},
 		{
 			name:  "Repo error: DB error",
 			input: validInput,
-			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.CreateUserFunc = func(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error) {
-					return nil, errors.New("db connection down")
-				}
+			setupMocks: func(r *mock_auth_usecase.MockUserUsecase, tm *mock_auth_usecase.MockTokenManager) {
+				r.EXPECT().CreateUser(mock.Anything, validCreateUserRequest).Return(nil, errors.New("db connection down"))
 			},
 			errContains: "failed to create user",
 		},
 		{
 			name:  "Token generator error",
 			input: validInput,
-			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.CreateUserFunc = func(ctx context.Context, req userdto.CreateUserRequest) (*userdto.UserInfo, error) {
-					return &userdto.UserInfo{Email: req.Email, Username: req.Username}, nil
-				}
-				tm.GenerateFunc = func(ID uuid.UUID, payload any) (string, error) {
-					return "", errors.New("token failure")
-				}
+			setupMocks: func(r *mock_auth_usecase.MockUserUsecase, tm *mock_auth_usecase.MockTokenManager) {
+				r.EXPECT().CreateUser(mock.Anything, validCreateUserRequest).Return(createdUser, nil)
+				tm.EXPECT().Generate(createdUser.ID, createdPayload).Return("", errors.New("token failure"))
 			},
 			errContains: "failed to generate token",
 		},
@@ -90,8 +89,8 @@ func TestUsecase_Register(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := &MockUserProvider{}
-			tokenMgr := &MockTokenManager{}
+			repo := mock_auth_usecase.NewMockUserUsecase(t)
+			tokenMgr := mock_auth_usecase.NewMockTokenManager(t)
 			if tt.setupMocks != nil {
 				tt.setupMocks(repo, tokenMgr)
 			}
@@ -132,11 +131,12 @@ func TestUsecase_Login(t *testing.T) {
 		},
 		PasswordHash: string(hash),
 	}
+	activePayload := jwt.UserPayload{UserID: activeUser.ID, Email: activeUser.Email, Username: activeUser.Username, Role: "user"}
 
 	tests := []struct {
 		name          string
 		input         dto.LoginRequest
-		setupMocks    func(r *MockUserProvider, tm *MockTokenManager)
+		setupMocks    func(r *mock_auth_usecase.MockUserUsecase, tm *mock_auth_usecase.MockTokenManager)
 		expectedErr   error
 		errContains   string
 		checkResponse bool
@@ -144,55 +144,43 @@ func TestUsecase_Login(t *testing.T) {
 		{
 			name:  "Success login by Email",
 			input: dto.LoginRequest{Login: "user@mail.ru", Password: plainPassword},
-			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.FindCredentialsByLoginFunc = func(ctx context.Context, login string) (*userdto.UserCredentials, error) {
-					return activeUser, nil
-				}
-				tm.GenerateFunc = func(ID uuid.UUID, payload any) (string, error) {
-					return "jwt-token", nil
-				}
+			setupMocks: func(r *mock_auth_usecase.MockUserUsecase, tm *mock_auth_usecase.MockTokenManager) {
+				r.EXPECT().FindCredentialsByLogin(mock.Anything, "user@mail.ru").Return(activeUser, nil)
+				tm.EXPECT().Generate(activeUser.ID, activePayload).Return("jwt-token", nil)
 			},
 			checkResponse: true,
 		},
 		{
 			name:  "User not found",
 			input: dto.LoginRequest{Login: "unknown@mail.ru", Password: plainPassword},
-			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.FindCredentialsByLoginFunc = func(ctx context.Context, login string) (*userdto.UserCredentials, error) {
-					return nil, userusecase.ErrUserNotFound
-				}
+			setupMocks: func(r *mock_auth_usecase.MockUserUsecase, tm *mock_auth_usecase.MockTokenManager) {
+				r.EXPECT().FindCredentialsByLogin(mock.Anything, "unknown@mail.ru").Return(nil, userusecase.ErrUserNotFound)
 			},
 			expectedErr: usecase.ErrLoginFailed,
 		},
 		{
 			name:  "Repo DB error",
 			input: dto.LoginRequest{Login: "user@mail.ru", Password: plainPassword},
-			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.FindCredentialsByLoginFunc = func(ctx context.Context, login string) (*userdto.UserCredentials, error) {
-					return nil, errors.New("db network error")
-				}
+			setupMocks: func(r *mock_auth_usecase.MockUserUsecase, tm *mock_auth_usecase.MockTokenManager) {
+				r.EXPECT().FindCredentialsByLogin(mock.Anything, "user@mail.ru").Return(nil, errors.New("db network error"))
 			},
 			errContains: "failed to find user",
 		},
 		{
 			name:  "Wrong password",
 			input: dto.LoginRequest{Login: "user@mail.ru", Password: "wrong_password"},
-			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.FindCredentialsByLoginFunc = func(ctx context.Context, login string) (*userdto.UserCredentials, error) {
-					return activeUser, nil
-				}
+			setupMocks: func(r *mock_auth_usecase.MockUserUsecase, tm *mock_auth_usecase.MockTokenManager) {
+				r.EXPECT().FindCredentialsByLogin(mock.Anything, "user@mail.ru").Return(activeUser, nil)
 			},
 			expectedErr: usecase.ErrLoginFailed,
 		},
 		{
 			name:  "User banned",
 			input: dto.LoginRequest{Login: "user@mail.ru", Password: plainPassword},
-			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.FindCredentialsByLoginFunc = func(ctx context.Context, login string) (*userdto.UserCredentials, error) {
-					inactiveUser := *activeUser
-					inactiveUser.Status = "banned"
-					return &inactiveUser, nil
-				}
+			setupMocks: func(r *mock_auth_usecase.MockUserUsecase, tm *mock_auth_usecase.MockTokenManager) {
+				inactiveUser := *activeUser
+				inactiveUser.Status = "banned"
+				r.EXPECT().FindCredentialsByLogin(mock.Anything, "user@mail.ru").Return(&inactiveUser, nil)
 			},
 			expectedErr: usecase.ErrLoginFailed,
 			errContains: "account disabled",
@@ -200,13 +188,9 @@ func TestUsecase_Login(t *testing.T) {
 		{
 			name:  "Token generation error",
 			input: dto.LoginRequest{Login: "user@mail.ru", Password: plainPassword},
-			setupMocks: func(r *MockUserProvider, tm *MockTokenManager) {
-				r.FindCredentialsByLoginFunc = func(ctx context.Context, login string) (*userdto.UserCredentials, error) {
-					return activeUser, nil
-				}
-				tm.GenerateFunc = func(ID uuid.UUID, payload any) (string, error) {
-					return "", errors.New("token failed")
-				}
+			setupMocks: func(r *mock_auth_usecase.MockUserUsecase, tm *mock_auth_usecase.MockTokenManager) {
+				r.EXPECT().FindCredentialsByLogin(mock.Anything, "user@mail.ru").Return(activeUser, nil)
+				tm.EXPECT().Generate(activeUser.ID, activePayload).Return("", errors.New("token failed"))
 			},
 			errContains: "failed to generate token",
 		},
@@ -214,8 +198,8 @@ func TestUsecase_Login(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := &MockUserProvider{}
-			tokenMgr := &MockTokenManager{}
+			repo := mock_auth_usecase.NewMockUserUsecase(t)
+			tokenMgr := mock_auth_usecase.NewMockTokenManager(t)
 			if tt.setupMocks != nil {
 				tt.setupMocks(repo, tokenMgr)
 			}
@@ -245,12 +229,9 @@ func TestUsecase_Login(t *testing.T) {
 
 func TestUsecase_TokenTTL(t *testing.T) {
 	expectedTTL := 24 * time.Hour
-	tm := &MockTokenManager{
-		TTLFunc: func() time.Duration {
-			return expectedTTL
-		},
-	}
+	tm := mock_auth_usecase.NewMockTokenManager(t)
+	tm.EXPECT().TTL().Return(expectedTTL)
 
-	uc := usecase.NewUsecase(&MockUserProvider{}, tm)
+	uc := usecase.NewUsecase(mock_auth_usecase.NewMockUserUsecase(t), tm)
 	require.Equal(t, expectedTTL, uc.TokenTTL())
 }

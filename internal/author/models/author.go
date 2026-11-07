@@ -11,10 +11,14 @@ var (
 	ErrAuthorNotFound = errors.New("no author found")
 )
 
+type AuthorDetails struct {
+	Bio      string
+	Category *string
+}
+
 type Author struct {
-	ID              uuid.UUID
-	Bio             string
-	Category        *string
+	ID uuid.UUID
+	AuthorDetails
 	PayoutProvider  *string
 	PayoutAccountID *string
 	CreatedAt       time.Time

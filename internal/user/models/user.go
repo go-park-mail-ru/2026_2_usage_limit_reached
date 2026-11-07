@@ -13,7 +13,9 @@ var (
 )
 
 const (
-	StatusActive = "active"
+	StatusActive  = "active"
+	StatusBlocked = "blocked"
+	StatusDeleted = "deleted"
 )
 
 type User struct {

@@ -8,20 +8,21 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase/mock_user_usecase"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUsecase_CreateUser(t *testing.T) {
-	repo := &MockRepository{
-		CreateUserFunc: func(ctx context.Context, user models.User) (*models.User, error) {
-			require.Equal(t, "test@mail.ru", user.Email, "email must ne normalized")
-			require.Equal(t, "testuser", user.Username, "username must ne normalized")
-			require.Equal(t, "Test Nick", user.Nickname, "nickname must be trimmed")
+	repo := mock_user_usecase.NewMockRepository(t)
+	repo.EXPECT().CreateUser(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, user models.User) (*models.User, error) {
+		require.Equal(t, "test@mail.ru", user.Email, "email must ne normalized")
+		require.Equal(t, "testuser", user.Username, "username must ne normalized")
+		require.Equal(t, "Test Nick", user.Nickname, "nickname must be trimmed")
 
-			return &user, nil
-		},
-	}
+		return &user, nil
+	})
 
 	uc := usecase.NewUsecase(repo)
 	_, err := uc.CreateUser(context.Background(), dto.CreateUserRequest{Email: "Test@Mail.ru ", Username: " TestUser ", Nickname: " Test Nick "})
@@ -47,18 +48,15 @@ func TestUsecase_UpdateNickname(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var sent string
+			userID := uuid.New()
 
-			uc := usecase.NewUsecase(&MockRepository{
-				UpdateNicknameFunc: func(ctx context.Context, id uuid.UUID, nickname string) (string, error) {
-					sent = nickname
-					return nickname, tt.repoErr
-				},
-			})
+			repo := mock_user_usecase.NewMockRepository(t)
+			if tt.wantSent != "" {
+				repo.EXPECT().UpdateNickname(mock.Anything, userID, tt.wantSent).Return(tt.wantSent, tt.repoErr)
+			}
 
-			got, err := uc.UpdateNickname(context.Background(), uuid.New(), tt.nickname)
-
-			require.Equal(t, tt.wantSent, sent)
+			uc := usecase.NewUsecase(repo)
+			got, err := uc.UpdateNickname(context.Background(), userID, tt.nickname)
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -73,20 +71,18 @@ func TestUsecase_UpdateNickname(t *testing.T) {
 func TestUsecase_FindCredentialsByLogin(t *testing.T) {
 	user := &models.User{ID: uuid.New()}
 
-	byEmail := usecase.NewUsecase(&MockRepository{
-		GetUserByEmailFunc: func(ctx context.Context, email string) (*models.User, error) {
-			return user, nil
-		},
-	})
+	byEmailRepo := mock_user_usecase.NewMockRepository(t)
+	byEmailRepo.EXPECT().GetUserByEmail(mock.Anything, "user@mail.ru").Return(user, nil)
+
+	byEmail := usecase.NewUsecase(byEmailRepo)
 	got, err := byEmail.FindCredentialsByLogin(context.Background(), "user@mail.ru")
 	require.NoError(t, err)
 	require.Equal(t, user.ID, got.ID)
 
-	byUsername := usecase.NewUsecase(&MockRepository{
-		GetUserByUsernameFunc: func(ctx context.Context, username string) (*models.User, error) {
-			return user, nil
-		},
-	})
+	byUsernameRepo := mock_user_usecase.NewMockRepository(t)
+	byUsernameRepo.EXPECT().GetUserByUsername(mock.Anything, "username").Return(user, nil)
+
+	byUsername := usecase.NewUsecase(byUsernameRepo)
 	got, err = byUsername.FindCredentialsByLogin(context.Background(), "username")
 	require.NoError(t, err)
 	require.Equal(t, user.ID, got.ID)
@@ -104,35 +100,29 @@ func TestUsecase_FindUserByID(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		setupMocks  func(r *MockRepository)
+		setupMocks  func(r *mock_user_usecase.MockRepository)
 		expectedErr error
 		errContains string
 		checkResp   bool
 	}{
 		{
 			name: "Success",
-			setupMocks: func(r *MockRepository) {
-				r.GetUserByIDFunc = func(ctx context.Context, id uuid.UUID) (*models.User, error) {
-					return dummyUser, nil
-				}
+			setupMocks: func(r *mock_user_usecase.MockRepository) {
+				r.EXPECT().GetUserByID(mock.Anything, testID).Return(dummyUser, nil)
 			},
 			checkResp: true,
 		},
 		{
 			name: "User not found",
-			setupMocks: func(r *MockRepository) {
-				r.GetUserByIDFunc = func(ctx context.Context, id uuid.UUID) (*models.User, error) {
-					return nil, models.ErrUserNotFound
-				}
+			setupMocks: func(r *mock_user_usecase.MockRepository) {
+				r.EXPECT().GetUserByID(mock.Anything, testID).Return(nil, models.ErrUserNotFound)
 			},
 			expectedErr: usecase.ErrUserNotFound,
 		},
 		{
 			name: "Repo DB error",
-			setupMocks: func(r *MockRepository) {
-				r.GetUserByIDFunc = func(ctx context.Context, id uuid.UUID) (*models.User, error) {
-					return nil, errors.New("db network error")
-				}
+			setupMocks: func(r *mock_user_usecase.MockRepository) {
+				r.EXPECT().GetUserByID(mock.Anything, testID).Return(nil, errors.New("db network error"))
 			},
 			errContains: "find user: db network error",
 		},
@@ -140,7 +130,7 @@ func TestUsecase_FindUserByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := &MockRepository{}
+			repo := mock_user_usecase.NewMockRepository(t)
 			if tt.setupMocks != nil {
 				tt.setupMocks(repo)
 			}

@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -19,6 +20,9 @@ func (uc *Usecase) CreateUser(ctx context.Context, req dto.CreateUserRequest) (*
 		Status:       models.StatusActive,
 	})
 	if err != nil {
+		if errors.Is(err, models.ErrUserExists) {
+			return nil, fmt.Errorf("create user: %w", ErrUserExists)
+		}
 		return nil, fmt.Errorf("create user: %w", err)
 	}
 
@@ -33,6 +37,9 @@ func (uc *Usecase) UpdateNickname(ctx context.Context, userID uuid.UUID, nicknam
 
 	updated, err := uc.repo.UpdateNickname(ctx, userID, nickname)
 	if err != nil {
+		if errors.Is(err, models.ErrUserNotFound) {
+			return "", fmt.Errorf("update nickname: %w", ErrUserNotFound)
+		}
 		return "", fmt.Errorf("update nickname: %w", err)
 	}
 
@@ -42,6 +49,9 @@ func (uc *Usecase) UpdateNickname(ctx context.Context, userID uuid.UUID, nicknam
 func (uc *Usecase) FindUserByID(ctx context.Context, userID uuid.UUID) (*dto.UserInfo, error) {
 	user, err := uc.repo.GetUserByID(ctx, userID)
 	if err != nil {
+		if errors.Is(err, models.ErrUserNotFound) {
+			return nil, fmt.Errorf("find user: %w", ErrUserNotFound)
+		}
 		return nil, fmt.Errorf("find user: %w", err)
 	}
 
@@ -51,6 +61,9 @@ func (uc *Usecase) FindUserByID(ctx context.Context, userID uuid.UUID) (*dto.Use
 func (uc *Usecase) FindCredentialsByLogin(ctx context.Context, login string) (*dto.UserCredentials, error) {
 	user, err := uc.findUserByLogin(ctx, normalizeLogin(login))
 	if err != nil {
+		if errors.Is(err, models.ErrUserNotFound) {
+			return nil, fmt.Errorf("find user: %w", ErrUserNotFound)
+		}
 		return nil, fmt.Errorf("find user: %w", err)
 	}
 

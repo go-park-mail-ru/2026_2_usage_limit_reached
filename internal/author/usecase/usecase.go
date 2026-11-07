@@ -9,14 +9,12 @@ import (
 )
 
 var (
-	ErrAuthorNotFound  = models.ErrAuthorNotFound
-	ErrInvalidBio      = errors.New("invalid bio")
-	ErrInvalidCategory = errors.New("invalid category")
+	ErrAuthorNotFound = errors.New("author not found")
 )
 
 type Repository interface {
 	GetAuthorByID(ctx context.Context, id uuid.UUID) (*models.Author, error)
-	UpdateAuthor(ctx context.Context, id uuid.UUID, bio string, category *string) (*models.Author, error)
+	UpdateAuthor(ctx context.Context, id uuid.UUID, details models.AuthorDetails) (*models.Author, error)
 }
 
 type Usecase struct {

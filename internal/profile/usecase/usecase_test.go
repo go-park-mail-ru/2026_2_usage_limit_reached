@@ -1,6 +1,7 @@
 package profileusecase_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -274,4 +275,15 @@ func TestProfileUsecase_UpdateMyProfile(t *testing.T) {
 			require.Equal(t, tt.wantAuthor, got.Author)
 		})
 	}
+}
+
+func TestProfileUsecase_UploadAvatar_TooLarge(t *testing.T) {
+	t.Parallel()
+
+	uc := profileusecase.NewProfileUsecase(nil, nil, nil, nil, testAvatarBaseURL, testLogger)
+
+	got, err := uc.UploadAvatar(context.Background(), profileUserID, bytes.NewReader(nil), profileusecase.MaxAvatarSize+1)
+
+	require.Empty(t, got)
+	require.ErrorIs(t, err, profileusecase.ErrAvatarTooLarge)
 }

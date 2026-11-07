@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
@@ -19,13 +20,7 @@ import (
 
 const (
 	avatarFormField      = "avatar"
-	maxAvatarSize        = 5 << 20
-	maxAvatarRequestSize = maxAvatarSize + 1<<20
-)
-
-var (
-	errInvalidAvatarForm = errors.New("invalid avatar form")
-	errAvatarTooLarge    = errors.New("avatar too large")
+	maxAvatarRequestSize = profileusecase.MaxAvatarSize + 1<<20
 )
 
 type ProfileUsecase interface {
@@ -160,40 +155,49 @@ func (h *ProfileHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /profile/me/avatar [put]
 func (h *ProfileHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
-	user, ok := middleware.UserInfoFromContext(r.Context())
+	ctx := r.Context()
+
+	user, ok := middleware.UserInfoFromContext(ctx)
 	if !ok || user == nil || user.UserID == uuid.Nil {
 		response.ErrorUnauthorized(w)
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxAvatarRequestSize)
-	if err := r.ParseMultipartForm(maxAvatarRequestSize); err != nil {
-		h.handleError(r.Context(), w, "upload avatar", fmt.Errorf("%w: %w", errInvalidAvatarForm, err))
-		return
-	}
-
-	file, header, err := r.FormFile(avatarFormField)
+	file, size, err := readAvatar(w, r)
 	if err != nil {
-		h.handleError(r.Context(), w, "upload avatar", fmt.Errorf("%w: %w", errInvalidAvatarForm, err))
+		h.handleError(ctx, w, "upload avatar", err)
 		return
 	}
 	defer file.Close()
 
-	if header.Size == 0 {
-		h.handleError(r.Context(), w, "upload avatar", fmt.Errorf("%w: empty file", errInvalidAvatarForm))
-		return
-	}
-	if header.Size > maxAvatarSize {
-		h.handleError(r.Context(), w, "upload avatar", errAvatarTooLarge)
-		return
-	}
-
-	avatarURL, err := h.uc.UploadAvatar(r.Context(), user.UserID, file, header.Size)
+	avatarURL, err := h.uc.UploadAvatar(ctx, user.UserID, file, size)
 	if err != nil {
-		h.handleError(r.Context(), w, "upload avatar", err)
+		h.handleError(ctx, w, "upload avatar", err)
 		return
 	}
 	response.WriteJSON(w, http.StatusOK, dto.ToAvatarResponse(avatarURL))
+}
+
+func readAvatar(w http.ResponseWriter, r *http.Request) (multipart.File, int64, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxAvatarRequestSize)
+	if err := r.ParseMultipartForm(maxAvatarRequestSize); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return nil, 0, fmt.Errorf("%w: %w", profileusecase.ErrAvatarTooLarge, err)
+		}
+		return nil, 0, fmt.Errorf("%w: %w", validator.ErrValidation, err)
+	}
+
+	file, header, err := r.FormFile(avatarFormField)
+	if err != nil {
+		return nil, 0, fmt.Errorf("%w: %w", validator.ErrValidation, err)
+	}
+	if header.Size == 0 {
+		file.Close()
+		return nil, 0, fmt.Errorf("%w: empty avatar file", validator.ErrValidation)
+	}
+
+	return file, header.Size, nil
 }
 
 // DeleteAvatar удаляет аватар текущего пользователя
@@ -207,14 +211,16 @@ func (h *ProfileHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /profile/me/avatar [delete]
 func (h *ProfileHandler) DeleteAvatar(w http.ResponseWriter, r *http.Request) {
-	user, ok := middleware.UserInfoFromContext(r.Context())
+	ctx := r.Context()
+
+	user, ok := middleware.UserInfoFromContext(ctx)
 	if !ok || user == nil || user.UserID == uuid.Nil {
 		response.ErrorUnauthorized(w)
 		return
 	}
 
-	if err := h.uc.DeleteAvatar(r.Context(), user.UserID); err != nil {
-		h.handleError(r.Context(), w, "delete avatar", err)
+	if err := h.uc.DeleteAvatar(ctx, user.UserID); err != nil {
+		h.handleError(ctx, w, "delete avatar", err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -223,16 +229,13 @@ func (h *ProfileHandler) DeleteAvatar(w http.ResponseWriter, r *http.Request) {
 func (h *ProfileHandler) handleError(ctx context.Context, w http.ResponseWriter, handler string, err error) {
 	level := slog.LevelInfo
 
-	var maxBytesErr *http.MaxBytesError
 	switch {
 	case errors.Is(err, profileusecase.ErrProfileNotFound):
 		response.ErrorNotFound(w)
-	case errors.As(err, &maxBytesErr), errors.Is(err, errAvatarTooLarge):
+	case errors.Is(err, profileusecase.ErrAvatarTooLarge):
 		response.ErrorPayloadTooLarge(w)
 	case errors.Is(err, profileusecase.ErrUnsupportedAvatarType):
 		response.ErrorUnsupportedMediaType(w)
-	case errors.Is(err, errInvalidAvatarForm):
-		response.ErrorBadRequest(w)
 	case errors.Is(err, validator.ErrValidation):
 		response.ErrorBadRequest(w)
 	case errors.Is(err, profileusecase.ErrNotAuthor), errors.Is(err, profileusecase.ErrUserInactive):

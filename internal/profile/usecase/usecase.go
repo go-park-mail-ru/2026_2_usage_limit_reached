@@ -27,7 +27,10 @@ var (
 	ErrNotAuthor             = errors.New("not an author")
 	ErrUserInactive          = errors.New("user is not active")
 	ErrUnsupportedAvatarType = errors.New("unsupported avatar type")
+	ErrAvatarTooLarge        = errors.New("avatar too large")
 )
+
+const MaxAvatarSize = 5 << 20
 
 const (
 	avatarKeyPrefix     = "avatars"
@@ -177,6 +180,10 @@ func (uc *ProfileUsecase) getActiveProfile(ctx context.Context, userID uuid.UUID
 }
 
 func (uc *ProfileUsecase) UploadAvatar(ctx context.Context, userID uuid.UUID, file io.ReadSeeker, size int64) (string, error) {
+	if size > MaxAvatarSize {
+		return "", fmt.Errorf("upload avatar: %w", ErrAvatarTooLarge)
+	}
+
 	_, formatName, err := image.DecodeConfig(file)
 	if err != nil {
 		return "", fmt.Errorf("upload avatar: %w: %w", ErrUnsupportedAvatarType, err)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -249,5 +250,109 @@ func TestProfileHandler_RegisterRoutes(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		router.ServeHTTP(recorder, req)
 		require.Equal(t, http.StatusMethodNotAllowed, recorder.Code, path)
+	}
+}
+
+func multipartBody(t *testing.T, field string, content []byte) (*bytes.Buffer, string) {
+	t.Helper()
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile(field, "avatar.png")
+	require.NoError(t, err)
+	_, err = part.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	return body, writer.FormDataContentType()
+}
+
+func requestUploadAvatar(router http.Handler, body io.Reader, contentType string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPut, "/profile/me/avatar", body)
+	req.Header.Set("Content-Type", contentType)
+	req.AddCookie(&http.Cookie{Name: jwt.CookieName, Value: "test-token"})
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	return recorder
+}
+
+func TestProfileHandler_UploadAvatar_InvalidForm(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		body     func(t *testing.T) (io.Reader, string)
+		wantCode int
+	}{
+		{
+			name: "not multipart",
+			body: func(*testing.T) (io.Reader, string) {
+				return bytes.NewBufferString("avatar"), "text/plain"
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name: "no avatar field",
+			body: func(t *testing.T) (io.Reader, string) {
+				return multipartBody(t, "file", []byte("image"))
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name: "empty file",
+			body: func(t *testing.T) (io.Reader, string) {
+				return multipartBody(t, "avatar", nil)
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name: "request body too large",
+			body: func(t *testing.T) (io.Reader, string) {
+				return multipartBody(t, "avatar", make([]byte, profileusecase.MaxAvatarSize+2<<20))
+			},
+			wantCode: http.StatusRequestEntityTooLarge,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+			body, contentType := tt.body(t)
+
+			recorder := requestUploadAvatar(newTestRouter(uc, testUserID), body, contentType)
+
+			require.Equal(t, tt.wantCode, recorder.Code)
+		})
+	}
+}
+
+func TestProfileHandler_UploadAvatar(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		ucURL    string
+		ucErr    error
+		wantCode int
+		wantJSON string
+	}{
+		{name: "uploaded", ucURL: "http://localhost:9000/media/avatars/ivan.png", wantCode: http.StatusOK, wantJSON: `{"avatar_url":"http://localhost:9000/media/avatars/ivan.png"}`},
+		{name: "avatar too large", ucErr: profileusecase.ErrAvatarTooLarge, wantCode: http.StatusRequestEntityTooLarge, wantJSON: `{"error":"payload too large"}`},
+		{name: "unsupported type", ucErr: profileusecase.ErrUnsupportedAvatarType, wantCode: http.StatusUnsupportedMediaType, wantJSON: `{"error":"unsupported media type"}`},
+		{name: "profile not found", ucErr: profileusecase.ErrProfileNotFound, wantCode: http.StatusNotFound, wantJSON: `{"error":"not found"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			content := []byte("image")
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+			uc.EXPECT().UploadAvatar(mock.Anything, testUserID, mock.Anything, int64(len(content))).Return(tt.ucURL, tt.ucErr)
+			body, contentType := multipartBody(t, "avatar", content)
+
+			recorder := requestUploadAvatar(newTestRouter(uc, testUserID), body, contentType)
+
+			require.Equal(t, tt.wantCode, recorder.Code)
+			require.JSONEq(t, tt.wantJSON, recorder.Body.String())
+		})
 	}
 }

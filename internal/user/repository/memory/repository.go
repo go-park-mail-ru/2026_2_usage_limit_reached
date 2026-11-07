@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/models"
 )
 
 type UserRepository struct {
@@ -73,7 +73,7 @@ func NewUserRepository() *UserRepository {
 	}
 }
 
-func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*models.User, error) {
+func (r *UserRepository) CreateUser(ctx context.Context, u models.User) (*models.User, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -84,10 +84,11 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) (*model
 		return nil, models.ErrUserExists
 	}
 	u.ID = uuid.New()
-	r.users[u.ID] = *u
+	r.users[u.ID] = u
 	r.byEmail[u.Email] = u.ID
 	r.byUsername[u.Username] = u.ID
-	return u, nil
+
+	return &u, nil
 }
 
 func (r *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {

@@ -72,7 +72,7 @@ type PostsPageResponse struct {
 	NextCursor *string        `json:"next_cursor" example:"eyJraW5kIjoibmV3X3Bvc3RzIn0"`
 }
 
-type NewPostsCursor struct {
+type TimedPostsCursor struct {
 	PublishedOrUpdatedAt time.Time `json:"published_or_updated_at"`
 	PostID               uuid.UUID `json:"post_id"`
 }
@@ -83,9 +83,9 @@ type PopularPostsCursor struct {
 	PostID      uuid.UUID `json:"post_id"`
 }
 
-type NewPostsPage struct {
+type TimedPostsPage struct {
 	Items []*PostPreview
-	Next  *NewPostsCursor
+	Next  *TimedPostsCursor
 }
 
 type PopularPostsPage struct {

@@ -1,17 +1,29 @@
 package dto
 
 import (
-	"errors"
 	"strings"
 
-	"time"
-
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
-	"github.com/google/uuid"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 )
 
-var errValidation = errors.New("validation error")
+type UserResponse struct {
+	Username  string  `json:"username" example:"username123"`
+	Nickname  string  `json:"nickname" example:"nickname_123"`
+	AvatarURL *string `json:"avatar_url,omitempty" example:"/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png"`
+}
+
+func ToUserResponse(user *userdto.UserInfo) *UserResponse {
+	if user == nil {
+		return nil
+	}
+
+	return &UserResponse{
+		Username: user.Username,
+		Nickname: user.Nickname,
+		// AvatarURL добавится после мерджа с веткой profile-avatar-upload
+	}
+}
 
 type RegistrationRequest struct {
 	Email    string `json:"email" example:"user@example.com"`
@@ -20,75 +32,26 @@ type RegistrationRequest struct {
 	Password string `json:"password" example:"secret_password_123"`
 }
 
-func (r *RegistrationRequest) Validate(v *validator.Validator) error {
+func (r RegistrationRequest) Validate(v *validator.Validator) error {
 	if !v.IsValidEmail(r.Email) ||
 		!v.IsValidUsername(r.Username) ||
 		!v.IsValidNickname(r.Nickname) ||
 		!v.IsValidPassword(r.Password) {
-		return errValidation
+		return validator.ErrValidation
 	}
 
 	return nil
 }
 
 type LoginRequest struct {
-	// Email или username пользователя
-	Login    string `json:"login" example:"username123"`
+	Login    string `json:"login" example:"username123"` // Email или username пользователя
 	Password string `json:"password" example:"secret_password_123"`
 }
 
-func (r *LoginRequest) Validate(v *validator.Validator) error {
+func (r LoginRequest) Validate() error {
 	if strings.TrimSpace(r.Login) == "" || strings.TrimSpace(r.Password) == "" {
-		return errValidation
+		return validator.ErrValidation
 	}
 
 	return nil
-}
-
-type UserResponse struct {
-	Email     string    `json:"email" example:"user@example.com"`
-	Username  string    `json:"username" example:"username123"`
-	Nickname  string    `json:"nickname" example:"nickname_123"`
-	AvatarKey *string   `json:"avatar_key,omitempty" example:"AKIAIOSFODNN7EXAMPLE"`
-	Status    string    `json:"status" example:"active"`
-	CreatedAt time.Time `json:"created_at" example:"2025-06-15T14:30:45.123456789Z"`
-	UpdatedAt time.Time `json:"updated_at" example:"2025-06-15T14:30:45.123456789Z"`
-}
-
-type UserInfo struct {
-	ID        uuid.UUID
-	Email     string
-	Username  string
-	Nickname  string
-	AvatarKey *string
-	CreatedAt time.Time
-}
-
-func ToUserInfo(user *models.User) *UserInfo {
-	if user == nil {
-		return nil
-	}
-	return &UserInfo{
-		ID:        user.ID,
-		Email:     user.Email,
-		Username:  user.Username,
-		Nickname:  user.Nickname,
-		AvatarKey: user.AvatarKey,
-		CreatedAt: user.CreatedAt,
-	}
-}
-
-func ToUserResponse(user *models.User) *UserResponse {
-	if user == nil {
-		return nil
-	}
-	return &UserResponse{
-		Email:     user.Email,
-		Username:  user.Username,
-		Nickname:  user.Nickname,
-		AvatarKey: user.AvatarKey,
-		Status:    user.Status,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-	}
 }

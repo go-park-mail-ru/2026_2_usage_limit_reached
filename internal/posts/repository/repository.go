@@ -85,7 +85,7 @@ func (r *PostRepository) GetPost(ctx context.Context, userID *uuid.UUID, postID 
 		&post.UpdatedAt,
 		&post.Author.Username,
 		&post.Author.Nickname,
-		&post.Author.AvatarKey,
+		&post.Author.AvatarUrl,
 		&post.Locked,
 		&post.LikedByUser,
 	)
@@ -414,7 +414,7 @@ func scanPosts(rows pgx.Rows) ([]*dto.PostPreview, error) {
 			&post.LikesCount,
 			&post.Author.Username,
 			&post.Author.Nickname,
-			&post.Author.AvatarKey,
+			&post.Author.AvatarUrl,
 			&post.Locked,
 			&post.LikedByUser,
 		)

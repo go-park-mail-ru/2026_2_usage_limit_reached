@@ -39,7 +39,7 @@ type AuthorResponse struct {
 	ID        uuid.UUID `json:"id" example:"00000000-0000-4000-8000-000000000001"`
 	Username  string    `json:"username" example:"username123"`
 	Nickname  string    `json:"nickname" example:"nickname_123"`
-	AvatarKey *string   `json:"avatar_key" example:"avatars/user-1.png"`
+	AvatarUrl *string   `json:"avatar_url" example:"avatars/user-1.png"`
 }
 
 type PostInfo struct {

@@ -55,7 +55,7 @@ func main() {
 	}
 	defer postgresClient.Close()
 
-	s3Cli, err := s3.NewClient(cfg.S3)
+	s3Client, err := s3.NewClient(cfg.S3)
 	if err != nil {
 		log.Fatalf("s3 client initialization error: %v", err)
 	}
@@ -76,7 +76,7 @@ func main() {
 	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(tokens)
 
 	authorUc := AuthorUsecase.NewUsecase(authorRepo)
-	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, profileRepo, s3Cli, cfg.S3.PublicURL, appLogger)
+	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, profileRepo, s3Client, cfg.S3.PublicURL, appLogger)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, valid, appLogger)
 
 	postUc := PostUsecase.NewPostUsecase(postRepo)

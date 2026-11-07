@@ -76,7 +76,7 @@ func NewClient(sCfg S3Config) (*Client, error) {
 		return nil, fmt.Errorf("s3 new client error: %w", err)
 	}
 
-	cli, err := minio.New(host, &minio.Options{
+	minioClient, err := minio.New(host, &minio.Options{
 		Creds:  credentials.NewStaticV4(sCfg.AccessKey, sCfg.SecretKey, ""),
 		Secure: secure,
 		Region: sCfg.Region,
@@ -88,7 +88,7 @@ func NewClient(sCfg S3Config) (*Client, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), sCfg.RequestTimeout)
 	defer cancel()
 
-	exists, err := cli.BucketExists(ctx, sCfg.Bucket)
+	exists, err := minioClient.BucketExists(ctx, sCfg.Bucket)
 	if err != nil {
 		return nil, fmt.Errorf("s3 bucket check error: %w", err)
 	}
@@ -96,7 +96,7 @@ func NewClient(sCfg S3Config) (*Client, error) {
 		return nil, fmt.Errorf("s3 bucket %q does not exist", sCfg.Bucket)
 	}
 
-	return &Client{client: cli, bucket: sCfg.Bucket, requestTimeout: sCfg.RequestTimeout}, nil
+	return &Client{client: minioClient, bucket: sCfg.Bucket, requestTimeout: sCfg.RequestTimeout}, nil
 }
 
 func (c *Client) Put(ctx context.Context, key string, r io.Reader, size int64, contentType string) error {

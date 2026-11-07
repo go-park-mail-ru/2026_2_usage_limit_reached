@@ -3,7 +3,7 @@ components:
     dto.AvatarResponse:
       properties:
         avatar_url:
-          example: http://localhost:8333/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
           type: string
       type: object
     dto.CreatePostResponse:

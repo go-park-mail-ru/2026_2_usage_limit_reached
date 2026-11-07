@@ -12,7 +12,7 @@ postgres:
   max_conn_idle_time: 30m
 
 s3:
-  public_url: http://localhost:8333/media
+  public_path: /media
 
 log:
   # debug | info | warn | error

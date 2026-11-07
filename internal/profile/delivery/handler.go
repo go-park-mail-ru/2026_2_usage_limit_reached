@@ -175,6 +175,7 @@ func (h *ProfileHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 		h.handleError(ctx, w, "upload avatar", err)
 		return
 	}
+
 	response.WriteJSON(w, http.StatusOK, dto.ToAvatarResponse(avatarURL))
 }
 
@@ -182,9 +183,11 @@ func readAvatar(w http.ResponseWriter, r *http.Request) (multipart.File, int64, 
 	r.Body = http.MaxBytesReader(w, r.Body, maxAvatarRequestSize)
 	if err := r.ParseMultipartForm(maxAvatarRequestSize); err != nil {
 		var maxBytesErr *http.MaxBytesError
+
 		if errors.As(err, &maxBytesErr) {
 			return nil, 0, fmt.Errorf("%w: %w", profileusecase.ErrAvatarTooLarge, err)
 		}
+
 		return nil, 0, fmt.Errorf("%w: %w", validator.ErrValidation, err)
 	}
 
@@ -192,6 +195,7 @@ func readAvatar(w http.ResponseWriter, r *http.Request) (multipart.File, int64, 
 	if err != nil {
 		return nil, 0, fmt.Errorf("%w: %w", validator.ErrValidation, err)
 	}
+
 	if header.Size == 0 {
 		file.Close()
 		return nil, 0, fmt.Errorf("%w: empty avatar file", validator.ErrValidation)
@@ -223,6 +227,7 @@ func (h *ProfileHandler) DeleteAvatar(w http.ResponseWriter, r *http.Request) {
 		h.handleError(ctx, w, "delete avatar", err)
 		return
 	}
+
 	w.WriteHeader(http.StatusNoContent)
 }
 

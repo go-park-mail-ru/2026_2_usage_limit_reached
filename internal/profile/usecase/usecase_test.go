@@ -25,14 +25,14 @@ var (
 	testLogger    = slog.New(slog.NewTextHandler(io.Discard, nil))
 )
 
-const testAvatarBaseURL = "http://localhost:9000/media"
+const testAvatarBasePath = "/media"
 
 func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 	t.Parallel()
 
 	path := "avatars/ivan.png"
 	avatar := &path
-	url := "http://localhost:9000/media/avatars/ivan.png"
+	url := "/media/avatars/ivan.png"
 	avatarURL := &url
 	category := "Технологии"
 	tests := []struct {
@@ -71,7 +71,7 @@ func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 				Author:    tt.author,
 			}, nil)
 
-			uc := profileusecase.NewProfileUsecase(nil, nil, repo, nil, testAvatarBaseURL, testLogger)
+			uc := profileusecase.NewProfileUsecase(nil, nil, repo, nil, testAvatarBasePath, testLogger)
 			got, err := uc.GetMyProfile(context.Background(), profileUserID)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
@@ -85,7 +85,7 @@ func TestProfileUsecase_GetMyProfile_InactiveUser(t *testing.T) {
 	repo := mock_profile_usecase.NewMockProfileRepository(t)
 	repo.EXPECT().GetProfileByID(mock.Anything, profileUserID).Return(&models.Profile{UserID: profileUserID, Status: "blocked"}, nil)
 
-	uc := profileusecase.NewProfileUsecase(nil, nil, repo, nil, testAvatarBaseURL, testLogger)
+	uc := profileusecase.NewProfileUsecase(nil, nil, repo, nil, testAvatarBasePath, testLogger)
 
 	got, err := uc.GetMyProfile(context.Background(), profileUserID)
 
@@ -112,7 +112,7 @@ func TestProfileUsecase_GetMyProfile_Errors(t *testing.T) {
 			repo := mock_profile_usecase.NewMockProfileRepository(t)
 			repo.EXPECT().GetProfileByID(mock.Anything, profileUserID).Return(nil, tt.repoErr)
 
-			uc := profileusecase.NewProfileUsecase(nil, nil, repo, nil, testAvatarBaseURL, testLogger)
+			uc := profileusecase.NewProfileUsecase(nil, nil, repo, nil, testAvatarBasePath, testLogger)
 			got, err := uc.GetMyProfile(context.Background(), profileUserID)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
@@ -146,7 +146,7 @@ func TestProfileUsecase_GetPublicProfile(t *testing.T) {
 			repo := mock_profile_usecase.NewMockProfileRepository(t)
 			repo.EXPECT().GetProfileByUsername(mock.Anything, "ivan001").Return(tt.profile, tt.repoErr)
 
-			uc := profileusecase.NewProfileUsecase(nil, nil, repo, nil, testAvatarBaseURL, testLogger)
+			uc := profileusecase.NewProfileUsecase(nil, nil, repo, nil, testAvatarBasePath, testLogger)
 
 			got, err := uc.GetPublicProfile(context.Background(), "ivan001")
 
@@ -257,7 +257,7 @@ func TestProfileUsecase_UpdateMyProfile(t *testing.T) {
 				tt.repoErr,
 			)
 
-			uc := profileusecase.NewProfileUsecase(users, authors, repo, nil, testAvatarBaseURL, testLogger)
+			uc := profileusecase.NewProfileUsecase(users, authors, repo, nil, testAvatarBasePath, testLogger)
 
 			got, err := uc.UpdateMyProfile(context.Background(), profileUserID, profiledto.UpdateProfileRequest{
 				Nickname: "Иван",
@@ -280,7 +280,7 @@ func TestProfileUsecase_UpdateMyProfile(t *testing.T) {
 func TestProfileUsecase_UploadAvatar_TooLarge(t *testing.T) {
 	t.Parallel()
 
-	uc := profileusecase.NewProfileUsecase(nil, nil, nil, nil, testAvatarBaseURL, testLogger)
+	uc := profileusecase.NewProfileUsecase(nil, nil, nil, nil, testAvatarBasePath, testLogger)
 
 	got, err := uc.UploadAvatar(context.Background(), profileUserID, bytes.NewReader(nil), profileusecase.MaxAvatarSize+1)
 

@@ -76,7 +76,7 @@ func main() {
 	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(tokens)
 
 	authorUc := AuthorUsecase.NewUsecase(authorRepo)
-	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, profileRepo, s3Client, cfg.S3.PublicURL, appLogger)
+	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, profileRepo, s3Client, cfg.S3.PublicPath, appLogger)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, valid, appLogger)
 
 	postUc := PostUsecase.NewPostUsecase(postRepo)

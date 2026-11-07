@@ -68,22 +68,22 @@ type AvatarStorage interface {
 }
 
 type ProfileUsecase struct {
-	users         UserUsecase
-	authors       AuthorUsecase
-	profilesRepo  ProfileRepository
-	avatarStorage AvatarStorage
-	avatarBaseURL string
-	logger        *slog.Logger
+	users          UserUsecase
+	authors        AuthorUsecase
+	profilesRepo   ProfileRepository
+	avatarStorage  AvatarStorage
+	avatarBasePath string
+	logger         *slog.Logger
 }
 
-func NewProfileUsecase(users UserUsecase, authors AuthorUsecase, profiles ProfileRepository, avatars AvatarStorage, avatarBaseURL string, logger *slog.Logger) *ProfileUsecase {
+func NewProfileUsecase(users UserUsecase, authors AuthorUsecase, profiles ProfileRepository, avatars AvatarStorage, avatarBasePath string, logger *slog.Logger) *ProfileUsecase {
 	return &ProfileUsecase{
-		users:         users,
-		authors:       authors,
-		profilesRepo:  profiles,
-		avatarStorage: avatars,
-		avatarBaseURL: strings.TrimSuffix(avatarBaseURL, "/"),
-		logger:        logger,
+		users:          users,
+		authors:        authors,
+		profilesRepo:   profiles,
+		avatarStorage:  avatars,
+		avatarBasePath: strings.TrimSuffix(avatarBasePath, "/"),
+		logger:         logger,
 	}
 }
 
@@ -188,15 +188,17 @@ func (uc *ProfileUsecase) UploadAvatar(ctx context.Context, userID uuid.UUID, fi
 	if err != nil {
 		return "", fmt.Errorf("upload avatar: %w: %w", ErrUnsupportedAvatarType, err)
 	}
+
 	format, ok := avatarFormats[formatName]
 	if !ok {
 		return "", fmt.Errorf("upload avatar: %w: %s", ErrUnsupportedAvatarType, formatName)
 	}
+
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return "", fmt.Errorf("rewind avatar: %w", err)
 	}
 
-	key := path.Join(avatarKeyPrefix, userID.String(), uuid.NewString() + format.ext)
+	key := path.Join(avatarKeyPrefix, userID.String(), uuid.NewString()+format.ext)
 
 	if err := uc.avatarStorage.Put(ctx, key, file, size, format.contentType); err != nil {
 		return "", fmt.Errorf("put avatar: %w", err)
@@ -232,8 +234,10 @@ func (uc *ProfileUsecase) updateAvatarKey(ctx context.Context, userID uuid.UUID,
 		if errors.Is(err, userusecase.ErrUserNotFound) {
 			return nil, ErrProfileNotFound
 		}
+
 		return nil, err
 	}
+
 	return oldKey, nil
 }
 
@@ -241,6 +245,7 @@ func (uc *ProfileUsecase) deleteOldAvatar(ctx context.Context, key *string) {
 	if key == nil {
 		return
 	}
+
 	if err := uc.deleteAvatarObject(ctx, *key); err != nil {
 		uc.logger.ErrorContext(ctx, "delete old avatar error",
 			slog.String("key", *key),
@@ -253,16 +258,19 @@ func (uc *ProfileUsecase) avatarURL(key *string) *string {
 	if key == nil {
 		return nil
 	}
+
 	u := uc.objectURL(*key)
+
 	return &u
 }
 
 func (uc *ProfileUsecase) objectURL(key string) string {
-	return uc.avatarBaseURL + "/" + key
+	return uc.avatarBasePath + "/" + key
 }
 
 func (uc *ProfileUsecase) deleteAvatarObject(ctx context.Context, key string) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), avatarDeleteTimeout)
 	defer cancel()
+
 	return uc.avatarStorage.Delete(ctx, key)
 }

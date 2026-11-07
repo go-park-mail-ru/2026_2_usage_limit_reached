@@ -67,5 +67,5 @@ func (r UpdateProfileRequest) Validate(v *validator.Validator) error {
 }
 
 type AvatarResponse struct {
-	AvatarURL string `json:"avatar_url" example:"http://localhost:8333/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png"`
+	AvatarURL string `json:"avatar_url" example:"/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png"`
 }

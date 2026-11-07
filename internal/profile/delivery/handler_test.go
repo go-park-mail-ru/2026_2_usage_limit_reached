@@ -74,7 +74,7 @@ func requestProfile(router http.Handler, path, token string) *httptest.ResponseR
 
 func TestProfileHandler_GetMe_Success(t *testing.T) {
 	t.Parallel()
-	url := "http://localhost:9000/media/avatars/ivan.png"
+	url := "/media/avatars/ivan.png"
 	avatar := &url
 	user := dto.ProfileUserResponse{
 		PublicProfileUserResponse: dto.PublicProfileUserResponse{
@@ -92,12 +92,12 @@ func TestProfileHandler_GetMe_Success(t *testing.T) {
 		{
 			name:     "author profile",
 			response: &dto.ProfileResponse{User: user, Author: &dto.AuthorResponse{Bio: "Пишу о книгах", Category: &category}},
-			wantJSON: `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","avatar_url":"http://localhost:9000/media/avatars/ivan.png","created_at":"2026-09-01T12:00:00Z"},"author":{"bio":"Пишу о книгах","category":"Книги"}}`,
+			wantJSON: `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","avatar_url":"/media/avatars/ivan.png","created_at":"2026-09-01T12:00:00Z"},"author":{"bio":"Пишу о книгах","category":"Книги"}}`,
 		},
 		{
 			name:     "reader profile",
 			response: &dto.ProfileResponse{User: user},
-			wantJSON: `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","avatar_url":"http://localhost:9000/media/avatars/ivan.png","created_at":"2026-09-01T12:00:00Z"}}`,
+			wantJSON: `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","avatar_url":"/media/avatars/ivan.png","created_at":"2026-09-01T12:00:00Z"}}`,
 		},
 	}
 	for _, tt := range tests {
@@ -335,7 +335,7 @@ func TestProfileHandler_UploadAvatar(t *testing.T) {
 		wantCode int
 		wantJSON string
 	}{
-		{name: "uploaded", ucURL: "http://localhost:9000/media/avatars/ivan.png", wantCode: http.StatusOK, wantJSON: `{"avatar_url":"http://localhost:9000/media/avatars/ivan.png"}`},
+		{name: "uploaded", ucURL: "/media/avatars/ivan.png", wantCode: http.StatusOK, wantJSON: `{"avatar_url":"/media/avatars/ivan.png"}`},
 		{name: "avatar too large", ucErr: profileusecase.ErrAvatarTooLarge, wantCode: http.StatusRequestEntityTooLarge, wantJSON: `{"error":"payload too large"}`},
 		{name: "unsupported type", ucErr: profileusecase.ErrUnsupportedAvatarType, wantCode: http.StatusUnsupportedMediaType, wantJSON: `{"error":"unsupported media type"}`},
 		{name: "profile not found", ucErr: profileusecase.ErrProfileNotFound, wantCode: http.StatusNotFound, wantJSON: `{"error":"not found"}`},

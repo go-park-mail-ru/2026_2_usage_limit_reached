@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/minio/minio-go/v7"
@@ -18,7 +19,7 @@ type S3Config struct {
 	SecretKey      string        `mapstructure:"secret_key"`
 	Bucket         string        `mapstructure:"bucket"`
 	Region         string        `mapstructure:"region"`
-	PublicURL      string        `mapstructure:"public_url"`
+	PublicPath     string        `mapstructure:"public_path"`
 	RequestTimeout time.Duration `mapstructure:"request_timeout"`
 }
 
@@ -27,30 +28,38 @@ func DefaultConfig() S3Config {
 		Endpoint:       "http://seaweedfs:8333",
 		Region:         "us-east-1",
 		Bucket:         "media",
+		PublicPath:     "/media",
 		RequestTimeout: 10 * time.Second,
 	}
 }
 
 func (c S3Config) Validate() error {
 	var errs []error
+
 	if _, _, err := parseEndpoint(c.Endpoint); err != nil {
 		errs = append(errs, fmt.Errorf("s3: %w", err))
 	}
+
 	if c.AccessKey == "" {
 		errs = append(errs, errors.New("s3: access_key must not be empty"))
 	}
+
 	if c.SecretKey == "" {
 		errs = append(errs, errors.New("s3: secret_key must not be empty"))
 	}
+
 	if c.Bucket == "" {
 		errs = append(errs, errors.New("s3: bucket must not be empty"))
 	}
-	if u, err := url.Parse(c.PublicURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		errs = append(errs, fmt.Errorf("s3: public_url must be an absolute http(s) url, got %q", c.PublicURL))
+
+	if u, err := url.Parse(c.PublicPath); err != nil || u.Scheme != "" || u.Host != "" || !strings.HasPrefix(u.Path, "/") {
+		errs = append(errs, fmt.Errorf("s3: public_path must be an absolute path without host, got %q", c.PublicPath))
 	}
+
 	if c.RequestTimeout <= 0 {
 		errs = append(errs, fmt.Errorf("s3: request_timeout must be positive, got %s", c.RequestTimeout))
 	}
+
 	return errors.Join(errs...)
 }
 
@@ -61,6 +70,7 @@ func parseEndpoint(raw string) (host string, secure bool, err error) {
 		u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
 		return "", false, fmt.Errorf("endpoint must be an http(s) url without path, got %q", raw)
 	}
+
 	return u.Host, u.Scheme == "https", nil
 }
 
@@ -92,6 +102,7 @@ func NewClient(sCfg S3Config) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("s3 bucket check error: %w", err)
 	}
+
 	if !exists {
 		return nil, fmt.Errorf("s3 bucket %q does not exist", sCfg.Bucket)
 	}
@@ -107,6 +118,7 @@ func (c *Client) Put(ctx context.Context, key string, r io.Reader, size int64, c
 	if err != nil {
 		return fmt.Errorf("s3 put object %q error: %w", key, err)
 	}
+
 	return nil
 }
 
@@ -117,5 +129,6 @@ func (c *Client) Delete(ctx context.Context, key string) error {
 	if err := c.client.RemoveObject(ctx, c.bucket, key, minio.RemoveObjectOptions{}); err != nil {
 		return fmt.Errorf("s3 remove object %q error: %w", key, err)
 	}
+
 	return nil
 }

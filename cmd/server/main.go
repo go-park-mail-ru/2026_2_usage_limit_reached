@@ -5,8 +5,9 @@ import (
 	"log"
 
 	AuthHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery"
-	AuthRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/repository/user"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
+	AuthorRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/repository"
+	AuthorUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
 	DonationHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/delivery"
 	DonationRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/repository"
@@ -19,8 +20,10 @@ import (
 	PostRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/repository"
 	PostUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/usecase"
 	ProfileHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery"
-	ProfileRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/memory"
+	ProfileRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/profile"
 	ProfileUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
+	UserRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/repository/user"
+	UserUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
@@ -57,14 +60,16 @@ func main() {
 	}
 	defer postgresClient.Close()
 
-	userRepo := AuthRepo.NewUserRepository(postgresClient, appLogger)
-	profileRepo := ProfileRepo.NewProfileRepository()
+	userRepo := UserRepo.NewUserRepository(postgresClient)
+	authorRepo := AuthorRepo.NewAuthorRepository(postgresClient)
+	profileRepo := ProfileRepo.NewProfileRepository(postgresClient)
 	postRepo := PostRepo.NewPostRepository(postgresClient, appLogger)
 	paymentOrderRepo := PaymentsRepo.NewPaymentRepository(postgresClient, appLogger)
 	paymentAtemptRepo := PaymentsRepo.NewPaymentAttemptRepository(postgresClient, appLogger)
 	donationRepo := DonationRepo.NewDonationRepository(postgresClient, appLogger)
 
-	uc := usecase.NewUsecase(userRepo, tokens)
+	userUc := UserUsecase.NewUsecase(userRepo)
+	uc := usecase.NewUsecase(userUc, tokens)
 	valid, err := validator.NewValidator(cfg.Validation)
 	if err != nil {
 		log.Fatalf("validator initialization error: %v", err)
@@ -73,8 +78,9 @@ func main() {
 	authMiddleware := middleware.AuthMiddleware(tokens)
 	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(tokens)
 
-	profileUc := ProfileUsecase.NewProfileUsecase(uc, profileRepo)
-	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, appLogger)
+	authorUc := AuthorUsecase.NewUsecase(authorRepo)
+	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, profileRepo)
+	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, valid, appLogger)
 
 	postUc := PostUsecase.NewPostUsecase(postRepo)
 	postHandler := PostHandlers.NewHandler(postUc, valid, appLogger)

@@ -17,6 +17,7 @@ import (
 
 const (
 	sortByNew     = "new"
+	sortByOld     = "old"
 	sortByPopular = "popular"
 	sortField     = "sort"
 	limitField    = "limit"
@@ -25,8 +26,10 @@ const (
 	maxLimit      = 50
 )
 
-type getNewPostsFunc func(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error)
-type getPopularPostsFunc func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)
+type (
+	getTimedPostsFunc   func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
+	getPopularPostsFunc func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)
+)
 
 // Feed возвращает ленту опубликованных постов
 // @Summary Лента постов
@@ -53,7 +56,9 @@ func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 	sort := r.URL.Query().Get(sortField)
 	switch sort {
 	case sortByNew:
-		resp, err = h.feedNew(ctx, userID, rawCursor, limit, h.uc.GetNewPosts)
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetNewPosts)
+	case sortByOld:
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetOldPosts)
 	case sortByPopular:
 		resp, err = h.feedPopular(ctx, userID, rawCursor, limit, h.uc.GetPopularPosts)
 	default:
@@ -93,7 +98,9 @@ func (h *PostHandler) MyPosts(w http.ResponseWriter, r *http.Request) {
 	sort := r.URL.Query().Get(sortField)
 	switch sort {
 	case sortByNew:
-		resp, err = h.feedNew(ctx, userID, rawCursor, limit, h.uc.GetMyNewPosts)
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetMyNewPosts)
+	case sortByOld:
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetMyOldPosts)
 	case sortByPopular:
 		resp, err = h.feedPopular(ctx, userID, rawCursor, limit, h.uc.GetMyPopularPosts)
 	default:
@@ -132,9 +139,11 @@ func (h *PostHandler) MyDrafts(w http.ResponseWriter, r *http.Request) {
 	userID := h.getUserIDFromContext(ctx)
 	switch r.URL.Query().Get(sortField) {
 	case sortByNew:
-		resp, err = h.feedNew(ctx, userID, rawCursor, limit, h.uc.GetMyDrafts)
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetMyNewDrafts)
+	case sortByOld:
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetMyOldDrafts)
 	default:
-		err = validator.ErrValidation
+		err = fmt.Errorf("invalid sort field: %w", validator.ErrValidation)
 	}
 	if err != nil {
 		h.handleError(ctx, w, "my drafts", "get my drafts", err)
@@ -151,21 +160,21 @@ func parseLimit(raw string) int {
 	return limit
 }
 
-func (h *PostHandler) feedNew(
+func (h *PostHandler) feedTimed(
 	ctx context.Context,
 	userID *uuid.UUID,
 	rawCursor string,
 	limit int,
-	getNewPosts getNewPostsFunc) (dto.PostsPageResponse, error) {
-	cur, err := NewPostsCursor.Decode(rawCursor)
+	getTimedPosts getTimedPostsFunc) (dto.PostsPageResponse, error) {
+	cur, err := TimedPostsCursor.Decode(rawCursor)
 	if err != nil {
 		return dto.PostsPageResponse{}, fmt.Errorf("decode cursor: %w: %w", validator.ErrValidation, err)
 	}
-	page, err := getNewPosts(ctx, userID, cur, limit)
+	page, err := getTimedPosts(ctx, userID, cur, limit)
 	if err != nil {
 		return dto.PostsPageResponse{}, err
 	}
-	next, err := NewPostsCursor.Encode(page.Next)
+	next, err := TimedPostsCursor.Encode(page.Next)
 	if err != nil {
 		return dto.PostsPageResponse{}, err
 	}
@@ -272,8 +281,7 @@ func (h *PostHandler) NewPost(w http.ResponseWriter, r *http.Request) {
 // @Success 200 "Пост обновлён"
 // @Failure 400 {object} response.ErrorResponse "Ошибка валидации или не передан last_updated_at"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
-// @Failure 403 {object} response.ErrorResponse "Пост принадлежит другому пользователю"
-// @Failure 404 {object} response.ErrorResponse "Пост не найден"
+// @Failure 404 {object} response.ErrorResponse "Пост не найден или недоступен"
 // @Failure 409 {object} response.ErrorResponse "Пост уже был изменён (устаревший last_updated_at)"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /posts/{id} [put]
@@ -384,6 +392,7 @@ func (h *PostHandler) LikePost(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} dto.PostLikeResponse "Актуальное число лайков"
 // @Failure 400 {object} response.ErrorResponse "Некорректный ID поста"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 404 {object} response.ErrorResponse "Лайк не найден или пост недоступен"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /posts/{id}/like [delete]
 func (h *PostHandler) UnlikePost(w http.ResponseWriter, r *http.Request) {
@@ -411,7 +420,8 @@ func (h *PostHandler) getUserIDFromContext(ctx context.Context) *uuid.UUID {
 	if user == nil {
 		return nil
 	}
-	return (*uuid.UUID)(user.UserID[:])
+	id := user.UserID
+	return &id
 }
 
 func getPostID(r *http.Request) (uuid.UUID, error) {

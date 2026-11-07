@@ -39,7 +39,7 @@ type AuthorResponse struct {
 	ID        uuid.UUID `json:"id" example:"00000000-0000-4000-8000-000000000001"`
 	Username  string    `json:"username" example:"username123"`
 	Nickname  string    `json:"nickname" example:"nickname_123"`
-	AvatarKey *string   `json:"avatar_key" example:"avatars/user-1.png"`
+	AvatarUrl *string   `json:"avatar_url" example:"avatars/user-1.png"`
 }
 
 type PostInfo struct {
@@ -72,7 +72,7 @@ type PostsPageResponse struct {
 	NextCursor *string        `json:"next_cursor" example:"eyJraW5kIjoibmV3X3Bvc3RzIn0"`
 }
 
-type NewPostsCursor struct {
+type TimedPostsCursor struct {
 	PublishedOrUpdatedAt time.Time `json:"published_or_updated_at"`
 	PostID               uuid.UUID `json:"post_id"`
 }
@@ -83,9 +83,9 @@ type PopularPostsCursor struct {
 	PostID      uuid.UUID `json:"post_id"`
 }
 
-type NewPostsPage struct {
+type TimedPostsPage struct {
 	Items []*PostPreview
-	Next  *NewPostsCursor
+	Next  *TimedPostsCursor
 }
 
 type PopularPostsPage struct {

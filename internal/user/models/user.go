@@ -12,6 +12,12 @@ var (
 	ErrUserNotFound = errors.New("no user found")
 )
 
+const (
+	StatusActive  = "active"
+	StatusBlocked = "blocked"
+	StatusDeleted = "deleted"
+)
+
 type User struct {
 	ID           uuid.UUID
 	Username     string

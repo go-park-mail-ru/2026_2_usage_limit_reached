@@ -20,18 +20,19 @@ var (
 	ErrConflict     = errors.New("post update conflict")
 )
 
-var repoErrors = map[error]error{
-	models.ErrPostNotFound:    ErrNotFound,
-	models.ErrInvalidAuthorID: ErrForbidden,
-	models.ErrUnauthorized:    ErrUnauthorized,
-	models.ErrPostValidation:  ErrValidation,
-	models.ErrPostConflict:    ErrConflict,
+var repoErrors = []struct{ from, to error }{
+	{models.ErrPostNotFound, ErrNotFound},
+	{models.ErrInvalidAuthorID, ErrForbidden},
+	{models.ErrUnauthorized, ErrUnauthorized},
+	{models.ErrPostValidation, ErrValidation},
+	{models.ErrPostConflict, ErrConflict},
 }
 
 func mapRepoError(op string, err error) error {
-	to, ok := repoErrors[err]
-	if ok {
-		return fmt.Errorf("%s: %w", op, to)
+	for _, e := range repoErrors {
+		if errors.Is(err, e.from) {
+			return fmt.Errorf("%s: %w", op, e.to)
+		}
 	}
 	return fmt.Errorf("%s: %w", op, err)
 }
@@ -39,10 +40,13 @@ func mapRepoError(op string, err error) error {
 type PostRepository interface {
 	CreatePost(ctx context.Context, userID *uuid.UUID, p models.Post) (uuid.UUID, error)
 	GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error)
-	GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error)
+	GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
+	GetMyOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
 	GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
-	GetMyDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error)
-	GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) ([]*dto.PostPreview, error)
+	GetMyNewDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
+	GetMyOldDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
+	GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
+	GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
 	GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
 	UpdatePost(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) error
 	DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error

@@ -1,29 +1,26 @@
 package models
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-type PostStatus string
+var ErrProfileNotFound = errors.New("no profile found")
 
-const (
-	PostStatusDraft     PostStatus = "draft"
-	PostStatusPublished PostStatus = "published"
-)
-
-type Author struct {
-	Bio      string
-	Category string
+type Profile struct {
+	UserID    uuid.UUID
+	Username  string
+	Nickname  string
+	Email     string
+	AvatarKey *string
+	CreatedAt time.Time
+	Status    string
+	Author    *ProfileAuthor
 }
 
-type Post struct {
-	ID          uuid.UUID
-	AuthorID    uuid.UUID
-	Title       string
-	Body        string
-	Status      PostStatus
-	PublishedAt *time.Time
-	CreatedAt   time.Time
+type ProfileAuthor struct {
+	Bio      string
+	Category *string
 }

@@ -5,24 +5,7 @@ import (
 )
 
 func SetupValidator() *validator.Validator {
-	v, err := validator.NewValidator(validator.ValidationConfig{
-		Username: validator.UsernameRules{
-			MinLen:       3,
-			MaxLen:       32,
-			AllowedRunes: "abcdefghijklmnopqrstuvwxyz0123456789_",
-		},
-		Nickname: validator.NicknameRules{MaxLen: 32},
-		Password: validator.PasswordRules{MinLen: 8, MaxLen: 32},
-		Email: validator.EmailRules{
-			MaxLen: 32,
-			Regexp: `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`,
-		},
-		Post: validator.PostRules{
-			MaxTitleLen:       255,
-			MaxBodyLen:        20000,
-			AllowedPostStatus: map[string]bool{"published": true, "draft": true, "archived": true},
-		},
-	})
+	v, err := validator.NewValidator(validator.DefaultConfig())
 	if err != nil {
 		panic(err)
 	}

@@ -70,3 +70,25 @@ func (r *AuthorRepository) UpdateAuthor(ctx context.Context, id uuid.UUID, detai
 
 	return &author, nil
 }
+
+func (r *AuthorRepository) CreateAuthor(ctx context.Context, id uuid.UUID, details models.AuthorDetails) (*models.Author, error) {
+	const query = `
+		INSERT INTO author (id, bio, category)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (id) DO NOTHING
+		RETURNING id, bio, category
+	`
+
+	var author models.Author
+
+	err := r.pool.QueryRow(ctx, query, id, details.Bio, details.Category).Scan(&author.ID, &author.Bio, &author.Category)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, models.ErrAuthorExists
+		}
+
+		return nil, fmt.Errorf("create author error: %w", err)
+	}
+
+	return &author, nil
+}

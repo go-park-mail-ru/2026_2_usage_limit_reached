@@ -55,11 +55,15 @@ func (r UpdateProfileRequest) Validate(v *validator.Validator) error {
 		return nil
 	}
 
-	if !v.IsValidBio(r.Author.Bio) {
+	return r.Author.Validate(v)
+}
+
+func (r UpdateAuthorRequest) Validate(v *validator.Validator) error {
+	if !v.IsValidBio(r.Bio) {
 		return fmt.Errorf("%w: invalid bio", validator.ErrValidation)
 	}
 
-	if r.Author.Category != nil && !v.IsValidCategory(*r.Author.Category) {
+	if r.Category != nil && !v.IsValidCategory(*r.Category) {
 		return fmt.Errorf("%w: invalid category", validator.ErrValidation)
 	}
 

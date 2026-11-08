@@ -901,6 +901,70 @@ paths:
       summary: Изменение профиля текущего пользователя
       tags:
       - profile
+  /profile/me/author:
+    post:
+      description: Создает профиль автора. Если профиль автора уже есть, возвращает
+        его без изменений, переданные данные игнорируются. Если category не выбрана,
+        поле опускается
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_profile_dto.UpdateAuthorRequest'
+              description: Данные профиля автора
+              summary: request
+        description: Данные профиля автора
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.ProfileResponse'
+          description: Профиль с блоком author
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь заблокирован или удалён, либо неверный CSRF-токен
+            или его отсутствие
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Создание профиля автора
+      tags:
+      - profile
   /profile/me/avatar:
     delete:
       description: Удаляет текущий аватар. Если аватара нет, тоже возвращает 204

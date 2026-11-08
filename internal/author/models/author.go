@@ -9,6 +9,7 @@ import (
 
 var (
 	ErrAuthorNotFound = errors.New("no author found")
+	ErrAuthorExists   = errors.New("author already exists")
 )
 
 type AuthorDetails struct {

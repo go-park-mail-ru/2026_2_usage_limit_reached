@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testAvatarBasePath = "/media"
+
 func TestUsecase_CreateUser(t *testing.T) {
 	repo := mock_user_usecase.NewMockRepository(t)
 	repo.EXPECT().CreateUser(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, user models.User) (*models.User, error) {
@@ -24,7 +26,7 @@ func TestUsecase_CreateUser(t *testing.T) {
 		return &user, nil
 	})
 
-	uc := usecase.NewUsecase(repo)
+	uc := usecase.NewUsecase(repo, testAvatarBasePath)
 	_, err := uc.CreateUser(context.Background(), dto.CreateUserRequest{Email: "Test@Mail.ru ", Username: " TestUser ", Nickname: " Test Nick "})
 	require.NoError(t, err)
 }
@@ -55,7 +57,7 @@ func TestUsecase_UpdateNickname(t *testing.T) {
 				repo.EXPECT().UpdateNickname(mock.Anything, userID, tt.wantSent).Return(tt.wantSent, tt.repoErr)
 			}
 
-			uc := usecase.NewUsecase(repo)
+			uc := usecase.NewUsecase(repo, testAvatarBasePath)
 			got, err := uc.UpdateNickname(context.Background(), userID, tt.nickname)
 
 			if tt.wantErr != nil {
@@ -74,7 +76,7 @@ func TestUsecase_FindCredentialsByLogin(t *testing.T) {
 	byEmailRepo := mock_user_usecase.NewMockRepository(t)
 	byEmailRepo.EXPECT().GetUserByEmail(mock.Anything, "user@mail.ru").Return(user, nil)
 
-	byEmail := usecase.NewUsecase(byEmailRepo)
+	byEmail := usecase.NewUsecase(byEmailRepo, testAvatarBasePath)
 	got, err := byEmail.FindCredentialsByLogin(context.Background(), "user@mail.ru")
 	require.NoError(t, err)
 	require.Equal(t, user.ID, got.ID)
@@ -82,7 +84,7 @@ func TestUsecase_FindCredentialsByLogin(t *testing.T) {
 	byUsernameRepo := mock_user_usecase.NewMockRepository(t)
 	byUsernameRepo.EXPECT().GetUserByUsername(mock.Anything, "username").Return(user, nil)
 
-	byUsername := usecase.NewUsecase(byUsernameRepo)
+	byUsername := usecase.NewUsecase(byUsernameRepo, testAvatarBasePath)
 	got, err = byUsername.FindCredentialsByLogin(context.Background(), "username")
 	require.NoError(t, err)
 	require.Equal(t, user.ID, got.ID)
@@ -135,7 +137,7 @@ func TestUsecase_FindUserByID(t *testing.T) {
 				tt.setupMocks(repo)
 			}
 
-			uc := usecase.NewUsecase(repo)
+			uc := usecase.NewUsecase(repo, testAvatarBasePath)
 			user, err := uc.FindUserByID(ctx, testID)
 
 			if tt.expectedErr != nil {

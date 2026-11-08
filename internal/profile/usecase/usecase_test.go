@@ -1,8 +1,11 @@
 package profileusecase_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -19,13 +22,18 @@ import (
 var (
 	profileUserID = uuid.MustParse("00000000-0000-4000-8000-000000000001")
 	profileTime   = time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
+	testLogger    = slog.New(slog.NewTextHandler(io.Discard, nil))
 )
+
+const testAvatarBasePath = "/media"
 
 func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 	t.Parallel()
 
 	path := "avatars/ivan.png"
 	avatar := &path
+	url := "/media/avatars/ivan.png"
+	avatarURL := &url
 	category := "Технологии"
 	tests := []struct {
 		name   string
@@ -36,14 +44,14 @@ func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 			name:   "author profile",
 			author: &models.ProfileAuthor{Bio: "Пишу о технологиях", Category: &category},
 			want: &profiledto.ProfileResponse{
-				User:   profiledto.ProfileUserResponse{PublicProfileUserResponse: profiledto.PublicProfileUserResponse{ID: profileUserID, Username: "ivan001", Nickname: "Иван", CreatedAt: profileTime}, Email: "ivan@example.test"},
+				User:   profiledto.ProfileUserResponse{PublicProfileUserResponse: profiledto.PublicProfileUserResponse{ID: profileUserID, Username: "ivan001", Nickname: "Иван", AvatarURL: avatarURL, CreatedAt: profileTime}, Email: "ivan@example.test"},
 				Author: &profiledto.AuthorResponse{Bio: "Пишу о технологиях", Category: &category},
 			},
 		},
 		{
 			name: "reader has no author profile",
 			want: &profiledto.ProfileResponse{
-				User: profiledto.ProfileUserResponse{PublicProfileUserResponse: profiledto.PublicProfileUserResponse{ID: profileUserID, Username: "ivan001", Nickname: "Иван", CreatedAt: profileTime}, Email: "ivan@example.test"},
+				User: profiledto.ProfileUserResponse{PublicProfileUserResponse: profiledto.PublicProfileUserResponse{ID: profileUserID, Username: "ivan001", Nickname: "Иван", AvatarURL: avatarURL, CreatedAt: profileTime}, Email: "ivan@example.test"},
 			},
 		},
 	}
@@ -63,7 +71,7 @@ func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 				Author:    tt.author,
 			}, nil)
 
-			uc := profileusecase.NewProfileUsecase(nil, nil, repo)
+			uc := profileusecase.NewProfileUsecase(nil, nil, repo, nil, testAvatarBasePath, testLogger)
 			got, err := uc.GetMyProfile(context.Background(), profileUserID)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
@@ -77,7 +85,7 @@ func TestProfileUsecase_GetMyProfile_InactiveUser(t *testing.T) {
 	repo := mock_profile_usecase.NewMockProfileRepository(t)
 	repo.EXPECT().GetProfileByID(mock.Anything, profileUserID).Return(&models.Profile{UserID: profileUserID, Status: "blocked"}, nil)
 
-	uc := profileusecase.NewProfileUsecase(nil, nil, repo)
+	uc := profileusecase.NewProfileUsecase(nil, nil, repo, nil, testAvatarBasePath, testLogger)
 
 	got, err := uc.GetMyProfile(context.Background(), profileUserID)
 
@@ -104,7 +112,7 @@ func TestProfileUsecase_GetMyProfile_Errors(t *testing.T) {
 			repo := mock_profile_usecase.NewMockProfileRepository(t)
 			repo.EXPECT().GetProfileByID(mock.Anything, profileUserID).Return(nil, tt.repoErr)
 
-			uc := profileusecase.NewProfileUsecase(nil, nil, repo)
+			uc := profileusecase.NewProfileUsecase(nil, nil, repo, nil, testAvatarBasePath, testLogger)
 			got, err := uc.GetMyProfile(context.Background(), profileUserID)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
@@ -138,7 +146,7 @@ func TestProfileUsecase_GetPublicProfile(t *testing.T) {
 			repo := mock_profile_usecase.NewMockProfileRepository(t)
 			repo.EXPECT().GetProfileByUsername(mock.Anything, "ivan001").Return(tt.profile, tt.repoErr)
 
-			uc := profileusecase.NewProfileUsecase(nil, nil, repo)
+			uc := profileusecase.NewProfileUsecase(nil, nil, repo, nil, testAvatarBasePath, testLogger)
 
 			got, err := uc.GetPublicProfile(context.Background(), "ivan001")
 
@@ -249,7 +257,7 @@ func TestProfileUsecase_UpdateMyProfile(t *testing.T) {
 				tt.repoErr,
 			)
 
-			uc := profileusecase.NewProfileUsecase(users, authors, repo)
+			uc := profileusecase.NewProfileUsecase(users, authors, repo, nil, testAvatarBasePath, testLogger)
 
 			got, err := uc.UpdateMyProfile(context.Background(), profileUserID, profiledto.UpdateProfileRequest{
 				Nickname: "Иван",
@@ -267,4 +275,15 @@ func TestProfileUsecase_UpdateMyProfile(t *testing.T) {
 			require.Equal(t, tt.wantAuthor, got.Author)
 		})
 	}
+}
+
+func TestProfileUsecase_UploadAvatar_TooLarge(t *testing.T) {
+	t.Parallel()
+
+	uc := profileusecase.NewProfileUsecase(nil, nil, nil, nil, testAvatarBasePath, testLogger)
+
+	got, err := uc.UploadAvatar(context.Background(), profileUserID, bytes.NewReader(nil), profileusecase.MaxAvatarSize+1)
+
+	require.Empty(t, got)
+	require.ErrorIs(t, err, profileusecase.ErrAvatarTooLarge)
 }

@@ -6,6 +6,7 @@ package mock_profile_delivery
 
 import (
 	"context"
+	"io"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/dto"
 	"github.com/google/uuid"
@@ -46,6 +47,63 @@ type MockProfileUsecase_Expecter struct {
 
 func (_m *MockProfileUsecase) EXPECT() *MockProfileUsecase_Expecter {
 	return &MockProfileUsecase_Expecter{mock: &_m.Mock}
+}
+
+// DeleteAvatar provides a mock function for the type MockProfileUsecase
+func (_mock *MockProfileUsecase) DeleteAvatar(ctx context.Context, userID uuid.UUID) error {
+	ret := _mock.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteAvatar")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) error); ok {
+		r0 = returnFunc(ctx, userID)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockProfileUsecase_DeleteAvatar_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteAvatar'
+type MockProfileUsecase_DeleteAvatar_Call struct {
+	*mock.Call
+}
+
+// DeleteAvatar is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID uuid.UUID
+func (_e *MockProfileUsecase_Expecter) DeleteAvatar(ctx any, userID any) *MockProfileUsecase_DeleteAvatar_Call {
+	return &MockProfileUsecase_DeleteAvatar_Call{Call: _e.mock.On("DeleteAvatar", ctx, userID)}
+}
+
+func (_c *MockProfileUsecase_DeleteAvatar_Call) Run(run func(ctx context.Context, userID uuid.UUID)) *MockProfileUsecase_DeleteAvatar_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockProfileUsecase_DeleteAvatar_Call) Return(err error) *MockProfileUsecase_DeleteAvatar_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockProfileUsecase_DeleteAvatar_Call) RunAndReturn(run func(ctx context.Context, userID uuid.UUID) error) *MockProfileUsecase_DeleteAvatar_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetMyProfile provides a mock function for the type MockProfileUsecase
@@ -254,6 +312,84 @@ func (_c *MockProfileUsecase_UpdateMyProfile_Call) Return(profileResponse *dto.P
 }
 
 func (_c *MockProfileUsecase_UpdateMyProfile_Call) RunAndReturn(run func(ctx context.Context, userID uuid.UUID, req dto.UpdateProfileRequest) (*dto.ProfileResponse, error)) *MockProfileUsecase_UpdateMyProfile_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UploadAvatar provides a mock function for the type MockProfileUsecase
+func (_mock *MockProfileUsecase) UploadAvatar(ctx context.Context, userID uuid.UUID, file io.ReadSeeker, size int64) (string, error) {
+	ret := _mock.Called(ctx, userID, file, size)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UploadAvatar")
+	}
+
+	var r0 string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, io.ReadSeeker, int64) (string, error)); ok {
+		return returnFunc(ctx, userID, file, size)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, io.ReadSeeker, int64) string); ok {
+		r0 = returnFunc(ctx, userID, file, size)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, io.ReadSeeker, int64) error); ok {
+		r1 = returnFunc(ctx, userID, file, size)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockProfileUsecase_UploadAvatar_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UploadAvatar'
+type MockProfileUsecase_UploadAvatar_Call struct {
+	*mock.Call
+}
+
+// UploadAvatar is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID uuid.UUID
+//   - file io.ReadSeeker
+//   - size int64
+func (_e *MockProfileUsecase_Expecter) UploadAvatar(ctx any, userID any, file any, size any) *MockProfileUsecase_UploadAvatar_Call {
+	return &MockProfileUsecase_UploadAvatar_Call{Call: _e.mock.On("UploadAvatar", ctx, userID, file, size)}
+}
+
+func (_c *MockProfileUsecase_UploadAvatar_Call) Run(run func(ctx context.Context, userID uuid.UUID, file io.ReadSeeker, size int64)) *MockProfileUsecase_UploadAvatar_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 io.ReadSeeker
+		if args[2] != nil {
+			arg2 = args[2].(io.ReadSeeker)
+		}
+		var arg3 int64
+		if args[3] != nil {
+			arg3 = args[3].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockProfileUsecase_UploadAvatar_Call) Return(s string, err error) *MockProfileUsecase_UploadAvatar_Call {
+	_c.Call.Return(s, err)
+	return _c
+}
+
+func (_c *MockProfileUsecase_UploadAvatar_Call) RunAndReturn(run func(ctx context.Context, userID uuid.UUID, file io.ReadSeeker, size int64) (string, error)) *MockProfileUsecase_UploadAvatar_Call {
 	_c.Call.Return(run)
 	return _c
 }

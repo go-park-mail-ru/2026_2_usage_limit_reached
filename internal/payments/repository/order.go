@@ -71,140 +71,133 @@ func (r *PaymentRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*mo
 }
 
 func (r *PaymentRepository) CompleteSuccessfulAttempt(ctx context.Context, attempt dto.AttemptToComplete) (bool, error) {
-	payment := models.SuccessfulPayment{
-		AttemptID:             attempt.ID,
-		OrderID:               attempt.OrderID,
-		ExternalTransactionID: attempt.ExternalTransactionID,
-		ChargedAmount:         attempt.ChargedAmountMinor,
-		ChargedCurrency:       attempt.ChargedCurrency,
-	}
-
-	r.logger.DebugContext(ctx, "executing transaction",
-		slog.String("op", "complete successful attempt"),
-		slog.String("order_id", payment.OrderID.String()),
-		slog.String("attempt_id", payment.AttemptID.String()),
-		slog.String("external_transaction_id", payment.ExternalTransactionID),
-	)
-
-	requireRefund := false
-	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
-		order, err := lockOrder(ctx, tx, payment.OrderID)
-		if err != nil {
-			return err
-		}
-
-		attemptState, err := lockAttempt(ctx, tx, payment.AttemptID)
-		if err != nil {
-			return err
-		}
-
-		d, err := models.MakeOrderDecision(order, attemptState, payment)
-		if err != nil {
-			return err
-		}
-
-		if err := r.applyDecision(ctx, tx, d, attempt, payment); err != nil {
-			return err
-		}
-
-		requireRefund = d.RequiresRefund()
-		return nil
-	})
-	if err != nil {
-		return false, mapCompleteError(err)
-	}
-
-	return requireRefund, nil
-}
-
-func lockOrder(ctx context.Context, tx pgx.Tx, orderID uuid.UUID) (models.OrderState, error) {
-	const query = `
+	const lockOrder = `
 		SELECT status, expected_amount_minor, currency, credited_attempt_id
 		FROM payment_order
 		WHERE id = $1
 		FOR UPDATE
 	`
-
-	var orderState models.OrderState
-	err := tx.QueryRow(ctx, query, orderID).Scan(
-		&orderState.Status,
-		&orderState.ExpectedAmount,
-		&orderState.ExpectedCurrency,
-		&orderState.CreditedAttemptID,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return models.OrderState{}, models.ErrPaymentOrderNotFound
-	}
-	if err != nil {
-		return models.OrderState{}, fmt.Errorf("lock payment order: %w", err)
-	}
-	return orderState, nil
-}
-
-func lockAttempt(ctx context.Context, tx pgx.Tx, attemptID uuid.UUID) (models.AttemptState, error) {
-	const query = `
+	const lockAttempt = `
 		SELECT payment_order_id, status, external_transaction_id, charged_amount_minor, charged_currency
 		FROM payment_attempt
 		WHERE id = $1
 		FOR UPDATE
 	`
 
-	var attemptState models.AttemptState
-	err := tx.QueryRow(ctx, query, attemptID).Scan(
-		&attemptState.OrderID,
-		&attemptState.Status,
-		&attemptState.ExternalTransactionID,
-		&attemptState.ChargedAmount,
-		&attemptState.ChargedCurrency,
+	r.logger.DebugContext(ctx, "executing transaction",
+		slog.String("op", "get order by ID"),
+		slog.String("order_id", attempt.OrderID.String()),
+		slog.String("attempt_id", attempt.ID.String()),
+		slog.String("external_transaction_id", attempt.ExternalTransactionID),
 	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return models.AttemptState{}, models.ErrPaymentAttemptNotFound
-	}
-	if err != nil {
-		return models.AttemptState{}, fmt.Errorf("lock payment attempt: %w", err)
-	}
-	return attemptState, nil
-}
 
-func (r *PaymentRepository) applyDecision(ctx context.Context, tx pgx.Tx, d models.OrderDecision, attempt dto.AttemptToComplete, p models.SuccessfulPayment) error {
-	if d.SaveAttempt {
-		if err := saveSuccessfulAttempt(ctx, tx, attempt); err != nil {
-			return err
+	requireRefund := false
+	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
+		var (
+			orderStatus       models.PaymentOrderStatus
+			expectedAmount    int64
+			expectedCurrency  string
+			creditedAttemptID *uuid.UUID
+		)
+		err := tx.QueryRow(ctx, lockOrder, attempt.OrderID).Scan(
+			&orderStatus,
+			&expectedAmount,
+			&expectedCurrency,
+			&creditedAttemptID,
+		)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return models.ErrPaymentOrderNotFound
+			}
+			return fmt.Errorf("lock payment order: %w", err)
 		}
-	}
-	if d.FailOrder {
-		if err := failOrder(ctx, tx, p.OrderID); err != nil {
-			return err
+
+		var (
+			attemptOrderID  uuid.UUID
+			attemptStatus   models.PaymentAttemptStatus
+			externalID      *string
+			chargedAmount   *int64
+			chargedCurrency *string
+		)
+		err = tx.QueryRow(ctx, lockAttempt, attempt.ID).Scan(
+			&attemptOrderID,
+			&attemptStatus,
+			&externalID,
+			&chargedAmount,
+			&chargedCurrency,
+		)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return models.ErrPaymentAttemptNotFound
+			}
+			return fmt.Errorf("lock payment attempt: %w", err)
 		}
-	}
-	if d.Refund != "" {
-		if err := r.makeRefund(ctx, tx, p.AttemptID, p.ChargedAmount, d.Refund); err != nil {
-			return err
+
+		alreadySucceeded := false
+		if attemptStatus == models.AttemptStatusSucceeded {
+			same := externalID != nil && *externalID == attempt.ExternalTransactionID &&
+				chargedAmount != nil && *chargedAmount == attempt.ChargedAmountMinor &&
+				chargedCurrency != nil && *chargedCurrency == attempt.ChargedCurrency
+			if attemptOrderID != attempt.OrderID || !same {
+				return models.ErrPaymentAttemptValidation
+			}
+			alreadySucceeded = true
 		}
-	}
-	if d.MarkPaid {
+
+		if !alreadySucceeded {
+			if err := saveSuccessfulAttempt(ctx, tx, attempt); err != nil {
+				return err
+			}
+		}
+
+		switch orderStatus {
+		case models.StatusPaid: // возврат на уже оплаченный заказ
+			requireRefund = *creditedAttemptID != attempt.ID
+			if requireRefund {
+				return r.makeRefund(ctx, tx, attempt.ID, attempt.ChargedAmountMinor, reasonDuplicatePayment)
+			}
+			return nil
+		case models.StatusCanceled: // возврат на отмененный заказ
+			requireRefund = true
+			return r.makeRefund(ctx, tx, attempt.ID, attempt.ChargedAmountMinor, reasonOrderCanceled)
+		}
+
+		if expectedAmount != attempt.ChargedAmountMinor || expectedCurrency != attempt.ChargedCurrency { // fail invalid order
+			if orderStatus == models.StatusPending || orderStatus == models.StatusProcessing {
+				if err := failOrder(ctx, tx, attempt.OrderID); err != nil {
+					return err
+				}
+			}
+			requireRefund = true
+			return r.makeRefund(ctx, tx, attempt.ID, attempt.ChargedAmountMinor, reasonAmountMismatch)
+		}
+
+		if orderStatus != models.StatusPending &&
+			orderStatus != models.StatusProcessing &&
+			orderStatus != models.StatusFailed {
+			return models.ErrPaymentOrderValidation
+		}
+
 		return markOrderPaid(ctx, tx, attempt)
+	})
+	if err != nil {
+		if errors.Is(err, models.ErrPaymentOrderNotFound) ||
+			errors.Is(err, models.ErrPaymentAttemptNotFound) ||
+			errors.Is(err, models.ErrPaymentOrderValidation) ||
+			errors.Is(err, models.ErrPaymentAttemptValidation) {
+			return false, err
+		}
+
+		parsed := postgres.ParseError(err)
+		if errors.Is(parsed, postgres.ErrFKViolation) ||
+			errors.Is(parsed, postgres.ErrCheckViolation) ||
+			errors.Is(parsed, postgres.ErrUniqViolation) {
+			return false, models.ErrPaymentOrderValidation
+		}
+
+		return false, fmt.Errorf("complete successful payment attempt: %w", err)
 	}
-
-	return nil
-}
-
-func mapCompleteError(err error) error {
-	if errors.Is(err, models.ErrPaymentOrderNotFound) ||
-		errors.Is(err, models.ErrPaymentAttemptNotFound) ||
-		errors.Is(err, models.ErrPaymentOrderValidation) ||
-		errors.Is(err, models.ErrPaymentAttemptValidation) {
-		return err
-	}
-
-	parsed := postgres.ParseError(err)
-	if errors.Is(parsed, postgres.ErrFKViolation) ||
-		errors.Is(parsed, postgres.ErrCheckViolation) ||
-		errors.Is(parsed, postgres.ErrUniqViolation) {
-		return models.ErrPaymentOrderValidation
-	}
-
-	return fmt.Errorf("complete successful payment attempt: %w", err)
+	return requireRefund, nil
 }
 
 func saveSuccessfulAttempt(ctx context.Context, tx pgx.Tx, attempt dto.AttemptToComplete) error {
@@ -273,7 +266,7 @@ func markOrderPaid(ctx context.Context, tx pgx.Tx, attempt dto.AttemptToComplete
 	return nil
 }
 
-func (r *PaymentRepository) makeRefund(ctx context.Context, tx pgx.Tx, attemptID uuid.UUID, amount int64, reason models.RefundReason) error {
+func (r *PaymentRepository) makeRefund(ctx context.Context, tx pgx.Tx, attemptID uuid.UUID, amount int64, reason string) error {
 	const query = `
 		INSERT INTO refund (payment_attempt_id, amount_minor, kind, reason)
 		VALUES ($1, $2, 'excess_charge', $3)
@@ -284,7 +277,7 @@ func (r *PaymentRepository) makeRefund(ctx context.Context, tx pgx.Tx, attemptID
 		slog.String("op", "make refund"),
 		slog.String("attemptID", attemptID.String()),
 		slog.Int64("amount", amount),
-		slog.String("reason", string(reason)),
+		slog.String("reason", reason),
 	)
 
 	if _, err := tx.Exec(ctx, query, attemptID, amount, reason); err != nil {
@@ -400,7 +393,7 @@ func changeAttemptStatus(ctx context.Context, tx pgx.Tx, orderID, attemptID uuid
 		if currentStatus == targetStatus {
 			switch targetStatus {
 			case models.AttemptStatusProcessing:
-				// ничего не делаем на повторный processing
+				// do nothing on double processing
 				return nil
 
 			case models.AttemptStatusFailed, models.AttemptStatusCanceled:

@@ -14,7 +14,7 @@ import (
 	DonationUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/usecase"
 	PaymentsRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/repository"
 	PaymentsUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase"
-	providermock "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/provider/mock"
+	PaymentProvider "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider/mock"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	PostHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery"
 	PostRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/repository"
@@ -64,8 +64,7 @@ func main() {
 	authorRepo := AuthorRepo.NewAuthorRepository(postgresClient)
 	profileRepo := ProfileRepo.NewProfileRepository(postgresClient)
 	postRepo := PostRepo.NewPostRepository(postgresClient, appLogger)
-	paymentOrderRepo := PaymentsRepo.NewPaymentRepository(postgresClient, appLogger)
-	paymentAtemptRepo := PaymentsRepo.NewPaymentAttemptRepository(postgresClient, appLogger)
+	paymentRepo := PaymentsRepo.NewPaymentRepository(postgresClient, appLogger)
 	donationRepo := DonationRepo.NewDonationRepository(postgresClient, appLogger)
 
 	userUc := UserUsecase.NewUsecase(userRepo)
@@ -85,8 +84,8 @@ func main() {
 	postUc := PostUsecase.NewPostUsecase(postRepo)
 	postHandler := PostHandlers.NewHandler(postUc, valid, appLogger)
 
-	provider := providermock.NewMockProvider()
-	paymentUc := PaymentsUsecase.NewPaymentUsecase(paymentOrderRepo, paymentAtemptRepo, provider)
+	provider := PaymentProvider.NewMockProvider()
+	paymentUc := PaymentsUsecase.NewPaymentUsecase(paymentRepo, provider)
 
 	donationUc := DonationUsecase.NewDonationUsecase(donationRepo, paymentUc)
 	donationHandler := DonationHandlers.NewHandler(donationUc, valid, appLogger)

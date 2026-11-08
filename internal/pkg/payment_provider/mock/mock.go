@@ -3,7 +3,7 @@ package providermock
 import (
 	"context"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/provider"
+	provider "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider"
 )
 
 type MockProvider struct {

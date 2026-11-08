@@ -20,16 +20,16 @@ const (
 	reasonAmountMismatch   = "amount_mismatch"
 )
 
-type PaymentOrderRepository struct {
+type PaymentRepository struct {
 	pool   postgres.DB
 	logger *slog.Logger
 }
 
-func NewPaymentRepository(db *postgres.DBClient, logger *slog.Logger) *PaymentOrderRepository {
-	return &PaymentOrderRepository{pool: db.Pool, logger: logger}
+func NewPaymentRepository(db *postgres.DBClient, logger *slog.Logger) *PaymentRepository {
+	return &PaymentRepository{pool: db.Pool, logger: logger}
 }
 
-func (r *PaymentOrderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.PaymentOrder, error) {
+func (r *PaymentRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.PaymentOrder, error) {
 	const query = `
 		SELECT
 			id, payer_id, request_key, purpose, origin, expected_amount_minor, currency, status, 
@@ -70,7 +70,7 @@ func (r *PaymentOrderRepository) GetOrderByID(ctx context.Context, id uuid.UUID)
 	return order, nil
 }
 
-func (r *PaymentOrderRepository) CompleteSuccessfulAttempt(ctx context.Context, attempt dto.AttemptToComplete) (bool, error) {
+func (r *PaymentRepository) CompleteSuccessfulAttempt(ctx context.Context, attempt dto.AttemptToComplete) (bool, error) {
 	const lockOrder = `
 		SELECT status, expected_amount_minor, currency, credited_attempt_id
 		FROM payment_order
@@ -266,7 +266,7 @@ func markOrderPaid(ctx context.Context, tx pgx.Tx, attempt dto.AttemptToComplete
 	return nil
 }
 
-func (r *PaymentOrderRepository) makeRefund(ctx context.Context, tx pgx.Tx, attemptID uuid.UUID, amount int64, reason string) error {
+func (r *PaymentRepository) makeRefund(ctx context.Context, tx pgx.Tx, attemptID uuid.UUID, amount int64, reason string) error {
 	const query = `
 		INSERT INTO refund (payment_attempt_id, amount_minor, kind, reason)
 		VALUES ($1, $2, 'excess_charge', $3)
@@ -286,7 +286,7 @@ func (r *PaymentOrderRepository) makeRefund(ctx context.Context, tx pgx.Tx, atte
 	return nil
 }
 
-func (r *PaymentOrderRepository) FailAttempt(ctx context.Context, orderID, attemptID uuid.UUID, reason string) error {
+func (r *PaymentRepository) FailAttempt(ctx context.Context, orderID, attemptID uuid.UUID, reason string) error {
 	const lockOrder = `SELECT status FROM payment_order WHERE id = $1 FOR UPDATE`
 	const hasActiveQuery = `
 		SELECT EXISTS (

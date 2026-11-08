@@ -7,21 +7,11 @@ import (
 	"log/slog"
 
 	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
-type PaymentAttemptRepository struct {
-	pool   postgres.DB
-	logger *slog.Logger
-}
-
-func NewPaymentAttemptRepository(db *postgres.DBClient, logger *slog.Logger) *PaymentAttemptRepository {
-	return &PaymentAttemptRepository{pool: db.Pool, logger: logger}
-}
-
-func (r *PaymentAttemptRepository) GetAttemptByID(ctx context.Context, id uuid.UUID) (*models.PaymentAttempt, error) {
+func (r *PaymentRepository) GetAttemptByID(ctx context.Context, id uuid.UUID) (*models.PaymentAttempt, error) {
 	const query = `
 		SELECT 
 			id, 

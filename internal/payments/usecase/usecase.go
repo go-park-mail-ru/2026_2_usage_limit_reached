@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/dto"
 	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/provider"
+	paymentProvider "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider"
 	"github.com/google/uuid"
 )
 
@@ -20,13 +20,11 @@ var (
 	ErrIdempotencyKeyReused = errors.New("request key conflict")
 )
 
-type PaymentOrderRepo interface {
+type PaymentRepo interface {
 	GetOrderByID(ctx context.Context, id uuid.UUID) (*models.PaymentOrder, error)
 	CompleteSuccessfulAttempt(ctx context.Context, attempt dto.AttemptToComplete) (bool, error)
 	FailAttempt(ctx context.Context, orderID, attemptID uuid.UUID, reason string) error
-}
 
-type PaymentAttemptRepo interface {
 	GetAttemptByID(ctx context.Context, id uuid.UUID) (*models.PaymentAttempt, error)
 }
 
@@ -49,22 +47,21 @@ func mapRepoError(op string, err error) error {
 }
 
 type PaymentUsecase struct {
-	orders   PaymentOrderRepo
-	attempts PaymentAttemptRepo
-	provider provider.Provider
+	repo            PaymentRepo
+	paymentProvider paymentProvider.Provider
 }
 
-func NewPaymentUsecase(orders PaymentOrderRepo, attempts PaymentAttemptRepo, provider provider.Provider) *PaymentUsecase {
-	return &PaymentUsecase{orders: orders, attempts: attempts, provider: provider}
+func NewPaymentUsecase(repo PaymentRepo, provider paymentProvider.Provider) *PaymentUsecase {
+	return &PaymentUsecase{repo: repo, paymentProvider: provider}
 }
 
 func (uc *PaymentUsecase) Pay(ctx context.Context, orderID, attemptID uuid.UUID) (models.PaymentOrderStatus, error) {
-	order, err := uc.orders.GetOrderByID(ctx, orderID)
+	order, err := uc.repo.GetOrderByID(ctx, orderID)
 	if err != nil {
 		return "", mapRepoError("get order", err)
 	}
 
-	attempt, err := uc.attempts.GetAttemptByID(ctx, attemptID)
+	attempt, err := uc.repo.GetAttemptByID(ctx, attemptID)
 	if err != nil {
 		return "", mapRepoError("get attempt", err)
 	}
@@ -79,7 +76,7 @@ func (uc *PaymentUsecase) Pay(ctx context.Context, orderID, attemptID uuid.UUID)
 		return order.Status, nil
 	}
 
-	res, err := uc.provider.Charge(ctx, provider.ChargeRequest{
+	res, err := uc.paymentProvider.Charge(ctx, paymentProvider.ChargeRequest{
 		AttemptID:   attemptID,
 		AmountMinor: order.ExpectedAmountMinor,
 		Currency:    order.Currency,
@@ -89,8 +86,8 @@ func (uc *PaymentUsecase) Pay(ctx context.Context, orderID, attemptID uuid.UUID)
 	}
 
 	switch res.Status {
-	case provider.ChargeSucceeded:
-		if _, err := uc.orders.CompleteSuccessfulAttempt(ctx, dto.AttemptToComplete{
+	case paymentProvider.ChargeSucceeded:
+		if _, err := uc.repo.CompleteSuccessfulAttempt(ctx, dto.AttemptToComplete{
 			ID:                    attemptID,
 			OrderID:               orderID,
 			ExternalTransactionID: res.ExternalID,
@@ -100,13 +97,13 @@ func (uc *PaymentUsecase) Pay(ctx context.Context, orderID, attemptID uuid.UUID)
 		}); err != nil {
 			return "", mapRepoError("complete attempt", err)
 		}
-	case provider.ChargeFailed:
-		if err := uc.orders.FailAttempt(ctx, orderID, attemptID, res.FailureReason); err != nil {
+	case paymentProvider.ChargeFailed:
+		if err := uc.repo.FailAttempt(ctx, orderID, attemptID, res.FailureReason); err != nil {
 			return "", mapRepoError("fail attempt", err)
 		}
 	}
 
-	final, err := uc.orders.GetOrderByID(ctx, orderID)
+	final, err := uc.repo.GetOrderByID(ctx, orderID)
 	if err != nil {
 		return "", mapRepoError("get order", err)
 	}

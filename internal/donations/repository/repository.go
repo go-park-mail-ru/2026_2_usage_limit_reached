@@ -167,7 +167,7 @@ func (r *DonationRepository) GetReceivedDonations(ctx context.Context, authorID 
 			po.status,
 			po.paid_at,
     		CASE WHEN d.is_anonymous THEN NULL ELSE u.username END AS donor_username,
-			CASE WHEN d.is_anonymous THEN NULL ELSE u.nickname END AS donot_nickname,
+			CASE WHEN d.is_anonymous THEN NULL ELSE u.nickname END AS donor_nickname,
     		CASE WHEN d.is_anonymous THEN NULL ELSE u.avatar_key END AS donor_avatar_key
 		FROM donation d
 		JOIN payment_order po ON po.id = d.payment_order_id

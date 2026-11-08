@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/sanitizer"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/models"
 	"github.com/google/uuid"
@@ -14,9 +15,15 @@ func (uc *PostUsecase) CreatePost(ctx context.Context, userID *uuid.UUID, p dto.
 	if userID == nil {
 		return uuid.Nil, fmt.Errorf("%s: %w", "create post", ErrUnauthorized)
 	}
+
+	body, err := sanitizeBody(p.Body)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("%s: %w", "create post", err)
+	}
+
 	post := models.Post{
 		Title:  p.Title,
-		Body:   p.Body,
+		Body:   body,
 		Status: p.Status,
 	}
 	postID, err := uc.repo.CreatePost(ctx, userID, post)
@@ -111,10 +118,16 @@ func (uc *PostUsecase) UpdatePost(ctx context.Context, userID *uuid.UUID, postID
 	if userID == nil {
 		return fmt.Errorf("%s: %w", "update post (unauthorized)", ErrNotFound)
 	}
+
+	body, err := sanitizeBody(p.Body)
+	if err != nil {
+		return fmt.Errorf("%s: %w", "update post", err)
+	}
+
 	post := models.Post{
 		ID:     postID,
 		Title:  p.Title,
-		Body:   p.Body,
+		Body:   body,
 		Status: p.Status,
 	}
 	if err := uc.repo.UpdatePost(ctx, userID, post, lastUpdatedAt); err != nil {
@@ -153,4 +166,17 @@ func (uc *PostUsecase) DeletePostLike(ctx context.Context, userID *uuid.UUID, po
 		return 0, err
 	}
 	return likes, nil
+}
+
+func sanitizeBody(body string) (string, error) {
+	clean, err := sanitizer.Sanitize(body)
+	if err != nil {
+		return "", fmt.Errorf("sanitize body: %w: %w", ErrValidation, err)
+	}
+
+	if !sanitizer.HasText(clean) {
+		return "", ErrValidation
+	}
+
+	return clean, nil
 }

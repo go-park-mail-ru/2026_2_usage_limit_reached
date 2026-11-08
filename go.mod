@@ -11,6 +11,7 @@ require (
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/spf13/viper v1.21.0
+	golang.org/x/net v0.60.0
 )
 
 require (

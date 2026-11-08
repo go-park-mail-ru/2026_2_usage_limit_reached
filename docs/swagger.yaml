@@ -314,6 +314,7 @@ paths:
         schema:
           enum:
           - new
+          - old
           - popular
           type: string
       - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
@@ -1292,3 +1293,57 @@ paths:
       summary: Получение публичного профиля пользователя
       tags:
       - profile
+  /users/{username}/posts:
+    get:
+      description: 'Возвращает опубликованные автора посты страницами. Авторизация
+        необязательна: для авторизованного пользователя заполняется liked_by_user.
+        У закрытых постов (locked = true) body_preview пустой. Чтобы получить следующую
+        страницу, передайте next_cursor из ответа в параметр cursor; значение null
+        означает, что страниц больше нет.'
+      parameters:
+      - description: Порядок сортировки
+        in: query
+        name: sort
+        required: true
+        schema:
+          enum:
+          - new
+          - old
+          - popular
+          type: string
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
+          не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostsPageResponse'
+          description: Страница постов
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный sort или cursor
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Лента постов автора
+      tags:
+      - posts

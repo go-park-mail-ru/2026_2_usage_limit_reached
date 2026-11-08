@@ -10,6 +10,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/dto"
 	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/util"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -54,7 +55,7 @@ func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UU
 		err := tx.QueryRow(ctx, insertOrder, payerID, req.RequestKey, req.AmountMinor, req.Currency).Scan(&orderID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			result, err = getExistingOrder(ctx, tx, req)
-			return err // do nothing on existing order
+			return err // ничего не делаем для существующего заказа
 		} else if err != nil {
 			err = postgres.ParseError(err)
 			if errors.Is(err, postgres.ErrFKViolation) {
@@ -139,7 +140,7 @@ func getExistingOrder(ctx context.Context, tx pgx.Tx, req *dto.CreateDonationReq
 	}
 
 	if authorID != req.AuthorID ||
-		!equalPtr(donation.Message, req.Message) ||
+		!util.EqualPtr(donation.Message, req.Message) ||
 		donation.AmountMinor != req.AmountMinor ||
 		donation.Currency != req.Currency ||
 		donation.IsAnonymous != req.IsAnonymous {
@@ -147,13 +148,6 @@ func getExistingOrder(ctx context.Context, tx pgx.Tx, req *dto.CreateDonationReq
 	}
 
 	return &donation, nil
-}
-
-func equalPtr(a, b *string) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return *a == *b
 }
 
 func (r *DonationRepository) GetReceivedDonations(ctx context.Context, authorID uuid.UUID, cursor *dto.DonationCursor, limit int) ([]*dto.GetDonationResponse, error) {

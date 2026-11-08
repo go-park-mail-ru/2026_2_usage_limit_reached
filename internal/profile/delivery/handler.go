@@ -103,11 +103,12 @@ func (h *ProfileHandler) GetByUsername(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Security CookieAuth
+// @Param X-CSRF-Token header string true "CSRF-токен из GET /csrf"
 // @Param request body dto.UpdateProfileRequest true "Новые данные профиля"
 // @Success 200 {object} dto.ProfileResponse "Профиль изменен"
 // @Failure 400 {object} response.ErrorResponse "Ошибка валидации"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
-// @Failure 403 {object} response.ErrorResponse "Пользователь не является автором, заблокирован или удалён"
+// @Failure 403 {object} response.ErrorResponse "Пользователь не является автором, заблокирован или удалён, либо неверный CSRF-токен или его отсутствие"
 // @Failure 404 {object} response.ErrorResponse "Пользователь не найден"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /profile/me [put]
@@ -145,10 +146,12 @@ func (h *ProfileHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 // @Accept mpfd
 // @Produce json
 // @Security CookieAuth
+// @Param X-CSRF-Token header string true "CSRF-токен из GET /csrf"
 // @Param avatar formData file true "Изображение аватара"
 // @Success 200 {object} dto.AvatarResponse "Аватар загружен"
 // @Failure 400 {object} response.ErrorResponse "Запрос не multipart/form-data или в нем нет файла"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 403 {object} response.ErrorResponse "Неверный CSRF-токен или его отсутствие"
 // @Failure 413 {object} response.ErrorResponse "Файл больше 5 МБ"
 // @Failure 404 {object} response.ErrorResponse "Пользователь не найден"
 // @Failure 415 {object} response.ErrorResponse "Неподдерживаемый формат изображения"
@@ -209,8 +212,10 @@ func readAvatar(w http.ResponseWriter, r *http.Request) (multipart.File, int64, 
 // @Description Удаляет текущий аватар. Если аватара нет, тоже возвращает 204
 // @Tags profile
 // @Security CookieAuth
+// @Param X-CSRF-Token header string true "CSRF-токен из GET /csrf"
 // @Success 204 "Аватар удален"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 403 {object} response.ErrorResponse "Неверный CSRF-токен или его отсутствие"
 // @Failure 404 {object} response.ErrorResponse "Пользователь не найден"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /profile/me/avatar [delete]

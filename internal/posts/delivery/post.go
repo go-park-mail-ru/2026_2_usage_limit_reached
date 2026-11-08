@@ -228,11 +228,12 @@ func (h *PostHandler) ViewPost(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Security CookieAuth
+// @Param X-CSRF-Token header string true "CSRF-токен из GET /csrf"
 // @Param request body dto.PostRequest true "Данные поста"
 // @Success 200 {object} dto.CreatePostResponse "ID созданного поста"
 // @Failure 400 {object} response.ErrorResponse "Ошибка валидации"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
-// @Failure 403 {object} response.ErrorResponse "Пользователь не является автором"
+// @Failure 403 {object} response.ErrorResponse "Пользователь не является автором, либо неверный CSRF-токен или его отсутствие"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /posts [post]
 func (h *PostHandler) NewPost(w http.ResponseWriter, r *http.Request) {
@@ -268,11 +269,13 @@ func (h *PostHandler) NewPost(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Security CookieAuth
+// @Param X-CSRF-Token header string true "CSRF-токен из GET /csrf"
 // @Param id path string true "ID поста" Format(uuid)
 // @Param request body dto.PostRequest true "Новые данные поста (last_updated_at обязателен)"
 // @Success 200 "Пост обновлён"
 // @Failure 400 {object} response.ErrorResponse "Ошибка валидации или не передан last_updated_at"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 403 {object} response.ErrorResponse "Неверный CSRF-токен или его отсутствие"
 // @Failure 404 {object} response.ErrorResponse "Пост не найден или недоступен"
 // @Failure 409 {object} response.ErrorResponse "Пост уже был изменён (устаревший last_updated_at)"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
@@ -317,10 +320,12 @@ func (h *PostHandler) EditPost(w http.ResponseWriter, r *http.Request) {
 // @Tags posts
 // @Produce json
 // @Security CookieAuth
+// @Param X-CSRF-Token header string true "CSRF-токен из GET /csrf"
 // @Param id path string true "ID поста" Format(uuid)
 // @Success 200 "Пост удалён"
 // @Failure 400 {object} response.ErrorResponse "Некорректный ID поста"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 403 {object} response.ErrorResponse "Неверный CSRF-токен или его отсутствие"
 // @Failure 404 {object} response.ErrorResponse "Пост не найден или принадлежит другому пользователю"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /posts/{id} [delete]
@@ -350,10 +355,12 @@ func (h *PostHandler) DeletePost(w http.ResponseWriter, r *http.Request) {
 // @Tags posts
 // @Produce json
 // @Security CookieAuth
+// @Param X-CSRF-Token header string true "CSRF-токен из GET /csrf"
 // @Param id path string true "ID поста" Format(uuid)
 // @Success 200 {object} dto.PostLikeResponse "Актуальное число лайков"
 // @Failure 400 {object} response.ErrorResponse "Некорректный ID поста"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 403 {object} response.ErrorResponse "Неверный CSRF-токен или его отсутствие"
 // @Failure 404 {object} response.ErrorResponse "Пост не найден или недоступен"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /posts/{id}/like [post]
@@ -380,10 +387,12 @@ func (h *PostHandler) LikePost(w http.ResponseWriter, r *http.Request) {
 // @Tags posts
 // @Produce json
 // @Security CookieAuth
+// @Param X-CSRF-Token header string true "CSRF-токен из GET /csrf"
 // @Param id path string true "ID поста" Format(uuid)
 // @Success 200 {object} dto.PostLikeResponse "Актуальное число лайков"
 // @Failure 400 {object} response.ErrorResponse "Некорректный ID поста"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 403 {object} response.ErrorResponse "Неверный CSRF-токен или его отсутствие"
 // @Failure 404 {object} response.ErrorResponse "Лайк не найден или пост недоступен"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /posts/{id}/like [delete]

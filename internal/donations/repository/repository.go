@@ -53,7 +53,7 @@ func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UU
 		var orderID uuid.UUID
 		err := tx.QueryRow(ctx, insertOrder, payerID, req.RequestKey, req.AmountMinor, req.Currency).Scan(&orderID)
 		if errors.Is(err, pgx.ErrNoRows) {
-			result, err = checkExistingOrder(ctx, tx, req)
+			result, err = getExistingOrder(ctx, tx, req)
 			return err // do nothing on existing order
 		} else if err != nil {
 			err = postgres.ParseError(err)
@@ -104,7 +104,7 @@ func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UU
 	return result, nil
 }
 
-func checkExistingOrder(ctx context.Context, tx pgx.Tx, req *dto.CreateDonationRequest) (*dto.SentDonation, error) {
+func getExistingOrder(ctx context.Context, tx pgx.Tx, req *dto.CreateDonationRequest) (*dto.SentDonation, error) {
 	const query = `
 		SELECT po.id, d.author_id, d.message, d.is_anonymous, 
 		po.expected_amount_minor, po.currency, po.status, d.created_at,

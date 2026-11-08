@@ -400,7 +400,7 @@ func changeAttemptStatus(ctx context.Context, tx pgx.Tx, orderID, attemptID uuid
 		if currentStatus == targetStatus {
 			switch targetStatus {
 			case models.AttemptStatusProcessing:
-				// do nothing on double processing
+				// ничего не делаем на повторный processing
 				return nil
 
 			case models.AttemptStatusFailed, models.AttemptStatusCanceled:

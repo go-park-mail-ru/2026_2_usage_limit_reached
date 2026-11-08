@@ -479,7 +479,7 @@ func (r *PostRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p mo
 				slog.String("actualAuthorID", id.String()),
 			)
 			return models.ErrPostNotFound
-		case !ts.Equal(lastUpdatedAt): // optimistic blocking
+		case !ts.Equal(lastUpdatedAt):
 			r.logger.WarnContext(ctx, "update post: conflict (optimistic lock)",
 				slog.String("op", "update post"),
 				slog.String("postID", p.ID.String()),
@@ -552,7 +552,7 @@ func (r *PostRepository) LikePost(ctx context.Context, userID *uuid.UUID, postID
 		err = tx.QueryRow(ctx, insertLike, postID, userID).Scan(&likeID)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
-			// do nothing on duplicate likes
+			// ничего не делаем при дупликате лайков
 			r.logger.DebugContext(ctx, "like post: duplicate like (no-op)",
 				slog.String("op", "like post"),
 				slog.String("postID", postID.String()),

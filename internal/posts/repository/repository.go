@@ -241,6 +241,172 @@ func (r *PostRepository) GetMyOldDrafts(ctx context.Context, userID *uuid.UUID, 
 	return posts, nil
 }
 
+func (r *PostRepository) GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+	const query = `
+		WITH page AS (
+			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview,
+			       p.published_at, p.likes_count,
+			       u.username, u.nickname, u.avatar_key
+			FROM post p
+			JOIN "user" u ON u.id = p.author_id
+			WHERE p.status = 'published'
+			  AND u.username = $2
+			  AND ($3::timestamptz IS NULL OR (p.published_at, p.id) < ($3::timestamptz, $4::uuid))
+			ORDER BY p.published_at DESC, p.id DESC
+			LIMIT $5
+		)
+		SELECT p.id, p.author_id, p.title, CASE WHEN l.locked THEN '' ELSE p.body_preview END AS body_preview,
+		       p.published_at, p.likes_count, p.username, p.nickname, p.avatar_key,
+		       l.locked,
+		       EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
+		FROM page p
+		LEFT JOIN post_access pa ON pa.post_id = p.id
+		CROSS JOIN LATERAL (
+			SELECT (pa.post_id IS NOT NULL AND p.author_id IS DISTINCT FROM $1) AS locked
+		) l
+		ORDER BY p.published_at DESC, p.id DESC
+	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get user new posts"),
+		slog.String("author_username", authorUsername),
+		slog.String("userID", uid(userID)),
+		slog.Int("limit", limit),
+		slog.Bool("hasCursor", cursor != nil),
+	)
+
+	var (
+		ts *time.Time
+		id *uuid.UUID
+	)
+	if cursor != nil {
+		ts, id = &cursor.PublishedOrUpdatedAt, &cursor.PostID
+	}
+
+	rows, err := r.pool.Query(ctx, query, userID, authorUsername, ts, id, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get user new posts error: %w", err)
+	}
+
+	posts, err := scanPosts(rows)
+	if err != nil {
+		return nil, fmt.Errorf("get user new posts error: %w", err)
+	}
+
+	return posts, nil
+}
+
+func (r *PostRepository) GetUserOldPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+	const query = `
+		WITH page AS (
+			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview,
+			       p.published_at, p.likes_count,
+			       u.username, u.nickname, u.avatar_key
+			FROM post p
+			JOIN "user" u ON u.id = p.author_id
+			WHERE p.status = 'published'
+			  AND u.username = $2
+			  AND ($3::timestamptz IS NULL OR (p.published_at, p.id) > ($3::timestamptz, $4::uuid))
+			ORDER BY p.published_at ASC, p.id ASC
+			LIMIT $5
+		)
+		SELECT p.id, p.author_id, p.title, CASE WHEN l.locked THEN '' ELSE p.body_preview END AS body_preview,
+		       p.published_at, p.likes_count, p.username, p.nickname, p.avatar_key,
+		       l.locked,
+		       EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
+		FROM page p
+		LEFT JOIN post_access pa ON pa.post_id = p.id
+		CROSS JOIN LATERAL (
+			SELECT (pa.post_id IS NOT NULL AND p.author_id IS DISTINCT FROM $1) AS locked
+		) l
+		ORDER BY p.published_at ASC, p.id ASC
+	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get user old posts"),
+		slog.String("author_username", authorUsername),
+		slog.String("userID", uid(userID)),
+		slog.Int("limit", limit),
+		slog.Bool("hasCursor", cursor != nil),
+	)
+
+	var (
+		ts *time.Time
+		id *uuid.UUID
+	)
+	if cursor != nil {
+		ts, id = &cursor.PublishedOrUpdatedAt, &cursor.PostID
+	}
+
+	rows, err := r.pool.Query(ctx, query, userID, authorUsername, ts, id, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get user old posts error: %w", err)
+	}
+
+	posts, err := scanPosts(rows)
+	if err != nil {
+		return nil, fmt.Errorf("get user old posts error: %w", err)
+	}
+
+	return posts, nil
+}
+
+func (r *PostRepository) GetUserPopularPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
+	const query = `
+		WITH page AS (
+			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview,
+			       p.published_at, p.likes_count,
+			       u.username, u.nickname, u.avatar_key
+			FROM post p
+			JOIN "user" u ON u.id = p.author_id
+			WHERE p.status = 'published'
+			  AND u.username = $2
+			  AND ($3::bigint IS NULL OR (p.likes_count, p.published_at, p.id) < ($3::bigint, $4::timestamptz, $5::uuid))
+			ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC
+			LIMIT $6
+		)
+		SELECT p.id, p.author_id, p.title, CASE WHEN l.locked THEN '' ELSE p.body_preview END AS body_preview,
+		       p.published_at, p.likes_count, p.username, p.nickname, p.avatar_key,
+		       l.locked,
+		       EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
+		FROM page p
+		LEFT JOIN post_access pa ON pa.post_id = p.id
+		CROSS JOIN LATERAL (
+			SELECT (pa.post_id IS NOT NULL AND p.author_id IS DISTINCT FROM $1) AS locked
+		) l
+		ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC
+	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get user popular posts"),
+		slog.String("author_username", authorUsername),
+		slog.String("userID", uid(userID)),
+		slog.Int("limit", limit),
+		slog.Bool("hasCursor", cursor != nil),
+	)
+
+	var (
+		likes *int64
+		ts    *time.Time
+		id    *uuid.UUID
+	)
+	if cursor != nil {
+		likes, ts, id = &cursor.Likes, &cursor.PublishedAt, &cursor.PostID
+	}
+
+	rows, err := r.pool.Query(ctx, query, userID, authorUsername, likes, ts, id, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get user popular posts error: %w", err)
+	}
+
+	posts, err := scanPosts(rows)
+	if err != nil {
+		return nil, fmt.Errorf("get user popular posts error: %w", err)
+	}
+
+	return posts, nil
+}
+
 func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (

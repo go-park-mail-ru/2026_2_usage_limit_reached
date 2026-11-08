@@ -15,6 +15,7 @@ import (
 	ProfileHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery"
 	ProfileRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/memory"
 	ProfileUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
@@ -28,7 +29,7 @@ import (
 // @description REST API для платформы публикации контента (аналог Patreon).
 // @securityDefinitions.apikey CookieAuth
 // @in cookie
-// @name token
+// @name __Host-token
 func main() {
 	var configPath string
 	flag.StringVar(&configPath, "config-file", config.DefaultConfigPath, "path to yaml config")
@@ -61,8 +62,11 @@ func main() {
 		log.Fatalf("validator initialization error: %v", err)
 	}
 	authHandler := AuthHandlers.NewHandler(uc, valid, appLogger)
+	csrfManager := csrf.NewManager(cfg.CSRF)
+	csrfHandler := AuthHandlers.NewCSRFHandler(csrfManager, appLogger)
 	authMiddleware := middleware.AuthMiddleware(tokens)
 	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(tokens)
+	csrfMiddleware := middleware.CSRFMiddleware(csrfManager)
 
 	profileUc := ProfileUsecase.NewProfileUsecase(uc, profileRepo)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, appLogger)
@@ -78,12 +82,13 @@ func main() {
 	)
 
 	public := r.NewRoute().Subrouter()
-	public.Use(optionalAuthMiddleware)
+	public.Use(optionalAuthMiddleware, csrfMiddleware)
 
 	private := r.NewRoute().Subrouter()
-	private.Use(authMiddleware)
+	private.Use(authMiddleware, csrfMiddleware)
 
 	authHandler.RegisterRoutes(public, private)
+	csrfHandler.RegisterRoutes(public)
 	profileHandler.RegisterRoutes(public, private)
 	postHandler.RegisterRoutes(public, private)
 

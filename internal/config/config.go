@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
@@ -21,6 +22,7 @@ type Config struct {
 	Log        logger.LoggerConfig        `mapstructure:"log"`
 	HTTP       httpserver.HTTPConfig      `mapstructure:"http"`
 	JWT        jwt.JWTConfig              `mapstructure:"jwt"`
+	CSRF       csrf.CSRFConfig            `mapstructure:"csrf"`
 	CORS       middleware.CORSConfig      `mapstructure:"cors"`
 	Validation validator.ValidationConfig `mapstructure:"validation"`
 }
@@ -40,6 +42,7 @@ func Load(path string) (*Config, error) {
 		Log:        logger.DefaultConfig(),
 		HTTP:       httpserver.DefaultConfig(),
 		JWT:        jwt.DefaultConfig(),
+		CSRF:       csrf.DefaultConfig(),
 		CORS:       middleware.DefaultCORSConfig(),
 		Validation: validator.DefaultConfig(),
 	}
@@ -52,6 +55,7 @@ func Load(path string) (*Config, error) {
 		cfg.Log.Validate(),
 		cfg.HTTP.Validate(),
 		cfg.JWT.Validate(),
+		cfg.CSRF.Validate(),
 		cfg.CORS.Validate(),
 		cfg.Validation.Validate(),
 	); err != nil {

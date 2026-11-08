@@ -21,6 +21,10 @@ jwt:
   # пример секрета
   secret: dev-secret-string-with-at-least-32-symbols
 
+csrf:
+  # пример секрета, должен отличаться от jwt.secret
+  secret: dev-csrf-secret-string-with-at-least-32-symbols
+
 cors:
   # обязательный параметр, дефолта у него нет
   allowed_origins:

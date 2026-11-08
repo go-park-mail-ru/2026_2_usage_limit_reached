@@ -55,6 +55,10 @@ type UserResponse struct {
 	UpdatedAt time.Time `json:"updated_at" example:"2025-06-15T14:30:45.123456789Z"`
 }
 
+type CSRFTokenResponse struct {
+	CSRFToken string `json:"csrf_token" example:"q3VtX2Jhc2U2NHVybF9zYWx0X2FuZF9obWFjX3NpZ25hdHVyZV9leGFtcGxlXzAx"`
+}
+
 type UserInfo struct {
 	ID        uuid.UUID
 	Email     string

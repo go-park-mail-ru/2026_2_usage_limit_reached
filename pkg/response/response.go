@@ -34,6 +34,10 @@ func ErrorForbidden(w http.ResponseWriter) {
 	write(w, http.StatusForbidden, ErrorResponse{Error: "forbidden"})
 }
 
+func ErrorCSRFFailed(w http.ResponseWriter) {
+	write(w, http.StatusForbidden, ErrorResponse{Error: "csrf_failed"})
+}
+
 func ErrorUserConflict(w http.ResponseWriter) {
 	write(w, http.StatusConflict, ErrorResponse{Error: "user already exist"})
 }

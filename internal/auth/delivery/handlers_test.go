@@ -111,8 +111,9 @@ func TestHandler_Register(t *testing.T) {
 			case tt.expectedStatus == http.StatusOK:
 				cookies := w.Result().Cookies()
 				require.Len(t, cookies, 1)
-				require.Equal(t, "token", cookies[0].Name)
+				require.Equal(t, "__Host-token", cookies[0].Name)
 				require.Equal(t, tt.expectedToken, cookies[0].Value)
+				require.True(t, cookies[0].Secure)
 			}
 		})
 	}
@@ -211,8 +212,9 @@ func TestHandler_Login(t *testing.T) {
 			case tt.expectedStatus == http.StatusOK:
 				cookies := w.Result().Cookies()
 				require.Len(t, cookies, 1)
-				require.Equal(t, "token", cookies[0].Name)
+				require.Equal(t, "__Host-token", cookies[0].Name)
 				require.Equal(t, tt.expectedToken, cookies[0].Value)
+				require.True(t, cookies[0].Secure)
 			}
 		})
 	}
@@ -233,8 +235,9 @@ func TestHandler_Logout(t *testing.T) {
 	require.Len(t, cookies, 1)
 
 	cookie := cookies[0]
-	require.Equal(t, "token", cookie.Name)
+	require.Equal(t, "__Host-token", cookie.Name)
 	require.Empty(t, cookie.Value)
+	require.True(t, cookie.Secure)
 	require.Equal(t, -1, cookie.MaxAge)
 }
 

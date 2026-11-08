@@ -10,6 +10,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 	"github.com/gorilla/mux"
 )
@@ -56,9 +57,10 @@ func (h *Handler) handleError(ctx context.Context, w http.ResponseWriter, handle
 
 func (h *Handler) setAuthCookie(w http.ResponseWriter, jwtToken string) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     "token",
+		Name:     jwt.CookieName,
 		Value:    jwtToken,
 		HttpOnly: true,
+		Secure:   true,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(h.uc.TokenTTL()),
@@ -68,9 +70,10 @@ func (h *Handler) setAuthCookie(w http.ResponseWriter, jwtToken string) {
 
 func (h *Handler) deleteAuthCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     "token",
+		Name:     jwt.CookieName,
 		Value:    "",
 		HttpOnly: true,
+		Secure:   true,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now(),

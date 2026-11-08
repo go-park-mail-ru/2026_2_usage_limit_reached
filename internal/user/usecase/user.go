@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/mediaurl"
 	"github.com/google/uuid"
 )
 
@@ -26,7 +27,7 @@ func (uc *Usecase) CreateUser(ctx context.Context, req dto.CreateUserRequest) (*
 		return nil, fmt.Errorf("create user: %w", err)
 	}
 
-	return dto.ToUserInfo(user), nil
+	return dto.ToUserInfo(user, mediaurl.PublicPtr(uc.avatarBasePath, user.AvatarKey)), nil
 }
 
 func (uc *Usecase) UpdateNickname(ctx context.Context, userID uuid.UUID, nickname string) (string, error) {
@@ -67,7 +68,7 @@ func (uc *Usecase) FindUserByID(ctx context.Context, userID uuid.UUID) (*dto.Use
 		return nil, fmt.Errorf("find user: %w", err)
 	}
 
-	return dto.ToUserInfo(user), nil
+	return dto.ToUserInfo(user, mediaurl.PublicPtr(uc.avatarBasePath, user.AvatarKey)), nil
 }
 
 func (uc *Usecase) FindCredentialsByLogin(ctx context.Context, login string) (*dto.UserCredentials, error) {
@@ -79,7 +80,7 @@ func (uc *Usecase) FindCredentialsByLogin(ctx context.Context, login string) (*d
 		return nil, fmt.Errorf("find user: %w", err)
 	}
 
-	return dto.ToUserCredentials(user), nil
+	return dto.ToUserCredentials(user, mediaurl.PublicPtr(uc.avatarBasePath, user.AvatarKey)), nil
 }
 
 func (uc *Usecase) findUserByLogin(ctx context.Context, login string) (*models.User, error) {

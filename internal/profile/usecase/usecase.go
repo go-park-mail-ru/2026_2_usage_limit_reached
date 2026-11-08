@@ -10,7 +10,6 @@ import (
 	"io"
 	"log/slog"
 	"path"
-	"strings"
 	"time"
 
 	authordto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/dto"
@@ -18,6 +17,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
 	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 	userusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/mediaurl"
 	"github.com/google/uuid"
 	_ "golang.org/x/image/webp"
 )
@@ -82,7 +82,7 @@ func NewProfileUsecase(users UserUsecase, authors AuthorUsecase, profiles Profil
 		authors:        authors,
 		profilesRepo:   profiles,
 		avatarStorage:  avatars,
-		avatarBasePath: strings.TrimSuffix(avatarBasePath, "/"),
+		avatarBasePath: avatarBasePath,
 		logger:         logger,
 	}
 }
@@ -93,7 +93,7 @@ func (uc *ProfileUsecase) GetMyProfile(ctx context.Context, userID uuid.UUID) (*
 		return nil, fmt.Errorf("get profile: %w", err)
 	}
 
-	return dto.ToProfileResponse(profile, uc.avatarURL(profile.AvatarKey)), nil
+	return dto.ToProfileResponse(profile, mediaurl.PublicPtr(uc.avatarBasePath, profile.AvatarKey)), nil
 }
 
 func (uc *ProfileUsecase) GetPublicProfile(ctx context.Context, username string) (*dto.PublicProfileResponse, error) {
@@ -109,7 +109,7 @@ func (uc *ProfileUsecase) GetPublicProfile(ctx context.Context, username string)
 		return nil, fmt.Errorf("get public profile: %w", ErrProfileNotFound)
 	}
 
-	return dto.ToPublicProfileResponse(profile, uc.avatarURL(profile.AvatarKey)), nil
+	return dto.ToPublicProfileResponse(profile, mediaurl.PublicPtr(uc.avatarBasePath, profile.AvatarKey)), nil
 }
 
 func (uc *ProfileUsecase) UpdateMyProfile(ctx context.Context, userID uuid.UUID, req dto.UpdateProfileRequest) (*dto.ProfileResponse, error) {
@@ -160,7 +160,7 @@ func (uc *ProfileUsecase) UpdateMyProfile(ctx context.Context, userID uuid.UUID,
 
 	profile.Nickname = nickname
 
-	return dto.ToProfileResponse(profile, uc.avatarURL(profile.AvatarKey)), nil
+	return dto.ToProfileResponse(profile, mediaurl.PublicPtr(uc.avatarBasePath, profile.AvatarKey)), nil
 }
 
 func (uc *ProfileUsecase) getActiveProfile(ctx context.Context, userID uuid.UUID) (*models.Profile, error) {
@@ -214,7 +214,7 @@ func (uc *ProfileUsecase) UploadAvatar(ctx context.Context, userID uuid.UUID, fi
 
 	uc.deleteOldAvatar(ctx, oldKey)
 
-	return uc.objectURL(key), nil
+	return mediaurl.Public(uc.avatarBasePath, key), nil
 }
 
 func (uc *ProfileUsecase) DeleteAvatar(ctx context.Context, userID uuid.UUID) error {
@@ -252,20 +252,6 @@ func (uc *ProfileUsecase) deleteOldAvatar(ctx context.Context, key *string) {
 			slog.String("error", err.Error()),
 		)
 	}
-}
-
-func (uc *ProfileUsecase) avatarURL(key *string) *string {
-	if key == nil {
-		return nil
-	}
-
-	u := uc.objectURL(*key)
-
-	return &u
-}
-
-func (uc *ProfileUsecase) objectURL(key string) string {
-	return uc.avatarBasePath + "/" + key
 }
 
 func (uc *ProfileUsecase) deleteAvatarObject(ctx context.Context, key string) error {

@@ -24,9 +24,10 @@ type Repository interface {
 }
 
 type Usecase struct {
-	repo Repository
+	repo           Repository
+	avatarBasePath string
 }
 
-func NewUsecase(r Repository) *Usecase {
-	return &Usecase{repo: r}
+func NewUsecase(r Repository, avatarBasePath string) *Usecase {
+	return &Usecase{repo: r, avatarBasePath: avatarBasePath}
 }

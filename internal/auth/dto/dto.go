@@ -19,9 +19,9 @@ func ToUserResponse(user *userdto.UserInfo) *UserResponse {
 	}
 
 	return &UserResponse{
-		Username: user.Username,
-		Nickname: user.Nickname,
-		// AvatarURL добавится после мерджа с веткой profile-avatar-upload
+		Username:  user.Username,
+		Nickname:  user.Nickname,
+		AvatarURL: user.AvatarURL,
 	}
 }
 

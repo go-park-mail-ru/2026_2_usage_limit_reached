@@ -65,7 +65,7 @@ func main() {
 	profileRepo := ProfileRepo.NewProfileRepository(postgresClient)
 	postRepo := PostRepo.NewPostRepository(postgresClient, appLogger)
 
-	userUc := UserUsecase.NewUsecase(userRepo)
+	userUc := UserUsecase.NewUsecase(userRepo, cfg.S3.PublicPath)
 	uc := usecase.NewUsecase(userUc, tokens)
 	valid, err := validator.NewValidator(cfg.Validation)
 	if err != nil {

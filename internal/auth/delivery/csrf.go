@@ -45,14 +45,14 @@ func (h *CSRFHandler) GetToken(w http.ResponseWriter, r *http.Request) {
 
 	binding, err := h.currentBinding(w, r)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "create csrf context error", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "create csrf context error", slog.String("handler", "csrf token"), slog.String("error", err.Error()))
 		response.ErrorInternal(w)
 		return
 	}
 
 	token, err := h.csrf.Token(binding)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "create csrf token error", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "create csrf token error", slog.String("handler", "csrf token"), slog.String("error", err.Error()))
 		response.ErrorInternal(w)
 		return
 	}

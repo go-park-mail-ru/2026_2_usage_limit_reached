@@ -12,8 +12,10 @@ import (
 )
 
 type (
-	getTimedPostsFunc   func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
-	getPopularPostsFunc func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
+	getTimedPostsFunc       func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
+	getPopularPostsFunc     func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
+	getUserTimedPostsFunc   func(ctx context.Context, userID *uuid.UUID, username string, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
+	getUserPopularPostsFunc func(ctx context.Context, userID *uuid.UUID, username string, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
 )
 
 func (uc *PostUsecase) CreatePost(ctx context.Context, userID *uuid.UUID, p dto.PostRequest) (uuid.UUID, error) {
@@ -117,6 +119,52 @@ func (uc *PostUsecase) GetPopularPosts(ctx context.Context, userID *uuid.UUID, c
 		return nil, mapRepoError("get popular posts", err)
 	}
 	return page, nil
+}
+
+func (uc *PostUsecase) GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error) {
+	page, err := uc.getUserTimedPosts(ctx, uc.repo.GetUserNewPosts, userID, authorUsername, cursor, limit)
+	if err != nil {
+		return nil, mapRepoError("get user new posts", err)
+	}
+	return page, nil
+}
+
+func (uc *PostUsecase) GetUserOldPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error) {
+	page, err := uc.getUserTimedPosts(ctx, uc.repo.GetUserOldPosts, userID, authorUsername, cursor, limit)
+	if err != nil {
+		return nil, mapRepoError("get user old posts", err)
+	}
+	return page, nil
+}
+
+func (uc *PostUsecase) GetUserPopularPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error) {
+	page, err := uc.getUserPopularPosts(ctx, uc.repo.GetUserPopularPosts, userID, authorUsername, cursor, limit)
+	if err != nil {
+		return nil, mapRepoError("get user popular posts", err)
+	}
+	return page, nil
+}
+
+func (uc *PostUsecase) getUserTimedPosts(ctx context.Context, method getUserTimedPostsFunc, userID *uuid.UUID, username string, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error) {
+	posts, err := method(ctx, userID, username, cursor, limit+1)
+	if err != nil {
+		return nil, err
+	}
+	page := feed.Paginate(posts, limit, func(p *dto.PostPreview) dto.TimedPostsCursor {
+		return dto.TimedPostsCursor{PublishedOrUpdatedAt: *p.PublishedOrUpdatedAt, PostID: p.ID}
+	})
+	return (*dto.TimedPostsPage)(page), nil
+}
+
+func (uc *PostUsecase) getUserPopularPosts(ctx context.Context, method getUserPopularPostsFunc, userID *uuid.UUID, username string, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error) {
+	posts, err := method(ctx, userID, username, cursor, limit+1)
+	if err != nil {
+		return nil, err
+	}
+	page := feed.Paginate(posts, limit, func(p *dto.PostPreview) dto.PopularPostsCursor {
+		return dto.PopularPostsCursor{Likes: p.LikesCount, PublishedAt: *p.PublishedOrUpdatedAt, PostID: p.ID}
+	})
+	return (*dto.PopularPostsPage)(page), nil
 }
 
 func (uc *PostUsecase) getTimedPosts(ctx context.Context, method getTimedPostsFunc, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error) {

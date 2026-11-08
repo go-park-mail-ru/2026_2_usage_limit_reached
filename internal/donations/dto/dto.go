@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -19,19 +20,20 @@ type CreateDonationRequest struct {
 }
 
 func (r CreateDonationRequest) Validate(v *validator.Validator) error {
-	var valError string
+	errs := make([]error, 0)
 	switch {
 	case r.Message != nil && !v.IsValidDonationMessage(*r.Message):
-		valError += "invalid message: "
+		errs = append(errs, fmt.Errorf("invalid message"))
 	case !v.IsValidPaymentAmountMinor(r.AmountMinor):
-		valError += "invalid amount: "
+		errs = append(errs, fmt.Errorf("invalid amount"))
 	case !v.IsValidPaymentCurrency(r.Currency):
-		valError += "invalid currency: "
+		errs = append(errs, fmt.Errorf("invalid currency"))
 	case !v.IsValidPaymentReqKey(r.RequestKey):
-		valError += "invalid request key: "
+		errs = append(errs, fmt.Errorf("invalid request key"))
 	}
-	if valError != "" {
-		return fmt.Errorf("%s%w", valError, validator.ErrValidation)
+	if len(errs) != 0 {
+		errs = append(errs, validator.ErrValidation)
+		return errors.Join(errs...)
 	}
 	return nil
 }

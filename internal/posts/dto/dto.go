@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,17 +18,18 @@ type PostRequest struct {
 }
 
 func (r PostRequest) Validate(v *validator.Validator) error {
-	var valError string
+	errs := make([]error, 0)
 	switch {
 	case !v.IsValidPostTitle(r.Title):
-		valError += "invalid title:"
+		errs = append(errs, fmt.Errorf("invalid title"))
 	case !v.IsValidPostBody(r.Body):
-		valError += "invalid body: "
+		errs = append(errs, fmt.Errorf("invalid body"))
 	case !v.IsValidPostStatus(r.Status):
-		valError += "invalid status: "
+		errs = append(errs, fmt.Errorf("invalid status"))
 	}
-	if valError != "" {
-		return fmt.Errorf("%s%w", valError, validator.ErrValidation)
+	if len(errs) != 0 {
+		errs = append(errs, validator.ErrValidation)
+		return errors.Join(errs...)
 	}
 	return nil
 }

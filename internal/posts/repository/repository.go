@@ -304,7 +304,7 @@ func (r *PostRepository) GetOldPosts(ctx context.Context, userID *uuid.UUID, cur
 		CROSS JOIN LATERAL (
 			SELECT (pa.post_id IS NOT NULL AND p.author_id IS DISTINCT FROM $1) AS locked
 		) l
-		ORDER BY p.published_at DESC, p.id DESC
+		ORDER BY p.published_at, p.id
 	`
 
 	r.logger.DebugContext(ctx, "executing query",

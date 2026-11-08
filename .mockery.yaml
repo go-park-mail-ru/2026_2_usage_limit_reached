@@ -1,0 +1,26 @@
+template: testify
+dir: "{{ .InterfaceDir }}/mock_{{ .InterfaceDir | dir | base }}_{{ .InterfaceDir | base }}"
+pkgname: "mock_{{ .InterfaceDir | dir | base }}_{{ .InterfaceDir | base }}"
+filename: "mock_{{ .InterfaceName | snakecase }}.go"
+packages:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase:
+    interfaces:
+      UserUsecase:
+      TokenManager:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery:
+    interfaces:
+      UseCase:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase:
+    interfaces:
+      UserUsecase:
+      AuthorUsecase:
+      ProfileRepository:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery:
+    interfaces:
+      ProfileUsecase:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/usecase:
+    interfaces:
+      Repository:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase:
+    interfaces:
+      Repository:

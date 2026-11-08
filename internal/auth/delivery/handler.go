@@ -39,10 +39,7 @@ func (h *Handler) RegisterRoutes(public *mux.Router, private *mux.Router) {
 }
 
 func (h *Handler) handleError(ctx context.Context, w http.ResponseWriter, handler string, logMessage string, err error) {
-	h.logger.ErrorContext(ctx, logMessage,
-		slog.String("handler", handler),
-		slog.String("error", err.Error()),
-	)
+	level := slog.LevelInfo
 	switch {
 	case errors.Is(err, usecase.ErrRegistrationFailed):
 		response.ErrorUserConflict(w)
@@ -51,8 +48,14 @@ func (h *Handler) handleError(ctx context.Context, w http.ResponseWriter, handle
 	case errors.Is(err, validator.ErrValidation):
 		response.ErrorBadRequest(w)
 	default:
+		level = slog.LevelError
 		response.ErrorInternal(w)
 	}
+
+	h.logger.Log(ctx, level, logMessage,
+		slog.String("handler", handler),
+		slog.String("error", err.Error()),
+	)
 }
 
 func (h *Handler) setAuthCookie(w http.ResponseWriter, jwtToken string) {

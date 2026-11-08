@@ -110,24 +110,6 @@ components:
           example: Мой первый пост
           type: string
       type: object
-    dto.PostResponse:
-      properties:
-        body:
-          example: smth in body
-          type: string
-        id:
-          example: 00000000-0000-4000-8000-000000000101
-          type: string
-        published_at:
-          example: "2026-09-01T12:00:00Z"
-          type: string
-        status:
-          example: published
-          type: string
-        title:
-          example: my title
-          type: string
-      type: object
     dto.PostsPageResponse:
       properties:
         items:
@@ -139,34 +121,52 @@ components:
           example: eyJraW5kIjoibmV3X3Bvc3RzIn0
           type: string
       type: object
-    dto.ProfilePostsResponse:
-      properties:
-        posts:
-          items:
-            $ref: '#/components/schemas/dto.PostResponse'
-          type: array
-          uniqueItems: false
-        user_id:
-          example: 00000000-0000-4000-8000-000000000001
-          type: string
-      type: object
     dto.ProfileResponse:
       properties:
         author:
           $ref: '#/components/schemas/internal_profile_dto.AuthorResponse'
+          description: Нет, если пользователь не автор
         user:
           $ref: '#/components/schemas/dto.ProfileUserResponse'
       type: object
     dto.ProfileUserResponse:
       properties:
-        avatar_key:
-          example: avatars/user-1.png
+        avatar_url:
+          description: Нет, если аватара нет
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
           type: string
         created_at:
           example: "2026-08-01T12:00:00Z"
           type: string
         email:
           example: user@example.com
+          type: string
+        id:
+          example: 00000000-0000-4000-8000-000000000001
+          type: string
+        nickname:
+          example: nickname_123
+          type: string
+        username:
+          example: username123
+          type: string
+      type: object
+    dto.PublicProfileResponse:
+      properties:
+        author:
+          $ref: '#/components/schemas/internal_profile_dto.AuthorResponse'
+          description: Нет, если пользователь не автор
+        user:
+          $ref: '#/components/schemas/dto.PublicProfileUserResponse'
+      type: object
+    dto.PublicProfileUserResponse:
+      properties:
+        avatar_url:
+          description: Нет, если аватара нет
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          type: string
+        created_at:
+          example: "2026-08-01T12:00:00Z"
           type: string
         id:
           example: 00000000-0000-4000-8000-000000000001
@@ -193,25 +193,22 @@ components:
           example: username123
           type: string
       type: object
-    dto.UserResponse:
+    dto.UpdateProfileRequest:
       properties:
-        avatar_key:
-          example: AKIAIOSFODNN7EXAMPLE
-          type: string
-        created_at:
-          example: "2025-06-15T14:30:45.123456789Z"
-          type: string
-        email:
-          example: user@example.com
-          type: string
+        author:
+          $ref: '#/components/schemas/internal_profile_dto.UpdateAuthorRequest'
+          description: Отправляет только автор. Если блока нет, данные автора не меняются
         nickname:
           example: nickname_123
           type: string
-        status:
-          example: active
+      type: object
+    dto.UserResponse:
+      properties:
+        avatar_url:
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
           type: string
-        updated_at:
-          example: "2025-06-15T14:30:45.123456789Z"
+        nickname:
+          example: nickname_123
           type: string
         username:
           example: username123
@@ -233,6 +230,15 @@ components:
           type: string
       type: object
     internal_profile_dto.AuthorResponse:
+      properties:
+        bio:
+          example: i am author
+          type: string
+        category:
+          example: Cars
+          type: string
+      type: object
+    internal_profile_dto.UpdateAuthorRequest:
       properties:
         bio:
           example: i am author
@@ -382,7 +388,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
-          description: Неверный логин или пароль
+          description: Неверный логин или пароль, либо аккаунт неактивен
         "403":
           content:
             application/json:
@@ -410,12 +416,6 @@ paths:
           type: string
       responses:
         "200":
-          content:
-            application/json:
-              schema:
-                additionalProperties:
-                  type: string
-                type: object
           description: Успешный выход из системы
           headers:
             Set-Cookie:
@@ -434,12 +434,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
           description: Неверный CSRF-токен или его отсутствие
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/response.ErrorResponse'
-          description: Внутренняя ошибка сервера
       security:
       - CookieAuth: []
       summary: Деавторизация пользователя
@@ -796,8 +790,8 @@ paths:
       - posts
   /profile/me:
     get:
-      description: Возвращает данные пользователя и информацию о том, является ли
-        он автором
+      description: Возвращает данные пользователя. Блок author есть только у автора,
+        avatar_url - только при наличии аватара
       responses:
         "200":
           content:
@@ -811,6 +805,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
           description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь заблокирован или удалён
         "404":
           content:
             application/json:
@@ -826,6 +826,68 @@ paths:
       security:
       - CookieAuth: []
       summary: Получение профиля текущего пользователя
+      tags:
+      - profile
+    put:
+      description: Сохраняет nickname и, если передан блок author, bio и category.
+        Если category нет или она null, категория очищается
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.UpdateProfileRequest'
+              description: Новые данные профиля
+              summary: request
+        description: Новые данные профиля
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.ProfileResponse'
+          description: Профиль изменен
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не является автором, заблокирован или удалён,
+            либо неверный CSRF-токен или его отсутствие
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Изменение профиля текущего пользователя
       tags:
       - profile
   /profile/me/drafts:
@@ -887,15 +949,45 @@ paths:
       - posts
   /profile/me/posts:
     get:
-      description: Возвращает посты текущего пользователя; если постов нет, возвращает
-        пустой список
+      description: Возвращает опубликованные посты авторизованного пользователя страницами.
+        Черновики доступны через /profile/me/drafts.
+      parameters:
+      - description: Порядок сортировки
+        in: query
+        name: sort
+        required: true
+        schema:
+          enum:
+          - new
+          - popular
+          type: string
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
+          не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/dto.ProfilePostsResponse'
-          description: Посты пользователя
+                $ref: '#/components/schemas/dto.PostsPageResponse'
+          description: Страница постов
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный sort или cursor
         "401":
           content:
             application/json:
@@ -910,9 +1002,9 @@ paths:
           description: Внутренняя ошибка сервера
       security:
       - CookieAuth: []
-      summary: Получение постов текущего пользователя
+      summary: Посты текущего пользователя
       tags:
-      - profile
+      - posts
   /signup:
     post:
       description: Принимает регистрационные данные, валидирует и создает новый аккаунт
@@ -939,6 +1031,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/dto.UserResponse'
           description: Пользователь успешно зарегистрирован
+          headers:
+            Set-Cookie:
+              description: __Host-token=JWT_TOKEN; Path=/; Secure; HttpOnly; SameSite=Lax
+              schema:
+                type: string
         "400":
           content:
             application/json:
@@ -967,3 +1064,36 @@ paths:
       summary: Регистрация пользователя
       tags:
       - auth
+  /users/{username}:
+    get:
+      description: Возвращает публичные данные пользователя без email. Блок author
+        есть только у автора, avatar_url - только при наличии аватара
+      parameters:
+      - description: Username пользователя
+        in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PublicProfileResponse'
+          description: Публичный профиль пользователя
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден, заблокирован или удалён
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Получение публичного профиля пользователя
+      tags:
+      - profile

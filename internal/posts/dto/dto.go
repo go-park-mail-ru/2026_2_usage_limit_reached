@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
 	"github.com/google/uuid"
 )
 
@@ -83,15 +84,10 @@ type PopularPostsCursor struct {
 	PostID      uuid.UUID `json:"post_id"`
 }
 
-type TimedPostsPage struct {
-	Items []*PostPreview
-	Next  *TimedPostsCursor
-}
-
-type PopularPostsPage struct {
-	Items []*PostPreview
-	Next  *PopularPostsCursor
-}
+type (
+	TimedPostsPage   feed.Page[*PostPreview, TimedPostsCursor]
+	PopularPostsPage feed.Page[*PostPreview, PopularPostsCursor]
+)
 
 type PostLikeResponse struct {
 	LikesCount  int64 `json:"likes_count" example:"13"`

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
 	"github.com/google/uuid"
 )
 
@@ -62,10 +63,7 @@ type DonationCursor struct {
 	DonationID      uuid.UUID `json:"donation_id"`
 }
 
-type DonationPage struct {
-	Items      []*GetDonationResponse
-	NextCursor *DonationCursor
-}
+type DonationPage feed.Page[*GetDonationResponse, DonationCursor]
 
 type DonationPageResponse struct {
 	Items      []*GetDonationResponse `json:"items"`

@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
 	"github.com/google/uuid"
 )
 
@@ -123,10 +124,10 @@ func (uc *PostUsecase) getTimedPosts(ctx context.Context, method getTimedPostsFu
 	if err != nil {
 		return nil, err
 	}
-	items, next := paginate(posts, limit, func(p *dto.PostPreview) dto.TimedPostsCursor {
+	page := feed.Paginate(posts, limit, func(p *dto.PostPreview) dto.TimedPostsCursor {
 		return dto.TimedPostsCursor{PublishedOrUpdatedAt: *p.PublishedOrUpdatedAt, PostID: p.ID}
 	})
-	return &dto.TimedPostsPage{Items: items, Next: next}, nil
+	return (*dto.TimedPostsPage)(page), nil
 }
 
 func (uc *PostUsecase) getPopularPosts(ctx context.Context, method getPopularPostsFunc, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error) {
@@ -134,19 +135,10 @@ func (uc *PostUsecase) getPopularPosts(ctx context.Context, method getPopularPos
 	if err != nil {
 		return nil, err
 	}
-	items, next := paginate(posts, limit, func(p *dto.PostPreview) dto.PopularPostsCursor {
+	page := feed.Paginate(posts, limit, func(p *dto.PostPreview) dto.PopularPostsCursor {
 		return dto.PopularPostsCursor{Likes: p.LikesCount, PublishedAt: *p.PublishedOrUpdatedAt, PostID: p.ID}
 	})
-	return &dto.PopularPostsPage{Items: items, Next: next}, nil
-}
-
-func paginate[C any](items []*dto.PostPreview, limit int, cursorOf func(*dto.PostPreview) C) ([]*dto.PostPreview, *C) {
-	if len(items) <= limit {
-		return items, nil
-	}
-	items = items[:limit]
-	next := cursorOf(items[limit-1])
-	return items, &next
+	return (*dto.PopularPostsPage)(page), nil
 }
 
 func (uc *PostUsecase) UpdatePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID, p dto.PostRequest, lastUpdatedAt time.Time) error {

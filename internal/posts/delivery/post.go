@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 	"github.com/google/uuid"
@@ -45,7 +45,7 @@ type (
 // @Router /feed [get]
 func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	limit := parseLimit(r.URL.Query().Get(limitField))
+	limit := feed.ParseLimit(r.URL.Query().Get(limitField), defaultLimit, maxLimit)
 	rawCursor := r.URL.Query().Get(cursorFiled)
 
 	var (
@@ -87,7 +87,7 @@ func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 // @Router /profile/me/posts [get]
 func (h *PostHandler) MyPosts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	limit := parseLimit(r.URL.Query().Get(limitField))
+	limit := feed.ParseLimit(r.URL.Query().Get(limitField), defaultLimit, maxLimit)
 	rawCursor := r.URL.Query().Get(cursorFiled)
 
 	var (
@@ -129,7 +129,7 @@ func (h *PostHandler) MyPosts(w http.ResponseWriter, r *http.Request) {
 // @Router /profile/me/drafts [get]
 func (h *PostHandler) MyDrafts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	limit := parseLimit(r.URL.Query().Get(limitField))
+	limit := feed.ParseLimit(r.URL.Query().Get(limitField), defaultLimit, maxLimit)
 	rawCursor := r.URL.Query().Get(cursorFiled)
 
 	var (
@@ -150,14 +150,6 @@ func (h *PostHandler) MyDrafts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.WriteJSON(w, http.StatusOK, resp)
-}
-
-func parseLimit(raw string) int {
-	limit, err := strconv.Atoi(raw)
-	if err != nil || limit <= 0 || limit > maxLimit {
-		return defaultLimit
-	}
-	return limit
 }
 
 func (h *PostHandler) feedTimed(

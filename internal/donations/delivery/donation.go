@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/cursor"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 	"github.com/google/uuid"
@@ -24,7 +24,7 @@ const (
 	maxLimit     = 50
 )
 
-type getDonsFunc func(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error)
+type getDonationsFunc func(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error)
 
 func (h *DonationHandler) SendDonation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -96,33 +96,25 @@ func (h *DonationHandler) GetMyReceivedDonations(w http.ResponseWriter, r *http.
 	response.WriteJSON(w, http.StatusOK, resp)
 }
 
-func (h *DonationHandler) getMyDonations(ctx context.Context, query url.Values, userID uuid.UUID, getDonations getDonsFunc) (dto.DonationPageResponse, error) {
-	limit := parseLimit(query.Get(limitField))
+func (h *DonationHandler) getMyDonations(ctx context.Context, query url.Values, userID uuid.UUID, getDonations getDonationsFunc) (*dto.DonationPageResponse, error) {
+	limit := feed.ParseLimit(query.Get(limitField), defaultLimit, maxLimit)
 	rawCursor := query.Get(cursorFiled)
 	cur, err := DonationsCursor.Decode(rawCursor)
 	if err != nil {
-		return dto.DonationPageResponse{}, fmt.Errorf("decode cursor error: %w: %w", validator.ErrValidation, err)
+		return nil, fmt.Errorf("decode cursor error: %w: %w", validator.ErrValidation, err)
 	}
 
 	page, err := getDonations(ctx, userID, cur, limit+1)
 	if err != nil {
-		return dto.DonationPageResponse{}, err
+		return nil, err
 	}
-	next, err := DonationsCursor.Encode(page.NextCursor)
+	next, err := DonationsCursor.Encode(page.Next)
 	if err != nil {
 		if errors.Is(err, cursor.ErrInvalidCursor) {
-			return dto.DonationPageResponse{}, fmt.Errorf("encode next cursor error: %w: %w", validator.ErrValidation, err)
+			return nil, fmt.Errorf("encode next cursor error: %w: %w", validator.ErrValidation, err)
 		}
-		return dto.DonationPageResponse{}, fmt.Errorf("encode next cursor error: %w", err)
+		return nil, fmt.Errorf("encode next cursor error: %w", err)
 	}
 
-	return dto.DonationPageResponse{Items: page.Items, NextCursor: next}, nil
-}
-
-func parseLimit(raw string) int {
-	limit, err := strconv.Atoi(raw)
-	if err != nil || limit <= 0 || limit > maxLimit {
-		return defaultLimit
-	}
-	return limit
+	return &dto.DonationPageResponse{Items: page.Items, NextCursor: next}, nil
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/models"
 	paymentmodels "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
 	paymentsusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
 	"github.com/google/uuid"
 )
 
@@ -94,7 +95,10 @@ func (uc *DonationUsecase) GetSentDonations(ctx context.Context, payerID uuid.UU
 	if err != nil {
 		return nil, mapRepoError("get sent donations", err)
 	}
-	return paginate(donations, limit), nil
+	page := feed.Paginate(donations, limit, func(d *dto.GetDonationResponse) dto.DonationCursor {
+		return dto.DonationCursor{CreatedOrPaidAt: d.CreatedOrPaidAt, DonationID: d.PaymentOrderID}
+	})
+	return (*dto.DonationPage)(page), nil
 }
 
 func (uc *DonationUsecase) GetReceivedDonations(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error) {
@@ -102,15 +106,8 @@ func (uc *DonationUsecase) GetReceivedDonations(ctx context.Context, payerID uui
 	if err != nil {
 		return nil, mapRepoError("get received donations", err)
 	}
-	return paginate(donations, limit), nil
-}
-
-func paginate(items []*dto.GetDonationResponse, limit int) *dto.DonationPage {
-	if len(items) <= limit {
-		return &dto.DonationPage{Items: items, NextCursor: nil}
-	}
-	items = items[:limit]
-	last := items[limit-1]
-	next := dto.DonationCursor{CreatedOrPaidAt: last.CreatedOrPaidAt, DonationID: last.PaymentOrderID}
-	return &dto.DonationPage{Items: items, NextCursor: &next}
+	page := feed.Paginate(donations, limit, func(d *dto.GetDonationResponse) dto.DonationCursor {
+		return dto.DonationCursor{CreatedOrPaidAt: d.CreatedOrPaidAt, DonationID: d.PaymentOrderID}
+	})
+	return (*dto.DonationPage)(page), nil
 }

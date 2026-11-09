@@ -18,11 +18,17 @@ import (
 type PostUsecase interface {
 	CreatePost(ctx context.Context, userID *uuid.UUID, p dto.PostRequest) (uuid.UUID, error)
 	GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error)
-	GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error)
+	GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
+	GetMyOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
 	GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)
-	GetMyDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error)
-	GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error)
+	GetMyNewDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
+	GetMyOldDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
+	GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
+	GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
 	GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)
+	GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
+	GetUserOldPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
+	GetUserPopularPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)
 	UpdatePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID, p dto.PostRequest, lastUpdatedAt time.Time) error
 	DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error
 
@@ -43,6 +49,7 @@ func NewHandler(uc PostUsecase, v *validator.Validator, logger *slog.Logger) *Po
 func (h *PostHandler) RegisterRoutes(public *mux.Router, private *mux.Router) {
 	public.HandleFunc("/feed", h.Feed).Methods(http.MethodGet, http.MethodOptions)
 	public.HandleFunc("/posts/{id}", h.ViewPost).Methods(http.MethodGet, http.MethodOptions)
+	public.HandleFunc("/users/{username}/posts", h.UserPosts).Methods(http.MethodGet, http.MethodOptions)
 
 	private.HandleFunc("/profile/me/posts", h.MyPosts).Methods(http.MethodGet, http.MethodOptions)
 	private.HandleFunc("/profile/me/drafts", h.MyDrafts).Methods(http.MethodGet, http.MethodOptions)
@@ -60,7 +67,7 @@ func (h *PostHandler) handleError(ctx context.Context, w http.ResponseWriter, ha
 	)
 	switch {
 	case errors.Is(err, postusecase.ErrConflict):
-		response.ErrorPostConflict(w)
+		response.ErrorConflict(w)
 	case errors.Is(err, postusecase.ErrForbidden):
 		response.ErrorForbidden(w)
 	case errors.Is(err, postusecase.ErrUnauthorized):

@@ -8,14 +8,14 @@ import (
 )
 
 const (
-	typeNewPosts     cursor.CursorType = "new_posts"
+	typeTimedPosts   cursor.CursorType = "timed_posts"
 	typePopularPosts cursor.CursorType = "popular_posts"
 )
 
 var (
-	NewPostsCursor = cursor.Codec[dto.NewPostsCursor]{
-		Kind: typeNewPosts,
-		Valid: func(c *dto.NewPostsCursor) bool {
+	TimedPostsCursor = cursor.Codec[dto.TimedPostsCursor]{
+		Kind: typeTimedPosts,
+		Valid: func(c *dto.TimedPostsCursor) bool {
 			return !c.PublishedOrUpdatedAt.IsZero() && c.PostID != uuid.Nil
 		},
 	}

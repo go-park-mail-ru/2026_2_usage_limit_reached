@@ -34,12 +34,8 @@ func ErrorForbidden(w http.ResponseWriter) {
 	write(w, http.StatusForbidden, ErrorResponse{Error: "forbidden"})
 }
 
-func ErrorUserConflict(w http.ResponseWriter) {
-	write(w, http.StatusConflict, ErrorResponse{Error: "user already exist"})
-}
-
-func ErrorPostConflict(w http.ResponseWriter) {
-	write(w, http.StatusConflict, ErrorResponse{Error: "post has already been changed"})
+func ErrorConflict(w http.ResponseWriter) {
+	write(w, http.StatusConflict, ErrorResponse{Error: "conflict"})
 }
 
 func ErrorNotFound(w http.ResponseWriter) {

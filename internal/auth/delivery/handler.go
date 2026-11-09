@@ -42,7 +42,7 @@ func (h *Handler) handleError(ctx context.Context, w http.ResponseWriter, handle
 	level := slog.LevelInfo
 	switch {
 	case errors.Is(err, usecase.ErrRegistrationFailed):
-		response.ErrorUserConflict(w)
+		response.ErrorConflict(w)
 	case errors.Is(err, usecase.ErrLoginFailed):
 		response.ErrorUnauthorized(w)
 	case errors.Is(err, validator.ErrValidation):

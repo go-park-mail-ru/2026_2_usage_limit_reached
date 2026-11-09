@@ -1,10 +1,12 @@
 package dto
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
 	"github.com/google/uuid"
 )
 
@@ -16,17 +18,18 @@ type PostRequest struct {
 }
 
 func (r PostRequest) Validate(v *validator.Validator) error {
-	var valError string
+	errs := make([]error, 0)
 	switch {
 	case !v.IsValidPostTitle(r.Title):
-		valError += "invalid title:"
+		errs = append(errs, fmt.Errorf("invalid title"))
 	case !v.IsValidPostBody(r.Body):
-		valError += "invalid body: "
+		errs = append(errs, fmt.Errorf("invalid body"))
 	case !v.IsValidPostStatus(r.Status):
-		valError += "invalid status: "
+		errs = append(errs, fmt.Errorf("invalid status"))
 	}
-	if valError != "" {
-		return fmt.Errorf("%s%w", valError, validator.ErrValidation)
+	if len(errs) != 0 {
+		errs = append(errs, validator.ErrValidation)
+		return errors.Join(errs...)
 	}
 	return nil
 }
@@ -39,7 +42,7 @@ type AuthorResponse struct {
 	ID        uuid.UUID `json:"id" example:"00000000-0000-4000-8000-000000000001"`
 	Username  string    `json:"username" example:"username123"`
 	Nickname  string    `json:"nickname" example:"nickname_123"`
-	AvatarKey *string   `json:"avatar_key" example:"avatars/user-1.png"`
+	AvatarUrl *string   `json:"avatar_url" example:"avatars/user-1.png"`
 }
 
 type PostInfo struct {
@@ -72,7 +75,7 @@ type PostsPageResponse struct {
 	NextCursor *string        `json:"next_cursor" example:"eyJraW5kIjoibmV3X3Bvc3RzIn0"`
 }
 
-type NewPostsCursor struct {
+type TimedPostsCursor struct {
 	PublishedOrUpdatedAt time.Time `json:"published_or_updated_at"`
 	PostID               uuid.UUID `json:"post_id"`
 }
@@ -83,15 +86,10 @@ type PopularPostsCursor struct {
 	PostID      uuid.UUID `json:"post_id"`
 }
 
-type NewPostsPage struct {
-	Items []*PostPreview
-	Next  *NewPostsCursor
-}
-
-type PopularPostsPage struct {
-	Items []*PostPreview
-	Next  *PopularPostsCursor
-}
+type (
+	TimedPostsPage   feed.Page[*PostPreview, TimedPostsCursor]
+	PopularPostsPage feed.Page[*PostPreview, PopularPostsCursor]
+)
 
 type PostLikeResponse struct {
 	LikesCount  int64 `json:"likes_count" example:"13"`

@@ -587,6 +587,9 @@ func scanPosts(rows pgx.Rows) ([]*dto.PostPreview, error) {
 		if err != nil {
 			return nil, err
 		}
+		if len([]rune(post.BodyPreview)) <= 200 {
+			post.BodyPreview += "..."
+		}
 		posts = append(posts, post)
 	}
 	if err := rows.Err(); err != nil {

@@ -9,6 +9,12 @@ import (
 	AuthorRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/repository"
 	AuthorUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
+	DonationHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/delivery"
+	DonationRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/repository"
+	DonationUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/usecase"
+	PaymentsRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/repository"
+	PaymentsUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase"
+	PaymentProvider "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider/mock"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	PostHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery"
 	PostRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/repository"
@@ -24,6 +30,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/s3"
 	"github.com/gorilla/mux"
 )
 
@@ -55,12 +62,19 @@ func main() {
 	}
 	defer postgresClient.Close()
 
+	s3Client, err := s3.NewClient(cfg.S3)
+	if err != nil {
+		log.Fatalf("s3 client initialization error: %v", err)
+	}
+
 	userRepo := UserRepo.NewUserRepository(postgresClient)
 	authorRepo := AuthorRepo.NewAuthorRepository(postgresClient)
 	profileRepo := ProfileRepo.NewProfileRepository(postgresClient)
 	postRepo := PostRepo.NewPostRepository(postgresClient, appLogger)
+	paymentRepo := PaymentsRepo.NewPaymentRepository(postgresClient, appLogger)
+	donationRepo := DonationRepo.NewDonationRepository(postgresClient, appLogger)
 
-	userUc := UserUsecase.NewUsecase(userRepo)
+	userUc := UserUsecase.NewUsecase(userRepo, cfg.S3.PublicPath)
 	uc := usecase.NewUsecase(userUc, tokens)
 	valid, err := validator.NewValidator(cfg.Validation)
 	if err != nil {
@@ -74,11 +88,17 @@ func main() {
 	csrfMiddleware := middleware.CSRFMiddleware(csrfManager)
 
 	authorUc := AuthorUsecase.NewUsecase(authorRepo)
-	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, profileRepo)
+	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, profileRepo, s3Client, cfg.S3.PublicPath, appLogger)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, valid, appLogger)
 
 	postUc := PostUsecase.NewPostUsecase(postRepo)
 	postHandler := PostHandlers.NewHandler(postUc, valid, appLogger)
+
+	provider := PaymentProvider.NewMockProvider()
+	paymentUc := PaymentsUsecase.NewPaymentUsecase(paymentRepo, provider)
+
+	donationUc := DonationUsecase.NewDonationUsecase(donationRepo, paymentUc)
+	donationHandler := DonationHandlers.NewHandler(donationUc, valid, appLogger)
 
 	r := mux.NewRouter()
 	r.Use(
@@ -97,6 +117,7 @@ func main() {
 	csrfHandler.RegisterRoutes(public)
 	profileHandler.RegisterRoutes(public, private)
 	postHandler.RegisterRoutes(public, private)
+	donationHandler.RegisterRoutes(private)
 
 	srv, err := httpserver.New(cfg.HTTP, appLogger)
 	if err != nil {

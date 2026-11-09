@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 	"github.com/google/uuid"
@@ -17,6 +17,7 @@ import (
 
 const (
 	sortByNew     = "new"
+	sortByOld     = "old"
 	sortByPopular = "popular"
 	sortField     = "sort"
 	limitField    = "limit"
@@ -25,15 +26,19 @@ const (
 	maxLimit      = 50
 )
 
-type getNewPostsFunc func(ctx context.Context, userID *uuid.UUID, cursor *dto.NewPostsCursor, limit int) (*dto.NewPostsPage, error)
-type getPopularPostsFunc func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)
+type (
+	getTimedPostsFunc       func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
+	getPopularPostsFunc     func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)
+	getUserTimedPostsFunc   func(ctx context.Context, userID *uuid.UUID, username string, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
+	getUserPopularPostsFunc func(ctx context.Context, userID *uuid.UUID, username string, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)
+)
 
 // Feed возвращает ленту опубликованных постов
 // @Summary Лента постов
 // @Description Возвращает опубликованные посты страницами. Авторизация необязательна: для авторизованного пользователя заполняется liked_by_user. У закрытых постов (locked = true) body_preview пустой. Чтобы получить следующую страницу, передайте next_cursor из ответа в параметр cursor; значение null означает, что страниц больше нет.
 // @Tags posts
 // @Produce json
-// @Param sort query string true "Порядок сортировки" Enums(new, popular)
+// @Param sort query string true "Порядок сортировки" Enums(new, old, popular)
 // @Param limit query int false "Размер страницы (значения вне диапазона 1-50 заменяются на 20)" default(20) minimum(1) maximum(50)
 // @Param cursor query string false "Курсор из next_cursor предыдущего ответа (для первой страницы не передаётся)"
 // @Success 200 {object} dto.PostsPageResponse "Страница постов"
@@ -42,18 +47,20 @@ type getPopularPostsFunc func(ctx context.Context, userID *uuid.UUID, cursor *dt
 // @Router /feed [get]
 func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	limit := parseLimit(r.URL.Query().Get(limitField))
+	limit := feed.ParseLimit(r.URL.Query().Get(limitField), defaultLimit, maxLimit)
 	rawCursor := r.URL.Query().Get(cursorFiled)
 
 	var (
-		resp dto.PostsPageResponse
+		resp *dto.PostsPageResponse
 		err  error
 	)
 	userID := h.getUserIDFromContext(ctx)
 	sort := r.URL.Query().Get(sortField)
 	switch sort {
 	case sortByNew:
-		resp, err = h.feedNew(ctx, userID, rawCursor, limit, h.uc.GetNewPosts)
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetNewPosts)
+	case sortByOld:
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetOldPosts)
 	case sortByPopular:
 		resp, err = h.feedPopular(ctx, userID, rawCursor, limit, h.uc.GetPopularPosts)
 	default:
@@ -64,6 +71,107 @@ func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.WriteJSON(w, http.StatusOK, resp)
+}
+
+// UserPosts возвращает ленту опубликованных постов конкретного автора
+// @Summary Лента постов автора
+// @Description Возвращает опубликованные автора посты страницами. Авторизация необязательна: для авторизованного пользователя заполняется liked_by_user. У закрытых постов (locked = true) body_preview пустой. Чтобы получить следующую страницу, передайте next_cursor из ответа в параметр cursor; значение null означает, что страниц больше нет.
+// @Tags posts
+// @Produce json
+// @Param sort query string true "Порядок сортировки" Enums(new, old, popular)
+// @Param limit query int false "Размер страницы (значения вне диапазона 1-50 заменяются на 20)" default(20) minimum(1) maximum(50)
+// @Param cursor query string false "Курсор из next_cursor предыдущего ответа (для первой страницы не передаётся)"
+// @Success 200 {object} dto.PostsPageResponse "Страница постов"
+// @Failure 400 {object} response.ErrorResponse "Неверный sort или cursor"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /users/{username}/posts [get]
+func (h *PostHandler) UserPosts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	username := mux.Vars(r)["username"]
+	if username == "" {
+		h.handleError(ctx, w, "user posts", "username is required", validator.ErrValidation)
+		return
+	}
+
+	limit := feed.ParseLimit(r.URL.Query().Get("limit"), defaultLimit, maxLimit)
+	rawCursor := r.URL.Query().Get("cursor")
+
+	var (
+		resp *dto.PostsPageResponse
+		err  error
+	)
+	userID := h.getUserIDFromContext(ctx)
+	sort := r.URL.Query().Get(sortField)
+	switch sort {
+	case sortByNew:
+		resp, err = h.userPostsTimed(ctx, userID, username, rawCursor, limit, h.uc.GetUserNewPosts)
+	case sortByOld:
+		resp, err = h.userPostsTimed(ctx, userID, username, rawCursor, limit, h.uc.GetUserOldPosts)
+	case sortByPopular:
+		resp, err = h.userPostsPopular(ctx, userID, username, rawCursor, limit, h.uc.GetUserPopularPosts)
+	default:
+		err = validator.ErrValidation
+	}
+
+	if err != nil {
+		h.handleError(ctx, w, "user posts", "get user posts", err)
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (h *PostHandler) userPostsTimed(
+	ctx context.Context,
+	userID *uuid.UUID,
+	username string,
+	rawCursor string,
+	limit int,
+	method getUserTimedPostsFunc,
+) (*dto.PostsPageResponse, error) {
+	cur, err := TimedPostsCursor.Decode(rawCursor)
+	if err != nil {
+		return nil, fmt.Errorf("decode cursor: %w: %w", validator.ErrValidation, err)
+	}
+
+	page, err := method(ctx, userID, username, cur, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	next, err := TimedPostsCursor.Encode(page.Next)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.PostsPageResponse{Items: page.Items, NextCursor: next}, nil
+}
+
+func (h *PostHandler) userPostsPopular(
+	ctx context.Context,
+	userID *uuid.UUID,
+	username string,
+	rawCursor string,
+	limit int,
+	method getUserPopularPostsFunc,
+) (*dto.PostsPageResponse, error) {
+	cur, err := PopularPostsCursor.Decode(rawCursor)
+	if err != nil {
+		return nil, fmt.Errorf("decode cursor: %w: %w", validator.ErrValidation, err)
+	}
+
+	page, err := method(ctx, userID, username, cur, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	next, err := PopularPostsCursor.Encode(page.Next)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.PostsPageResponse{Items: page.Items, NextCursor: next}, nil
 }
 
 // MyPosts возвращает посты текущего пользователя
@@ -82,18 +190,20 @@ func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 // @Router /profile/me/posts [get]
 func (h *PostHandler) MyPosts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	limit := parseLimit(r.URL.Query().Get(limitField))
+	limit := feed.ParseLimit(r.URL.Query().Get(limitField), defaultLimit, maxLimit)
 	rawCursor := r.URL.Query().Get(cursorFiled)
 
 	var (
-		resp dto.PostsPageResponse
+		resp *dto.PostsPageResponse
 		err  error
 	)
 	userID := h.getUserIDFromContext(ctx)
 	sort := r.URL.Query().Get(sortField)
 	switch sort {
 	case sortByNew:
-		resp, err = h.feedNew(ctx, userID, rawCursor, limit, h.uc.GetMyNewPosts)
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetMyNewPosts)
+	case sortByOld:
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetMyOldPosts)
 	case sortByPopular:
 		resp, err = h.feedPopular(ctx, userID, rawCursor, limit, h.uc.GetMyPopularPosts)
 	default:
@@ -122,19 +232,21 @@ func (h *PostHandler) MyPosts(w http.ResponseWriter, r *http.Request) {
 // @Router /profile/me/drafts [get]
 func (h *PostHandler) MyDrafts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	limit := parseLimit(r.URL.Query().Get(limitField))
+	limit := feed.ParseLimit(r.URL.Query().Get(limitField), defaultLimit, maxLimit)
 	rawCursor := r.URL.Query().Get(cursorFiled)
 
 	var (
-		resp dto.PostsPageResponse
+		resp *dto.PostsPageResponse
 		err  error
 	)
 	userID := h.getUserIDFromContext(ctx)
 	switch r.URL.Query().Get(sortField) {
 	case sortByNew:
-		resp, err = h.feedNew(ctx, userID, rawCursor, limit, h.uc.GetMyDrafts)
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetMyNewDrafts)
+	case sortByOld:
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetMyOldDrafts)
 	default:
-		err = validator.ErrValidation
+		err = fmt.Errorf("invalid sort field: %w", validator.ErrValidation)
 	}
 	if err != nil {
 		h.handleError(ctx, w, "my drafts", "get my drafts", err)
@@ -143,53 +255,45 @@ func (h *PostHandler) MyDrafts(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, http.StatusOK, resp)
 }
 
-func parseLimit(raw string) int {
-	limit, err := strconv.Atoi(raw)
-	if err != nil || limit <= 0 || limit > maxLimit {
-		return defaultLimit
-	}
-	return limit
-}
-
-func (h *PostHandler) feedNew(
+func (h *PostHandler) feedTimed(
 	ctx context.Context,
 	userID *uuid.UUID,
 	rawCursor string,
 	limit int,
-	getNewPosts getNewPostsFunc) (dto.PostsPageResponse, error) {
-	cur, err := NewPostsCursor.Decode(rawCursor)
+	getTimedPosts getTimedPostsFunc) (*dto.PostsPageResponse, error) {
+	cur, err := TimedPostsCursor.Decode(rawCursor)
 	if err != nil {
-		return dto.PostsPageResponse{}, fmt.Errorf("decode cursor: %w: %w", validator.ErrValidation, err)
+		return nil, fmt.Errorf("decode cursor: %w: %w", validator.ErrValidation, err)
 	}
-	page, err := getNewPosts(ctx, userID, cur, limit)
+	page, err := getTimedPosts(ctx, userID, cur, limit)
 	if err != nil {
-		return dto.PostsPageResponse{}, err
+		return nil, err
 	}
-	next, err := NewPostsCursor.Encode(page.Next)
+	next, err := TimedPostsCursor.Encode(page.Next)
 	if err != nil {
-		return dto.PostsPageResponse{}, err
+		return nil, err
 	}
-	return dto.PostsPageResponse{Items: page.Items, NextCursor: next}, nil
+	return &dto.PostsPageResponse{Items: page.Items, NextCursor: next}, nil
 }
 
 func (h *PostHandler) feedPopular(ctx context.Context,
 	userID *uuid.UUID,
 	rawCursor string,
 	limit int,
-	getPopularPosts getPopularPostsFunc) (dto.PostsPageResponse, error) {
+	getPopularPosts getPopularPostsFunc) (*dto.PostsPageResponse, error) {
 	cur, err := PopularPostsCursor.Decode(rawCursor)
 	if err != nil {
-		return dto.PostsPageResponse{}, fmt.Errorf("decode cursor: %w: %w", validator.ErrValidation, err)
+		return nil, fmt.Errorf("decode cursor: %w: %w", validator.ErrValidation, err)
 	}
 	page, err := getPopularPosts(ctx, userID, cur, limit)
 	if err != nil {
-		return dto.PostsPageResponse{}, err
+		return nil, err
 	}
 	next, err := PopularPostsCursor.Encode(page.Next)
 	if err != nil {
-		return dto.PostsPageResponse{}, err
+		return nil, err
 	}
-	return dto.PostsPageResponse{Items: page.Items, NextCursor: next}, nil
+	return &dto.PostsPageResponse{Items: page.Items, NextCursor: next}, nil
 }
 
 // ViewPost возвращает пост целиком
@@ -275,7 +379,7 @@ func (h *PostHandler) NewPost(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} response.ErrorResponse "Ошибка валидации или не передан last_updated_at"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
 // @Failure 403 {object} response.ErrorResponse "Пост принадлежит другому пользователю, либо неверный CSRF-токен или его отсутствие"
-// @Failure 404 {object} response.ErrorResponse "Пост не найден"
+// @Failure 404 {object} response.ErrorResponse "Пост не найден или недоступен"
 // @Failure 409 {object} response.ErrorResponse "Пост уже был изменён (устаревший last_updated_at)"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /posts/{id} [put]
@@ -392,6 +496,7 @@ func (h *PostHandler) LikePost(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} response.ErrorResponse "Некорректный ID поста"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
 // @Failure 403 {object} response.ErrorResponse "Неверный CSRF-токен или его отсутствие"
+// @Failure 404 {object} response.ErrorResponse "Лайк не найден или пост недоступен"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /posts/{id}/like [delete]
 func (h *PostHandler) UnlikePost(w http.ResponseWriter, r *http.Request) {
@@ -419,7 +524,8 @@ func (h *PostHandler) getUserIDFromContext(ctx context.Context) *uuid.UUID {
 	if user == nil {
 		return nil
 	}
-	return (*uuid.UUID)(user.UserID[:])
+	id := user.UserID
+	return &id
 }
 
 func getPostID(r *http.Request) (uuid.UUID, error) {
@@ -428,11 +534,4 @@ func getPostID(r *http.Request) (uuid.UUID, error) {
 		return uuid.Nil, err
 	}
 	return id, nil
-}
-
-func uid(id *uuid.UUID) string {
-	if id == nil {
-		return "-"
-	}
-	return id.String()
 }

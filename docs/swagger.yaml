@@ -1,5 +1,11 @@
 components:
   schemas:
+    dto.AvatarResponse:
+      properties:
+        avatar_url:
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          type: string
+      type: object
     dto.CSRFTokenResponse:
       properties:
         csrf_token:
@@ -216,7 +222,7 @@ components:
       type: object
     internal_posts_dto.AuthorResponse:
       properties:
-        avatar_key:
+        avatar_url:
           example: avatars/user-1.png
           type: string
         id:
@@ -308,6 +314,7 @@ paths:
         schema:
           enum:
           - new
+          - old
           - popular
           type: string
       - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
@@ -656,7 +663,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
-          description: Пост не найден
+          description: Пост не найден или недоступен
         "409":
           content:
             application/json:
@@ -717,6 +724,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
           description: Неверный CSRF-токен или его отсутствие
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Лайк не найден или пост недоступен
         "500":
           content:
             application/json:
@@ -888,6 +901,100 @@ paths:
       security:
       - CookieAuth: []
       summary: Изменение профиля текущего пользователя
+      tags:
+      - profile
+  /profile/me/avatar:
+    delete:
+      description: Удаляет текущий аватар. Если аватара нет, тоже возвращает 204
+      responses:
+        "204":
+          description: Аватар удален
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Удаление аватара текущего пользователя
+      tags:
+      - profile
+    put:
+      description: Принимает изображение jpeg, png или webp до 5 МБ в поле avatar
+        и заменяет им текущий аватар. Формат определяется по содержимому файла
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                avatar:
+                  description: Изображение аватара
+                  format: binary
+                  type: string
+              required:
+              - avatar
+              type: object
+        description: Изображение аватара
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.AvatarResponse'
+          description: Аватар загружен
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Запрос не multipart/form-data или в нем нет файла
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Файл больше 5 МБ
+        "415":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неподдерживаемый формат изображения
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Загрузка аватара текущего пользователя
       tags:
       - profile
   /profile/me/drafts:
@@ -1097,3 +1204,57 @@ paths:
       summary: Получение публичного профиля пользователя
       tags:
       - profile
+  /users/{username}/posts:
+    get:
+      description: 'Возвращает опубликованные автора посты страницами. Авторизация
+        необязательна: для авторизованного пользователя заполняется liked_by_user.
+        У закрытых постов (locked = true) body_preview пустой. Чтобы получить следующую
+        страницу, передайте next_cursor из ответа в параметр cursor; значение null
+        означает, что страниц больше нет.'
+      parameters:
+      - description: Порядок сортировки
+        in: query
+        name: sort
+        required: true
+        schema:
+          enum:
+          - new
+          - old
+          - popular
+          type: string
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
+          не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostsPageResponse'
+          description: Страница постов
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный sort или cursor
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Лента постов автора
+      tags:
+      - posts

@@ -59,9 +59,10 @@ type PostRepository interface {
 }
 
 type PostUsecase struct {
-	repo PostRepository
+	repo           PostRepository
+	avatarBasePath string
 }
 
-func NewPostUsecase(r PostRepository) *PostUsecase {
-	return &PostUsecase{repo: r}
+func NewPostUsecase(r PostRepository, avatarBasePath string) *PostUsecase {
+	return &PostUsecase{repo: r, avatarBasePath: avatarBasePath}
 }

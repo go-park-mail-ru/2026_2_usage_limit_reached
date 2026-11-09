@@ -87,7 +87,7 @@ func main() {
 	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, profileRepo, s3Client, cfg.S3.PublicPath, appLogger)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, valid, appLogger)
 
-	postUc := PostUsecase.NewPostUsecase(postRepo)
+	postUc := PostUsecase.NewPostUsecase(postRepo, cfg.S3.PublicPath)
 	postHandler := PostHandlers.NewHandler(postUc, valid, appLogger)
 
 	provider := PaymentProvider.NewMockProvider()

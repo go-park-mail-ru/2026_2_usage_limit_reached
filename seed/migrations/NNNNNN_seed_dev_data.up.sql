@@ -81,9 +81,9 @@ Keyset-пагинация запоминает последнюю строку �
 Припев пока не придумал, думаю про тему возвращения домой.', 'draft', NULL, '2026-11-06 21:40:00+03', '2026-11-06 23:40:00+03');
 
 -- Закрытые посты: доступ только по подписке
-INSERT INTO post_access (post_id, subscription_type_id) VALUES
-  ('386117b2-a107-57c8-bdd6-caa5f9866775', '6a394c25-9dfe-51f6-abab-a59eae31b724'),
-  ('34a6c8b8-cb6f-54f1-bd19-7aac06c4f7bb', '8e21101c-6c49-5fd9-b9ea-70f1df168b1d');
+-- INSERT INTO post_access (post_id, subscription_type_id) VALUES
+--   ('386117b2-a107-57c8-bdd6-caa5f9866775', '6a394c25-9dfe-51f6-abab-a59eae31b724'),
+--   ('34a6c8b8-cb6f-54f1-bd19-7aac06c4f7bb', '8e21101c-6c49-5fd9-b9ea-70f1df168b1d');
 
 -- Лайки
 INSERT INTO post_like (id, post_id, user_id, created_at) VALUES

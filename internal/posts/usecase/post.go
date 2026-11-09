@@ -9,6 +9,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/mediaurl"
 	"github.com/google/uuid"
 )
 
@@ -43,6 +44,7 @@ func (uc *PostUsecase) CreatePost(ctx context.Context, userID *uuid.UUID, p dto.
 
 func (uc *PostUsecase) GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error) {
 	post, err := uc.repo.GetPost(ctx, userID, postID)
+	post.Author.AvatarUrl = mediaurl.PublicPtr(uc.avatarBasePath, post.Author.AvatarUrl)
 	if err != nil {
 		return nil, mapRepoError("get post", err)
 	}
@@ -179,6 +181,9 @@ func (uc *PostUsecase) getTimedPosts(ctx context.Context, method getTimedPostsFu
 	if err != nil {
 		return nil, err
 	}
+	for i := range posts {
+		posts[i].Author.AvatarUrl = mediaurl.PublicPtr(uc.avatarBasePath, posts[i].Author.AvatarUrl)
+	}
 	page := feed.Paginate(posts, limit, func(p *dto.PostPreview) dto.TimedPostsCursor {
 		return dto.TimedPostsCursor{PublishedOrUpdatedAt: *p.PublishedOrUpdatedAt, PostID: p.ID}
 	})
@@ -189,6 +194,9 @@ func (uc *PostUsecase) getPopularPosts(ctx context.Context, method getPopularPos
 	posts, err := method(ctx, userID, cursor, limit+1)
 	if err != nil {
 		return nil, err
+	}
+	for i := range posts {
+		posts[i].Author.AvatarUrl = mediaurl.PublicPtr(uc.avatarBasePath, posts[i].Author.AvatarUrl)
 	}
 	page := feed.Paginate(posts, limit, func(p *dto.PostPreview) dto.PopularPostsCursor {
 		return dto.PopularPostsCursor{Likes: p.LikesCount, PublishedAt: *p.PublishedOrUpdatedAt, PostID: p.ID}

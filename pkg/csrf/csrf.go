@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
@@ -16,8 +17,11 @@ const (
 	authBindingPrefix = "auth:"
 	anonBindingPrefix = "anon:"
 
+	contextMACPrefix = "ctx:"
+
 	minSecretLen = 32
-	contextSize  = 32
+	nonceSize    = 32
+	expirySize   = 8
 	saltSize     = 16
 )
 
@@ -71,24 +75,6 @@ type BindingInput struct {
 	AnonContext  string
 }
 
-func Binding(in BindingInput) (string, bool) {
-	if in.SessionToken != "" {
-		return AuthBinding(in.SessionToken), true
-	}
-
-	if IsValidContext(in.AnonContext) {
-		return AnonBinding(in.AnonContext), true
-	}
-
-	return "", false
-}
-
-func IsValidContext(csrfContext string) bool {
-	raw, err := encoding.DecodeString(csrfContext)
-
-	return err == nil && len(raw) == contextSize
-}
-
 type Manager struct {
 	secret     []byte
 	contextTTL time.Duration
@@ -102,17 +88,57 @@ func (m *Manager) ContextTTL() time.Duration {
 	return m.contextTTL
 }
 
+// Анонимный контекст: nonce (32 байта) | срок действия (unix-секунды, 8 байт) | HMAC(nonce | срок).
 func (m *Manager) NewContext() (string, error) {
-	raw := make([]byte, contextSize)
-	if _, err := rand.Read(raw); err != nil {
+	raw := make([]byte, nonceSize+expirySize, nonceSize+expirySize+sha256.Size)
+	if _, err := rand.Read(raw[:nonceSize]); err != nil {
 		return "", fmt.Errorf("csrf new context: %w", err)
 	}
 
-	return encoding.EncodeToString(raw), nil
+	expiresAt := time.Now().Add(m.contextTTL).Unix()
+	binary.BigEndian.PutUint64(raw[nonceSize:], uint64(expiresAt))
+
+	return encoding.EncodeToString(append(raw, m.signContext(raw)...)), nil
+}
+
+func (m *Manager) IsValidContext(csrfContext string) bool {
+	raw, err := encoding.DecodeString(csrfContext)
+	if err != nil || len(raw) != nonceSize+expirySize+sha256.Size {
+		return false
+	}
+
+	payload, signature := raw[:nonceSize+expirySize], raw[nonceSize+expirySize:]
+	if !hmac.Equal(signature, m.signContext(payload)) {
+		return false
+	}
+
+	expiresAt := int64(binary.BigEndian.Uint64(payload[nonceSize:]))
+
+	return time.Now().Unix() < expiresAt
+}
+
+func (m *Manager) signContext(payload []byte) []byte {
+	mac := hmac.New(sha256.New, m.secret)
+	mac.Write([]byte(contextMACPrefix))
+	mac.Write(payload)
+
+	return mac.Sum(nil)
+}
+
+func (m *Manager) Binding(in BindingInput) (string, bool) {
+	if in.SessionToken != "" {
+		return AuthBinding(in.SessionToken), true
+	}
+
+	if m.IsValidContext(in.AnonContext) {
+		return AnonBinding(in.AnonContext), true
+	}
+
+	return "", false
 }
 
 func (m *Manager) Resolve(in BindingInput) (string, string, error) {
-	if binding, ok := Binding(in); ok {
+	if binding, ok := m.Binding(in); ok {
 		return binding, "", nil
 	}
 

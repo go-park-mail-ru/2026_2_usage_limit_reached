@@ -111,12 +111,12 @@ func (m *Manager) NewContext() (string, error) {
 	return encoding.EncodeToString(raw), nil
 }
 
-func (m *Manager) Resolve(in BindingInput) (binding, newAnonContext string, err error) {
+func (m *Manager) Resolve(in BindingInput) (string, string, error) {
 	if binding, ok := Binding(in); ok {
 		return binding, "", nil
 	}
 
-	newAnonContext, err = m.NewContext()
+	newAnonContext, err := m.NewContext()
 	if err != nil {
 		return "", "", err
 	}

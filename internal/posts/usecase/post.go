@@ -257,7 +257,7 @@ func sanitizeBody(body string) (string, error) {
 	}
 
 	if !sanitizer.HasText(clean) {
-		return "", ErrValidation
+		return "", fmt.Errorf("sanitize body: %w: no text", ErrValidation)
 	}
 
 	return clean, nil

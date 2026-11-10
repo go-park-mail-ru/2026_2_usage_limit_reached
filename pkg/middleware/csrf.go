@@ -26,7 +26,7 @@ func CSRFMiddleware(verifier CSRFVerifier) func(http.Handler) http.Handler {
 
 			token := r.Header.Get(CSRFHeaderName)
 			binding, ok := csrf.Binding(CSRFInput(r))
-			if token == "" || !ok || !verifier.Verify(binding, token) {
+			if !ok || !verifier.Verify(binding, token) {
 				response.ErrorCSRFFailed(w)
 				return
 			}

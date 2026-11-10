@@ -255,7 +255,7 @@ func (r *PostRepository) GetUserNewPosts(ctx context.Context, userID *uuid.UUID,
 			ORDER BY p.published_at DESC, p.id DESC
 			LIMIT $5
 		)
-		SELECT p.id, p.author_id, p.title, CASE WHEN l.locked THEN '' ELSE p.body_preview END AS body_preview,
+		SELECT p.id, p.author_id, p.title, CASE WHEN l.locked THEN '' ELSE p.body END AS body_preview,
 		       p.published_at, p.likes_count, p.username, p.nickname, p.avatar_key,
 		       l.locked,
 		       EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
@@ -310,7 +310,7 @@ func (r *PostRepository) GetUserOldPosts(ctx context.Context, userID *uuid.UUID,
 			ORDER BY p.published_at ASC, p.id ASC
 			LIMIT $5
 		)
-		SELECT p.id, p.author_id, p.title, CASE WHEN l.locked THEN '' ELSE p.body_preview END AS body_preview,
+		SELECT p.id, p.author_id, p.title, CASE WHEN l.locked THEN '' ELSE p.body END AS body_preview,
 		       p.published_at, p.likes_count, p.username, p.nickname, p.avatar_key,
 		       l.locked,
 		       EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
@@ -365,7 +365,7 @@ func (r *PostRepository) GetUserPopularPosts(ctx context.Context, userID *uuid.U
 			ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC
 			LIMIT $6
 		)
-		SELECT p.id, p.author_id, p.title, CASE WHEN l.locked THEN '' ELSE p.body_preview END AS body_preview,
+		SELECT p.id, p.author_id, p.title, CASE WHEN l.locked THEN '' ELSE p.body END AS body_preview,
 		       p.published_at, p.likes_count, p.username, p.nickname, p.avatar_key,
 		       l.locked,
 		       EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
@@ -421,7 +421,7 @@ func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cur
 		)
 		SELECT 
 			p.id, p.author_id, p.title,
-			CASE WHEN l.locked THEN '' ELSE p.body_preview END AS body_preview,
+			CASE WHEN l.locked THEN '' ELSE p.body END AS body_preview,
 			p.published_at, p.likes_count,
 			p.username, p.nickname, p.avatar_key, l.locked,
 			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
@@ -461,7 +461,7 @@ func (r *PostRepository) GetOldPosts(ctx context.Context, userID *uuid.UUID, cur
 		)
 		SELECT 
 			p.id, p.author_id, p.title,
-			CASE WHEN l.locked THEN '' ELSE p.body_preview END AS body_preview,
+			CASE WHEN l.locked THEN '' ELSE p.body END AS body_preview,
 			p.published_at, p.likes_count,
 			p.username, p.nickname, p.avatar_key, l.locked,
 			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
@@ -500,7 +500,7 @@ func (r *PostRepository) GetPopularPosts(ctx context.Context, userID *uuid.UUID,
 			LIMIT $5
 		)
 		SELECT p.id, p.author_id, p.title,
-				CASE WHEN l.locked THEN '' ELSE p.body_preview END AS body_preview,
+				CASE WHEN l.locked THEN '' ELSE p.body END AS body_preview,
 				p.published_at, p.likes_count, p.username, p.nickname, p.avatar_key, l.locked,
 				EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM page p

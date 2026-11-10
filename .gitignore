@@ -33,3 +33,6 @@ go.work.sum
 
 # prod config
 configs/prod.yaml
+
+# пользователи и ключи SeaweedFS, шаблон в configs/s3.example.json
+configs/s3.json

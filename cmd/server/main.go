@@ -29,6 +29,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/s3"
 	"github.com/gorilla/mux"
 )
 
@@ -60,6 +61,11 @@ func main() {
 	}
 	defer postgresClient.Close()
 
+	s3Client, err := s3.NewClient(cfg.S3)
+	if err != nil {
+		log.Fatalf("s3 client initialization error: %v", err)
+	}
+
 	userRepo := UserRepo.NewUserRepository(postgresClient)
 	authorRepo := AuthorRepo.NewAuthorRepository(postgresClient)
 	profileRepo := ProfileRepo.NewProfileRepository(postgresClient)
@@ -67,7 +73,7 @@ func main() {
 	paymentRepo := PaymentsRepo.NewPaymentRepository(postgresClient, appLogger)
 	donationRepo := DonationRepo.NewDonationRepository(postgresClient, appLogger)
 
-	userUc := UserUsecase.NewUsecase(userRepo)
+	userUc := UserUsecase.NewUsecase(userRepo, cfg.S3.PublicPath)
 	uc := usecase.NewUsecase(userUc, tokens)
 	valid, err := validator.NewValidator(cfg.Validation)
 	if err != nil {
@@ -78,7 +84,7 @@ func main() {
 	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(tokens)
 
 	authorUc := AuthorUsecase.NewUsecase(authorRepo)
-	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, profileRepo)
+	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, profileRepo, s3Client, cfg.S3.PublicPath, appLogger)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, valid, appLogger)
 
 	postUc := PostUsecase.NewPostUsecase(postRepo)

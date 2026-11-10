@@ -19,7 +19,7 @@ type UserInfo struct {
 	Email     string
 	Username  string
 	Nickname  string
-	AvatarKey *string
+	AvatarURL *string
 	Status    string
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -38,7 +38,7 @@ type UserCredentials struct {
 	PasswordHash string
 }
 
-func ToUserInfo(user *models.User) *UserInfo {
+func ToUserInfo(user *models.User, avatarURL *string) *UserInfo {
 	if user == nil {
 		return nil
 	}
@@ -47,20 +47,20 @@ func ToUserInfo(user *models.User) *UserInfo {
 		Email:     user.Email,
 		Username:  user.Username,
 		Nickname:  user.Nickname,
-		AvatarKey: user.AvatarKey,
+		AvatarURL: avatarURL,
 		Status:    user.Status,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 	}
 }
 
-func ToUserCredentials(user *models.User) *UserCredentials {
+func ToUserCredentials(user *models.User, avatarURL *string) *UserCredentials {
 	if user == nil {
 		return nil
 	}
 
 	return &UserCredentials{
-		UserInfo:     *ToUserInfo(user),
+		UserInfo:     *ToUserInfo(user, avatarURL),
 		PasswordHash: user.PasswordHash,
 	}
 }

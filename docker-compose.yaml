@@ -36,7 +36,7 @@ services:
     environment:
       S3_BUCKET: media
     ports:
-      - "8333:8333"
+      - "127.0.0.1:8333:8333"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8333/healthz"]
       interval: 5s
@@ -52,7 +52,7 @@ services:
       dockerfile: Dockerfile
     command: ["--config-file", "/etc/app/config.yaml"]
     ports:
-      - "${HTTP_PORT}:${HTTP_PORT}"
+      - "127.0.0.1:${HTTP_PORT}:${HTTP_PORT}"
     env_file:
       - .env
     depends_on:

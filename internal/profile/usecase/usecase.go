@@ -54,6 +54,7 @@ type UserUsecase interface {
 }
 
 type AuthorUsecase interface {
+	CreateAuthor(ctx context.Context, req authordto.UpdateAuthorRequest) (*authordto.AuthorInfo, error)
 	UpdateAuthor(ctx context.Context, req authordto.UpdateAuthorRequest) (*authordto.AuthorInfo, error)
 }
 
@@ -159,6 +160,26 @@ func (uc *ProfileUsecase) UpdateMyProfile(ctx context.Context, userID uuid.UUID,
 	}
 
 	profile.Nickname = nickname
+
+	return dto.ToProfileResponse(profile, mediaurl.PublicPtr(uc.avatarBasePath, profile.AvatarKey)), nil
+}
+
+func (uc *ProfileUsecase) BecomeAuthor(ctx context.Context, userID uuid.UUID, req dto.UpdateAuthorRequest) (*dto.ProfileResponse, error) {
+	profile, err := uc.getActiveProfile(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("become author: %w", err)
+	}
+
+	author, err := uc.authors.CreateAuthor(ctx, authordto.UpdateAuthorRequest{
+		AuthorID: userID,
+		Bio:      req.Bio,
+		Category: req.Category,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("become author: %w", err)
+	}
+
+	profile.Author = &models.ProfileAuthor{Bio: author.Bio, Category: author.Category}
 
 	return dto.ToProfileResponse(profile, mediaurl.PublicPtr(uc.avatarBasePath, profile.AvatarKey)), nil
 }

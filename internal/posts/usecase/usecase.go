@@ -65,11 +65,12 @@ type SanitizedBodyValidator interface {
 }
 
 type PostUsecase struct {
-	repo      PostRepository
-	sanitizer *sanitizer.Sanitizer
-	bodyCheck SanitizedBodyValidator
+	repo           PostRepository
+	sanitizer      *sanitizer.Sanitizer
+	bodyCheck      SanitizedBodyValidator
+	avatarBasePath string
 }
 
-func NewPostUsecase(r PostRepository, s *sanitizer.Sanitizer, v SanitizedBodyValidator) *PostUsecase {
-	return &PostUsecase{repo: r, sanitizer: s, bodyCheck: v}
+func NewPostUsecase(r PostRepository, s *sanitizer.Sanitizer, v SanitizedBodyValidator, avatarBasePath string) *PostUsecase {
+	return &PostUsecase{repo: r, sanitizer: s, bodyCheck: v, avatarBasePath: avatarBasePath}
 }

@@ -86,7 +86,7 @@ func Run(configPath string) error {
 		return fmt.Errorf("sanitizer initialization error: %w", err)
 	}
 
-	postUc := PostUsecase.NewPostUsecase(postRepo, postSanitizer, valid)
+	postUc := PostUsecase.NewPostUsecase(postRepo, postSanitizer, valid, cfg.S3.PublicPath)
 	postHandler := PostHandlers.NewHandler(postUc, valid, appLogger)
 
 	provider := PaymentProvider.NewMockProvider()

@@ -14,6 +14,7 @@ var (
 
 type Repository interface {
 	GetAuthorByID(ctx context.Context, id uuid.UUID) (*models.Author, error)
+	CreateAuthor(ctx context.Context, id uuid.UUID, details models.AuthorDetails) (*models.Author, error)
 	UpdateAuthor(ctx context.Context, id uuid.UUID, details models.AuthorDetails) (*models.Author, error)
 }
 

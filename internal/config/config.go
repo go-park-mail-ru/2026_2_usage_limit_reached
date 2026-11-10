@@ -13,6 +13,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/s3"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
 	"github.com/spf13/viper"
 )
 
@@ -27,6 +28,7 @@ type Config struct {
 	CSRF       csrf.CSRFConfig            `mapstructure:"csrf"`
 	CORS       middleware.CORSConfig      `mapstructure:"cors"`
 	Validation validator.ValidationConfig `mapstructure:"validation"`
+	Sanitizer  sanitizer.SanitizerConfig  `mapstructure:"sanitizer"`
 }
 
 func Load(path string) (*Config, error) {
@@ -48,6 +50,7 @@ func Load(path string) (*Config, error) {
 		CSRF:       csrf.DefaultConfig(),
 		CORS:       middleware.DefaultCORSConfig(),
 		Validation: validator.DefaultConfig(),
+		Sanitizer:  sanitizer.DefaultConfig(),
 	}
 	if err := v.UnmarshalExact(&cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
@@ -62,6 +65,7 @@ func Load(path string) (*Config, error) {
 		cfg.CSRF.Validate(),
 		cfg.CORS.Validate(),
 		cfg.Validation.Validate(),
+		cfg.Sanitizer.Validate(),
 	); err != nil {
 		return nil, fmt.Errorf("validate config: %w", err)
 	}

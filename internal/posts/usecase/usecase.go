@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
 )
 
 var (
@@ -59,9 +60,10 @@ type PostRepository interface {
 }
 
 type PostUsecase struct {
-	repo PostRepository
+	repo      PostRepository
+	sanitizer *sanitizer.Sanitizer
 }
 
-func NewPostUsecase(r PostRepository) *PostUsecase {
-	return &PostUsecase{repo: r}
+func NewPostUsecase(r PostRepository, s *sanitizer.Sanitizer) *PostUsecase {
+	return &PostUsecase{repo: r, sanitizer: s}
 }

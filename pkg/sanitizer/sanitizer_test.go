@@ -3,9 +3,18 @@ package sanitizer_test
 import (
 	"testing"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/sanitizer"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
 	"github.com/stretchr/testify/require"
 )
+
+func newSanitizer(t *testing.T) *sanitizer.Sanitizer {
+	t.Helper()
+
+	s, err := sanitizer.NewSanitizer(sanitizer.DefaultConfig())
+	require.NoError(t, err)
+
+	return s
+}
 
 const linkAttrs = `target="_blank" rel="noopener noreferrer nofollow"`
 
@@ -112,7 +121,7 @@ func TestSanitize(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := sanitizer.Sanitize(tt.input)
+			got, err := newSanitizer(t).Sanitize(tt.input)
 
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, got)

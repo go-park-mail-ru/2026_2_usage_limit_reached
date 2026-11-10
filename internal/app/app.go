@@ -30,6 +30,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/s3"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
 	"github.com/gorilla/mux"
 )
 
@@ -80,7 +81,11 @@ func Run(configPath string) error {
 	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, profileRepo, s3Client, cfg.S3.PublicPath, appLogger)
 	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, valid, appLogger)
 
-	postUc := PostUsecase.NewPostUsecase(postRepo)
+	postSanitizer, err := sanitizer.NewSanitizer(cfg.Sanitizer)
+	if err != nil {
+		return fmt.Errorf("sanitizer initialization error: %w", err)
+	}
+	postUc := PostUsecase.NewPostUsecase(postRepo, postSanitizer)
 	postHandler := PostHandlers.NewHandler(postUc, valid, appLogger)
 
 	provider := PaymentProvider.NewMockProvider()

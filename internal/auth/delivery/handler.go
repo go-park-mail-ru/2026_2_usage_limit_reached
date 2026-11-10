@@ -10,6 +10,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 	"github.com/gorilla/mux"
@@ -68,6 +69,19 @@ func (h *Handler) setAuthCookie(w http.ResponseWriter, jwtToken string) {
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(h.uc.TokenTTL()),
 		MaxAge:   int(h.uc.TokenTTL().Seconds()),
+	})
+}
+
+func (h *Handler) deleteContextCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     csrf.ContextCookieName,
+		Value:    "",
+		HttpOnly: true,
+		Secure:   true,
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+		Expires:  time.Now(),
+		MaxAge:   -1,
 	})
 }
 

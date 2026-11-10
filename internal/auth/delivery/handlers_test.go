@@ -81,7 +81,7 @@ func TestHandler_Register(t *testing.T) {
 				m.EXPECT().Register(mock.Anything, validReq).Return(nil, "", usecase.ErrRegistrationFailed)
 			},
 			expectedStatus: http.StatusConflict,
-			expectedErrMsg: "user already exist",
+			expectedErrMsg: "conflict",
 		},
 		{
 			name: "Internal Server Error",

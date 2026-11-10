@@ -3,9 +3,14 @@ package profileusecase_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +19,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
 	profileusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase/mock_profile_usecase"
+	userusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -25,7 +31,11 @@ var (
 	testLogger    = slog.New(slog.NewTextHandler(io.Discard, nil))
 )
 
-const testAvatarBasePath = "/media"
+const (
+	testAvatarBasePath = "/media"
+	// Минимальное webp-изображение 1x1: стандартная библиотека умеет только декодировать webp.
+	webpAvatarBase64 = "UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
+)
 
 func TestProfileUsecase_GetMyProfile_Success(t *testing.T) {
 	t.Parallel()
@@ -286,4 +296,298 @@ func TestProfileUsecase_UploadAvatar_TooLarge(t *testing.T) {
 
 	require.Empty(t, got)
 	require.ErrorIs(t, err, profileusecase.ErrAvatarTooLarge)
+}
+
+func TestProfileUsecase_UpdateMyProfile_RollbackFailure(t *testing.T) {
+	t.Parallel()
+
+	userErr := errors.New("user storage unavailable")
+	rollbackErr := errors.New("author storage unavailable")
+	users := mock_profile_usecase.NewMockUserUsecase(t)
+	authors := mock_profile_usecase.NewMockAuthorUsecase(t)
+	repo := mock_profile_usecase.NewMockProfileRepository(t)
+	repo.EXPECT().GetProfileByID(mock.Anything, profileUserID).Return(
+		&models.Profile{UserID: profileUserID, Status: "active", Author: &models.ProfileAuthor{Bio: "Старое описание"}},
+		nil,
+	)
+	mock.InOrder(
+		authors.EXPECT().UpdateAuthor(mock.Anything, authordto.UpdateAuthorRequest{AuthorID: profileUserID, Bio: "Новое описание"}).Return(&authordto.AuthorInfo{Bio: "Новое описание"}, nil).Call,
+		users.EXPECT().UpdateNickname(mock.Anything, profileUserID, "Иван").Return("", userErr).Call,
+		authors.EXPECT().UpdateAuthor(mock.Anything, authordto.UpdateAuthorRequest{AuthorID: profileUserID, Bio: "Старое описание"}).Return(nil, rollbackErr).Call,
+	)
+	uc := profileusecase.NewProfileUsecase(users, authors, repo, nil, testAvatarBasePath, testLogger)
+
+	got, err := uc.UpdateMyProfile(context.Background(), profileUserID, profiledto.UpdateProfileRequest{
+		Nickname: "Иван",
+		Author:   &profiledto.UpdateAuthorRequest{Bio: "Новое описание"},
+	})
+
+	require.Nil(t, got)
+	require.ErrorIs(t, err, userErr)
+	require.ErrorIs(t, err, rollbackErr)
+}
+
+func pngAvatar(t *testing.T) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	require.NoError(t, png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 1, 1))))
+
+	return buf.Bytes()
+}
+
+func jpegAvatar(t *testing.T) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	require.NoError(t, jpeg.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 1, 1)), nil))
+
+	return buf.Bytes()
+}
+
+func webpAvatar(t *testing.T) []byte {
+	t.Helper()
+
+	data, err := base64.StdEncoding.DecodeString(webpAvatarBase64)
+	require.NoError(t, err)
+
+	return data
+}
+
+// avatarKey сопоставляет ключ аватара пользователя с заданным расширением, не завися от случайного uuid в имени
+func avatarKey(ext string) any {
+	prefix := "avatars/" + profileUserID.String() + "/"
+
+	return mock.MatchedBy(func(key string) bool {
+		return strings.HasPrefix(key, prefix) && strings.HasSuffix(key, ext)
+	})
+}
+
+func avatarKeyPtr() any {
+	prefix := "avatars/" + profileUserID.String() + "/"
+
+	return mock.MatchedBy(func(key *string) bool {
+		return key != nil && strings.HasPrefix(*key, prefix)
+	})
+}
+
+// unseekableFile имитирует файл, который нельзя перемотать на начало после определения формата
+type unseekableFile struct {
+	io.Reader
+	seekErr error
+}
+
+func (f unseekableFile) Seek(int64, int) (int64, error) {
+	return 0, f.seekErr
+}
+
+func TestProfileUsecase_UploadAvatar_Formats(t *testing.T) {
+	tests := []struct {
+		name        string
+		image       []byte
+		ext         string
+		contentType string
+	}{
+		{name: "png", image: pngAvatar(t), ext: ".png", contentType: "image/png"},
+		{name: "jpeg", image: jpegAvatar(t), ext: ".jpg", contentType: "image/jpeg"},
+		{name: "webp", image: webpAvatar(t), ext: ".webp", contentType: "image/webp"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			size := int64(len(tt.image))
+			users := mock_profile_usecase.NewMockUserUsecase(t)
+			users.EXPECT().UpdateAvatarKey(mock.Anything, profileUserID, avatarKeyPtr()).Return(nil, nil)
+			storage := mock_profile_usecase.NewMockAvatarStorage(t)
+			storage.EXPECT().Put(mock.Anything, avatarKey(tt.ext), mock.Anything, size, tt.contentType).
+				RunAndReturn(func(_ context.Context, _ string, r io.Reader, _ int64, _ string) error {
+					uploaded, err := io.ReadAll(r)
+					require.NoError(t, err)
+					require.Equal(t, tt.image, uploaded, "файл должен быть перемотан на начало перед загрузкой")
+
+					return nil
+				})
+			uc := profileusecase.NewProfileUsecase(users, nil, nil, storage, testAvatarBasePath, testLogger)
+
+			got, err := uc.UploadAvatar(context.Background(), profileUserID, bytes.NewReader(tt.image), size)
+
+			require.NoError(t, err)
+			require.True(t, strings.HasPrefix(got, testAvatarBasePath+"/avatars/"+profileUserID.String()+"/"), got)
+			require.True(t, strings.HasSuffix(got, tt.ext), got)
+		})
+	}
+}
+
+func TestProfileUsecase_UploadAvatar_ReplacesOldAvatar(t *testing.T) {
+	oldKey := "avatars/old.png"
+	tests := []struct {
+		name      string
+		deleteErr error
+	}{
+		{name: "old file is removed"},
+		{name: "old file removal failure does not fail upload", deleteErr: errors.New("storage unavailable")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			avatar := pngAvatar(t)
+			users := mock_profile_usecase.NewMockUserUsecase(t)
+			users.EXPECT().UpdateAvatarKey(mock.Anything, profileUserID, avatarKeyPtr()).Return(&oldKey, nil)
+			storage := mock_profile_usecase.NewMockAvatarStorage(t)
+			storage.EXPECT().Put(mock.Anything, avatarKey(".png"), mock.Anything, int64(len(avatar)), "image/png").Return(nil)
+			storage.EXPECT().Delete(mock.Anything, oldKey).Return(tt.deleteErr)
+			uc := profileusecase.NewProfileUsecase(users, nil, nil, storage, testAvatarBasePath, testLogger)
+
+			got, err := uc.UploadAvatar(context.Background(), profileUserID, bytes.NewReader(avatar), int64(len(avatar)))
+
+			require.NoError(t, err)
+			require.NotEmpty(t, got)
+		})
+	}
+}
+
+func TestProfileUsecase_UploadAvatar_UnsupportedType(t *testing.T) {
+	tests := []struct {
+		name string
+		file []byte
+	}{
+		{name: "not an image", file: []byte("not an image")},
+		{name: "empty file"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uc := profileusecase.NewProfileUsecase(nil, nil, nil, nil, testAvatarBasePath, testLogger)
+
+			got, err := uc.UploadAvatar(context.Background(), profileUserID, bytes.NewReader(tt.file), int64(len(tt.file)))
+
+			require.Empty(t, got)
+			require.ErrorIs(t, err, profileusecase.ErrUnsupportedAvatarType)
+		})
+	}
+}
+
+func TestProfileUsecase_UploadAvatar_RewindFailure(t *testing.T) {
+	t.Parallel()
+
+	seekErr := errors.New("seek failed")
+	avatar := pngAvatar(t)
+	file := unseekableFile{Reader: bytes.NewReader(avatar), seekErr: seekErr}
+	uc := profileusecase.NewProfileUsecase(nil, nil, nil, nil, testAvatarBasePath, testLogger)
+
+	got, err := uc.UploadAvatar(context.Background(), profileUserID, file, int64(len(avatar)))
+
+	require.Empty(t, got)
+	require.ErrorIs(t, err, seekErr)
+}
+
+func TestProfileUsecase_UploadAvatar_StorageFailure(t *testing.T) {
+	t.Parallel()
+
+	storageErr := errors.New("storage unavailable")
+	avatar := pngAvatar(t)
+	storage := mock_profile_usecase.NewMockAvatarStorage(t)
+	storage.EXPECT().Put(mock.Anything, avatarKey(".png"), mock.Anything, int64(len(avatar)), "image/png").Return(storageErr)
+	uc := profileusecase.NewProfileUsecase(mock_profile_usecase.NewMockUserUsecase(t), nil, nil, storage, testAvatarBasePath, testLogger)
+
+	got, err := uc.UploadAvatar(context.Background(), profileUserID, bytes.NewReader(avatar), int64(len(avatar)))
+
+	require.Empty(t, got)
+	require.ErrorIs(t, err, storageErr)
+}
+
+func TestProfileUsecase_UploadAvatar_SetKeyFailureRemovesUploadedFile(t *testing.T) {
+	technicalErr := errors.New("user storage unavailable")
+	deleteErr := errors.New("storage unavailable")
+	tests := []struct {
+		name      string
+		usersErr  error
+		deleteErr error
+		wantErrs  []error
+	}{
+		{name: "unknown user", usersErr: userusecase.ErrUserNotFound, wantErrs: []error{profileusecase.ErrProfileNotFound}},
+		{name: "user storage failure", usersErr: technicalErr, wantErrs: []error{technicalErr}},
+		{name: "uploaded file removal failure is reported too", usersErr: technicalErr, deleteErr: deleteErr, wantErrs: []error{technicalErr, deleteErr}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			avatar := pngAvatar(t)
+			users := mock_profile_usecase.NewMockUserUsecase(t)
+			users.EXPECT().UpdateAvatarKey(mock.Anything, profileUserID, avatarKeyPtr()).Return(nil, tt.usersErr)
+			storage := mock_profile_usecase.NewMockAvatarStorage(t)
+			storage.EXPECT().Put(mock.Anything, avatarKey(".png"), mock.Anything, int64(len(avatar)), "image/png").Return(nil)
+			storage.EXPECT().Delete(mock.Anything, avatarKey(".png")).Return(tt.deleteErr)
+			uc := profileusecase.NewProfileUsecase(users, nil, nil, storage, testAvatarBasePath, testLogger)
+
+			got, err := uc.UploadAvatar(context.Background(), profileUserID, bytes.NewReader(avatar), int64(len(avatar)))
+
+			require.Empty(t, got)
+			for _, want := range tt.wantErrs {
+				require.ErrorIs(t, err, want)
+			}
+		})
+	}
+}
+
+func TestProfileUsecase_DeleteAvatar(t *testing.T) {
+	oldKey := "avatars/old.png"
+	tests := []struct {
+		name   string
+		oldKey *string
+	}{
+		{name: "old file is removed", oldKey: &oldKey},
+		{name: "user had no avatar"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			users := mock_profile_usecase.NewMockUserUsecase(t)
+			users.EXPECT().UpdateAvatarKey(mock.Anything, profileUserID, (*string)(nil)).Return(tt.oldKey, nil)
+			storage := mock_profile_usecase.NewMockAvatarStorage(t)
+			if tt.oldKey != nil {
+				storage.EXPECT().Delete(mock.Anything, *tt.oldKey).Return(nil)
+			}
+			uc := profileusecase.NewProfileUsecase(users, nil, nil, storage, testAvatarBasePath, testLogger)
+
+			require.NoError(t, uc.DeleteAvatar(context.Background(), profileUserID))
+		})
+	}
+}
+
+func TestProfileUsecase_DeleteAvatar_OldFileRemovalFailureIsLogged(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	oldKey := "avatars/old.png"
+	users := mock_profile_usecase.NewMockUserUsecase(t)
+	users.EXPECT().UpdateAvatarKey(mock.Anything, profileUserID, (*string)(nil)).Return(&oldKey, nil)
+	storage := mock_profile_usecase.NewMockAvatarStorage(t)
+	storage.EXPECT().Delete(mock.Anything, oldKey).Return(errors.New("storage unavailable"))
+	uc := profileusecase.NewProfileUsecase(users, nil, nil, storage, testAvatarBasePath, slog.New(slog.NewTextHandler(&logs, nil)))
+
+	err := uc.DeleteAvatar(context.Background(), profileUserID)
+
+	require.NoError(t, err)
+	require.Contains(t, logs.String(), "delete old avatar error")
+	require.Contains(t, logs.String(), oldKey)
+}
+
+func TestProfileUsecase_DeleteAvatar_Errors(t *testing.T) {
+	technicalErr := errors.New("user storage unavailable")
+	tests := []struct {
+		name     string
+		usersErr error
+		wantErr  error
+	}{
+		{name: "unknown user", usersErr: userusecase.ErrUserNotFound, wantErr: profileusecase.ErrProfileNotFound},
+		{name: "user storage failure", usersErr: technicalErr, wantErr: technicalErr},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			users := mock_profile_usecase.NewMockUserUsecase(t)
+			users.EXPECT().UpdateAvatarKey(mock.Anything, profileUserID, (*string)(nil)).Return(nil, tt.usersErr)
+			uc := profileusecase.NewProfileUsecase(users, nil, nil, mock_profile_usecase.NewMockAvatarStorage(t), testAvatarBasePath, testLogger)
+
+			err := uc.DeleteAvatar(context.Background(), profileUserID)
+
+			require.ErrorIs(t, err, tt.wantErr)
+		})
+	}
 }

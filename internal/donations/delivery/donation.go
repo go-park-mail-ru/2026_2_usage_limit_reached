@@ -26,6 +26,22 @@ const (
 
 type getDonationsFunc func(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error)
 
+// SendDonation отправляет донат автору
+// @Summary Отправка доната
+// @Description Отправляет донат указанному автору. Операция создаёт платёжную попытку, заказ и возвращает ID и статус заказа.
+// @Tags donations
+// @Accept json
+// @Produce json
+// @Security CookieAuth
+// @Param author_id path string true "ID автора" Format(uuid)
+// @Param request body dto.CreateDonationRequest true "Данные доната"
+// @Success 200 {object} dto.CreateDonationResponse "Заказ создан"
+// @Failure 400 {object} response.ErrorResponse "Ошибка валидации или некорректный ID автора"
+// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 404 {object} response.ErrorResponse "Автор не найден"
+// @Failure 409 {object} response.ErrorResponse "Конфликт оплаты"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /authors/{author_id}/donations [post]
 func (h *DonationHandler) SendDonation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var donationReq dto.CreateDonationRequest
@@ -60,6 +76,19 @@ func (h *DonationHandler) SendDonation(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, http.StatusOK, dto.CreateDonationResponse{PaymentOrderID: donation.PaymentOrderID, Status: donation.Status})
 }
 
+// GetMySentDonations возвращает список донатов, отправленных текущим пользователем
+// @Summary Мои отправленные донаты
+// @Description Возвращает список донатов, отправленных авторизованным пользователем, страницами. Чтобы получить следующую страницу, передайте next_cursor из ответа в параметр cursor; значение null означает, что страниц больше нет.
+// @Tags donations
+// @Produce json
+// @Security CookieAuth
+// @Param limit query int false "Размер страницы (значения вне диапазона 1-50 заменяются на 20)" default(20) minimum(1) maximum(50)
+// @Param cursor query string false "Курсор из next_cursor предыдущего ответа (для первой страницы не передаётся)"
+// @Success 200 {object} dto.DonationPageResponse "Страница донатов"
+// @Failure 400 {object} response.ErrorResponse "Неверный cursor"
+// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /profile/me/donations/sent [get]
 func (h *DonationHandler) GetMySentDonations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query()
@@ -78,6 +107,19 @@ func (h *DonationHandler) GetMySentDonations(w http.ResponseWriter, r *http.Requ
 	response.WriteJSON(w, http.StatusOK, resp)
 }
 
+// GetMyReceivedDonations возвращает список донатов, полученных текущим пользователем
+// @Summary Мои полученные донаты
+// @Description Возвращает список донатов, полученных авторизованным пользователем (если он является автором), страницами. Чтобы получить следующую страницу, передайте next_cursor из ответа в параметр cursor; значение null означает, что страниц больше нет.
+// @Tags donations
+// @Produce json
+// @Security CookieAuth
+// @Param limit query int false "Размер страницы (значения вне диапазона 1-50 заменяются на 20)" default(20) minimum(1) maximum(50)
+// @Param cursor query string false "Курсор из next_cursor предыдущего ответа (для первой страницы не передаётся)"
+// @Success 200 {object} dto.DonationPageResponse "Страница донатов"
+// @Failure 400 {object} response.ErrorResponse "Неверный cursor"
+// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /profile/me/donations/received [get]
 func (h *DonationHandler) GetMyReceivedDonations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query()
@@ -104,7 +146,7 @@ func (h *DonationHandler) getMyDonations(ctx context.Context, query url.Values, 
 		return nil, fmt.Errorf("decode cursor error: %w: %w", validator.ErrValidation, err)
 	}
 
-	page, err := getDonations(ctx, userID, cur, limit+1)
+	page, err := getDonations(ctx, userID, cur, limit)
 	if err != nil {
 		return nil, err
 	}

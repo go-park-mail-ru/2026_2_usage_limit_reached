@@ -49,6 +49,80 @@ func (_m *MockProfileUsecase) EXPECT() *MockProfileUsecase_Expecter {
 	return &MockProfileUsecase_Expecter{mock: &_m.Mock}
 }
 
+// BecomeAuthor provides a mock function for the type MockProfileUsecase
+func (_mock *MockProfileUsecase) BecomeAuthor(ctx context.Context, userID uuid.UUID, req dto.UpdateAuthorRequest) (*dto.ProfileResponse, error) {
+	ret := _mock.Called(ctx, userID, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for BecomeAuthor")
+	}
+
+	var r0 *dto.ProfileResponse
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, dto.UpdateAuthorRequest) (*dto.ProfileResponse, error)); ok {
+		return returnFunc(ctx, userID, req)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, dto.UpdateAuthorRequest) *dto.ProfileResponse); ok {
+		r0 = returnFunc(ctx, userID, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dto.ProfileResponse)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, dto.UpdateAuthorRequest) error); ok {
+		r1 = returnFunc(ctx, userID, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockProfileUsecase_BecomeAuthor_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'BecomeAuthor'
+type MockProfileUsecase_BecomeAuthor_Call struct {
+	*mock.Call
+}
+
+// BecomeAuthor is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID uuid.UUID
+//   - req dto.UpdateAuthorRequest
+func (_e *MockProfileUsecase_Expecter) BecomeAuthor(ctx any, userID any, req any) *MockProfileUsecase_BecomeAuthor_Call {
+	return &MockProfileUsecase_BecomeAuthor_Call{Call: _e.mock.On("BecomeAuthor", ctx, userID, req)}
+}
+
+func (_c *MockProfileUsecase_BecomeAuthor_Call) Run(run func(ctx context.Context, userID uuid.UUID, req dto.UpdateAuthorRequest)) *MockProfileUsecase_BecomeAuthor_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 dto.UpdateAuthorRequest
+		if args[2] != nil {
+			arg2 = args[2].(dto.UpdateAuthorRequest)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockProfileUsecase_BecomeAuthor_Call) Return(profileResponse *dto.ProfileResponse, err error) *MockProfileUsecase_BecomeAuthor_Call {
+	_c.Call.Return(profileResponse, err)
+	return _c
+}
+
+func (_c *MockProfileUsecase_BecomeAuthor_Call) RunAndReturn(run func(ctx context.Context, userID uuid.UUID, req dto.UpdateAuthorRequest) (*dto.ProfileResponse, error)) *MockProfileUsecase_BecomeAuthor_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteAvatar provides a mock function for the type MockProfileUsecase
 func (_mock *MockProfileUsecase) DeleteAvatar(ctx context.Context, userID uuid.UUID) error {
 	ret := _mock.Called(ctx, userID)

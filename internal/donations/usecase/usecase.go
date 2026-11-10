@@ -91,7 +91,7 @@ func (uc *DonationUsecase) Donate(ctx context.Context, payerID uuid.UUID, donati
 }
 
 func (uc *DonationUsecase) GetSentDonations(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error) {
-	donations, err := uc.repo.GetSentDonations(ctx, payerID, cursor, limit)
+	donations, err := uc.repo.GetSentDonations(ctx, payerID, cursor, limit+1)
 	if err != nil {
 		return nil, mapRepoError("get sent donations", err)
 	}
@@ -102,7 +102,7 @@ func (uc *DonationUsecase) GetSentDonations(ctx context.Context, payerID uuid.UU
 }
 
 func (uc *DonationUsecase) GetReceivedDonations(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error) {
-	donations, err := uc.repo.GetReceivedDonations(ctx, payerID, cursor, limit)
+	donations, err := uc.repo.GetReceivedDonations(ctx, payerID, cursor, limit+1)
 	if err != nil {
 		return nil, mapRepoError("get received donations", err)
 	}

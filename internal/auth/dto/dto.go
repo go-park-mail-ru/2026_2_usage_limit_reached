@@ -55,3 +55,7 @@ func (r LoginRequest) Validate() error {
 
 	return nil
 }
+
+type CSRFTokenResponse struct {
+	CSRFToken string `json:"csrf_token" example:"q3VtX2Jhc2U2NHVybF9zYWx0X2FuZF9obWFjX3NpZ25hdHVyZV9leGFtcGxlXzAx"`
+}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"golang.org/x/text/currency"
@@ -50,9 +51,11 @@ type EmailRules struct {
 }
 
 type PostRules struct {
-	MaxTitleLen       int             `mapstructure:"max_title_len"`
-	MaxBodyLen        int             `mapstructure:"max_body_len"`
-	AllowedPostStatus map[string]bool `mapstructure:"allowed_post_status"`
+	MaxTitleLen          int             `mapstructure:"max_title_len"`
+	MaxBodyLen           int             `mapstructure:"max_body_len"`
+	MaxSanitizedBodyLen  int             `mapstructure:"max_sanitized_body_len"`
+	MaxSanitizeExpansion int             `mapstructure:"max_sanitize_expansion"`
+	AllowedPostStatus    map[string]bool `mapstructure:"allowed_post_status"`
 }
 
 type PaymentRules struct {
@@ -93,9 +96,11 @@ func DefaultConfig() ValidationConfig {
 			Regexp: `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`,
 		},
 		Post: PostRules{
-			MaxTitleLen:       255,
-			MaxBodyLen:        20000,
-			AllowedPostStatus: map[string]bool{postPublishedStatus: true, postDraftStatus: true, postArchivedStatus: true},
+			MaxTitleLen:          255,
+			MaxBodyLen:           20000,
+			MaxSanitizedBodyLen:  200000,
+			MaxSanitizeExpansion: 10,
+			AllowedPostStatus:    map[string]bool{postPublishedStatus: true, postDraftStatus: true, postArchivedStatus: true},
 		},
 		Payment: PaymentRules{
 			RequestKeyLen:   36,
@@ -125,6 +130,8 @@ func (c ValidationConfig) Validate() error {
 		{"email.max_len", c.Email.MaxLen},
 		{"post.max_title_len", c.Post.MaxTitleLen},
 		{"post.max_body_len", c.Post.MaxBodyLen},
+		{"post.max_sanitized_body_len", c.Post.MaxSanitizedBodyLen},
+		{"post.max_sanitize_expansion", c.Post.MaxSanitizeExpansion},
 		{"payment.request_key_len", c.Payment.RequestKeyLen},
 		{"payment.min_amount_minor", c.Payment.MinAmountMinor},
 		{"donation.max_message_len", c.Donation.MaxMessageLen},
@@ -133,6 +140,11 @@ func (c ValidationConfig) Validate() error {
 		if p.value <= 0 {
 			errs = append(errs, fmt.Errorf("validator: %s must be positive, got %d", p.name, p.value))
 		}
+	}
+
+	// Потолок после санитайзинга не может быть меньше лимита на вход, иначе допустимый пост не пройдет проверку
+	if c.Post.MaxSanitizedBodyLen < c.Post.MaxBodyLen {
+		errs = append(errs, fmt.Errorf("validator: post.max_sanitized_body_len (%d) < post.max_body_len (%d)", c.Post.MaxSanitizedBodyLen, c.Post.MaxBodyLen))
 	}
 
 	if c.Username.MinLen > c.Username.MaxLen {
@@ -233,6 +245,15 @@ func (v Validator) IsValidPostTitle(title string) bool {
 func (v Validator) IsValidPostBody(body string) bool {
 	length := len([]rune(strings.TrimSpace(body)))
 	return length > 0 && length <= v.cfg.Post.MaxBodyLen
+}
+
+// Проверяет тело поста после санитайзинга: не больше потолка и не больше чем в MaxSanitizeExpansion раз относительно исходного
+func (v Validator) IsValidSanitizedPostBody(raw, sanitized string) bool {
+	rawLen := utf8.RuneCountInString(raw)
+	sanitizedLen := utf8.RuneCountInString(sanitized)
+
+	return sanitizedLen <= v.cfg.Post.MaxSanitizedBodyLen &&
+		sanitizedLen <= rawLen*v.cfg.Post.MaxSanitizeExpansion
 }
 
 func (v Validator) IsValidPostStatus(status string) bool {

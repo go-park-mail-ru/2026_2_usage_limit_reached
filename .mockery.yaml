@@ -30,3 +30,10 @@ packages:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery:
     interfaces:
       PostUsecase:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/usecase:
+    interfaces:
+      DonationRepository:
+      PaymentProcessor:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/delivery:
+    interfaces:
+      DonationUsecase:

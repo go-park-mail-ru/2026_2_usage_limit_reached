@@ -3,748 +3,649 @@ package postrepository
 import (
 	"context"
 	"errors"
-	"log/slog"
-	"regexp"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/pashagolub/pgxmock/v5"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/models"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/pashagolub/pgxmock/v5"
+	"github.com/stretchr/testify/require"
 )
+
+const pageLimit = 21
 
 var (
-	errDB = errors.New("connection reset")
+	postUserID    = uuid.MustParse("00000000-0000-4000-8000-000000000001")
+	postAuthorID  = uuid.MustParse("00000000-0000-4000-8000-000000000002")
+	postID        = uuid.MustParse("00000000-0000-4000-8000-000000000101")
+	lockedPostID  = uuid.MustParse("00000000-0000-4000-8000-000000000102")
+	postLikeID    = uuid.MustParse("00000000-0000-4000-8000-000000000201")
+	postTime      = time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
+	postCreatedAt = time.Date(2026, time.September, 1, 11, 0, 0, 0, time.UTC)
+	postAvatar    = "avatars/ivan.png"
+	anonymous     = (*uuid.UUID)(nil)
+	technicalErr  = errors.New("post storage unavailable")
+	likeTxOptions = pgx.TxOptions{IsoLevel: pgx.ReadCommitted}
 
-	userID   = uuid.MustParse("00000000-0000-4000-8000-000000000001")
-	authorID = uuid.MustParse("00000000-0000-4000-8000-000000000002")
-	postID   = uuid.MustParse("00000000-0000-4000-8000-000000000101")
-	likeID   = uuid.MustParse("00000000-0000-4000-8000-000000000201")
-
-	publishedAt = time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
-	createdAt   = time.Date(2026, 9, 1, 11, 0, 0, 0, time.UTC)
-
-	previewColumns = []string{
-		"id", "author_id", "title", "body_preview", "published_at", "likes_count",
-		"username", "nickname", "avatar_key", "locked", "liked_by_me",
-	}
+	createPostQuery     = testutils.SQLInOrder("INSERT INTO post (author_id, title, body, status, published_at)", "RETURNING id")
+	getPostQuery        = testutils.SQLInOrder("FROM post p", `JOIN "user" u ON u.id = p.author_id AND u.status = 'active'`, "WHERE p.id = $2", "AND (p.status = 'published' OR p.author_id = $1)")
+	updatePostQuery     = testutils.SQLInOrder("UPDATE post SET", "WHERE id = $1 AND author_id = $2 AND updated_at = $6")
+	postVersionQuery    = testutils.SQLInOrder("SELECT author_id, updated_at FROM post WHERE id = $1")
+	deletePostQuery     = testutils.SQLInOrder("DELETE FROM post WHERE id = $1 AND author_id = $2")
+	availablePostQuery  = testutils.SQLInOrder("SELECT p.author_id", "WHERE p.id = $2", "AND p.status = 'published'", "FOR KEY SHARE OF p")
+	insertLikeQuery     = testutils.SQLInOrder("INSERT INTO post_like (post_id, user_id)", "ON CONFLICT (post_id, user_id) DO NOTHING", "RETURNING id")
+	insertNotifyQuery   = testutils.SQLInOrder("INSERT INTO notification (user_id, event_kind, post_like_id)", "'post_liked'")
+	likesCountQuery     = testutils.SQLInOrder("SELECT likes_count FROM post WHERE id = $1")
+	deleteLikeQuery     = testutils.SQLInOrder("DELETE FROM post_like WHERE post_id = $1 AND user_id = $2")
+	postColumns         = []string{"id", "author_id", "title", "body", "status", "published_at", "likes_count", "created_at", "updated_at", "username", "nickname", "avatar_key", "locked", "liked_by_me"}
+	previewColumns      = []string{"id", "author_id", "title", "body_preview", "published_at", "likes_count", "username", "nickname", "avatar_key", "locked", "liked_by_me"}
+	postVersionColumns  = []string{"author_id", "updated_at"}
+	authorIDColumn      = []string{"author_id"}
+	likeIDColumn        = []string{"id"}
+	likesCountColumn    = []string{"likes_count"}
+	createdPostIDColumn = []string{"id"}
 )
 
-func newRepo(t *testing.T) (*PostRepository, pgxmock.PgxPoolIface) {
-	t.Helper()
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		assert.NoError(t, mock.ExpectationsWereMet())
-		mock.Close()
-	})
-	return &PostRepository{pool: mock, logger: slog.New(slog.DiscardHandler)}, mock
-}
-
-func sqlInOrder(fragments ...string) string {
-	quoted := make([]string, len(fragments))
-	for i, f := range fragments {
-		quoted[i] = regexp.QuoteMeta(f)
-	}
-	return "(?s)" + strings.Join(quoted, ".*")
-}
-
-func pgError(code string) error {
-	return &pgconn.PgError{Code: code}
-}
-
-func ptr[T any](v T) *T {
-	return &v
-}
-
-func samplePreview() *dto.PostPreview {
-	return &dto.PostPreview{
-		ID: postID,
-		Author: dto.AuthorResponse{
-			ID:        authorID,
-			Username:  "author",
-			Nickname:  "Author",
-			AvatarUrl: ptr("avatars/author.png"),
+func previews() []*dto.PostPreview {
+	return []*dto.PostPreview{
+		{
+			ID:                   postID,
+			Author:               dto.AuthorResponse{ID: postAuthorID, Username: "ivan001", Nickname: "Иван", AvatarUrl: &postAvatar},
+			Title:                "Мой первый пост",
+			BodyPreview:          "Текст поста",
+			PublishedOrUpdatedAt: &postTime,
+			LikesCount:           12,
+			LikedByUser:          true,
 		},
-		Title:                "Title",
-		BodyPreview:          "Body",
-		PublishedOrUpdatedAt: ptr(publishedAt),
-		LikesCount:           12,
-		LikedByUser:          true,
+		{
+			ID:                   lockedPostID,
+			Author:               dto.AuthorResponse{ID: postAuthorID, Username: "ivan001", Nickname: "Иван"},
+			Title:                "Пост для подписчиков",
+			PublishedOrUpdatedAt: &postTime,
+			Locked:               true,
+		},
 	}
 }
 
-func previewRows(posts ...*dto.PostPreview) *pgxmock.Rows {
-	rows := pgxmock.NewRows(previewColumns)
-	for _, p := range posts {
-		rows.AddRow(p.ID, p.Author.ID, p.Title, p.BodyPreview, p.PublishedOrUpdatedAt, p.LikesCount,
-			p.Author.Username, p.Author.Nickname, p.Author.AvatarUrl, p.Locked, p.LikedByUser)
-	}
-	return rows
+type listMethod struct {
+	name  string
+	query string
+	args  []any
+	call  func(r *PostRepository) ([]*dto.PostPreview, error)
 }
 
-func TestCreatePost(t *testing.T) {
-	post := models.Post{Title: "Title", Body: "Body", Status: "published"}
-	createQuery := sqlInOrder("INSERT INTO post (author_id, title, body, status, published_at)", "RETURNING id")
+func listMethods() []listMethod {
+	var methods []listMethod
+	methods = append(methods, timed("GetMyNewPosts",
+		testutils.SQLInOrder("WHERE p.status = 'published'", "(p.published_at, p.id) < ($2::timestamptz, $3::uuid)",
+			"AND p.author_id = $1", "ORDER BY p.published_at DESC, p.id DESC", "LIMIT $4"),
+		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+			return r.GetMyNewPosts
+		})...)
+	methods = append(methods, timed("GetMyOldPosts",
+		testutils.SQLInOrder("WHERE p.status = 'published'", "(p.published_at, p.id) > ($2::timestamptz, $3::uuid)",
+			"AND p.author_id = $1", "ORDER BY p.published_at, p.id", "LIMIT $4"),
+		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+			return r.GetMyOldPosts
+		})...)
+	methods = append(methods, timed("GetMyNewDrafts",
+		testutils.SQLInOrder("p.updated_at", "WHERE p.status = 'draft'", "(p.updated_at, p.id) < ($2::timestamptz, $3::uuid)",
+			"AND p.author_id = $1", "ORDER BY p.updated_at DESC, p.id DESC", "LIMIT $4"),
+		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+			return r.GetMyNewDrafts
+		})...)
+	methods = append(methods, timed("GetMyOldDrafts",
+		testutils.SQLInOrder("p.updated_at", "WHERE p.status = 'draft'", "(p.updated_at, p.id) > ($2::timestamptz, $3::uuid)",
+			"AND p.author_id = $1", "ORDER BY p.updated_at, p.id", "LIMIT $4"),
+		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+			return r.GetMyOldDrafts
+		})...)
+	methods = append(methods, timed("GetNewPosts",
+		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published' AND u.status = 'active'",
+			"(p.published_at, p.id) < ($2::timestamptz, $3::uuid)", "ORDER BY p.published_at DESC, p.id DESC", "LIMIT $4",
+			"LEFT JOIN post_access pa", "ORDER BY p.published_at DESC, p.id DESC"),
+		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+			return r.GetNewPosts
+		})...)
+	methods = append(methods, timed("GetOldPosts",
+		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published' AND u.status = 'active'",
+			"(p.published_at, p.id) > ($2::timestamptz, $3::uuid)", "ORDER BY p.published_at, p.id", "LIMIT $4",
+			"LEFT JOIN post_access pa", "ORDER BY p.published_at, p.id"),
+		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+			return r.GetOldPosts
+		})...)
+	methods = append(methods, popular("GetMyPopularPosts",
+		testutils.SQLInOrder("WHERE p.status = 'published'",
+			"(p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid)",
+			"AND p.author_id = $1", "ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC", "LIMIT $5"),
+		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error) {
+			return r.GetMyPopularPosts
+		})...)
+	methods = append(methods, popular("GetPopularPosts",
+		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published' AND u.status = 'active'",
+			"(p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid)",
+			"ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC", "LIMIT $5", "LEFT JOIN post_access pa"),
+		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error) {
+			return r.GetPopularPosts
+		})...)
+	methods = append(methods, userTimed("GetUserNewPosts",
+		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published'", "AND u.username = $2",
+			"(p.published_at, p.id) < ($3::timestamptz, $4::uuid)", "ORDER BY p.published_at DESC, p.id DESC", "LIMIT $5",
+			"LEFT JOIN post_access pa"),
+		func(r *PostRepository) func(context.Context, *uuid.UUID, string, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+			return r.GetUserNewPosts
+		})...)
+	methods = append(methods, userTimed("GetUserOldPosts",
+		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published'", "AND u.username = $2",
+			"(p.published_at, p.id) > ($3::timestamptz, $4::uuid)", "ORDER BY p.published_at ASC, p.id ASC", "LIMIT $5",
+			"LEFT JOIN post_access pa"),
+		func(r *PostRepository) func(context.Context, *uuid.UUID, string, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+			return r.GetUserOldPosts
+		})...)
+	methods = append(methods, userPopular("GetUserPopularPosts",
+		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published'", "AND u.username = $2",
+			"(p.likes_count, p.published_at, p.id) < ($3::bigint, $4::timestamptz, $5::uuid)",
+			"ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC", "LIMIT $6", "LEFT JOIN post_access pa"),
+		func(r *PostRepository) func(context.Context, *uuid.UUID, string, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error) {
+			return r.GetUserPopularPosts
+		})...)
+	return methods
+}
 
-	t.Run("returns id of created post", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectQuery(createQuery).
-			WithArgs(&userID, post.Title, post.Body, post.Status).
-			WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(postID))
+func TestPostRepository_CreatePost_Success(t *testing.T) {
+	t.Parallel()
 
-		id, err := repo.CreatePost(context.Background(), &userID, post)
+	post := models.Post{Title: "Мой первый пост", Body: "Текст поста", Status: "published"}
+	repo, pool := newRepository(t)
+	pool.ExpectQuery(createPostQuery).WithArgs(&postUserID, post.Title, post.Body, post.Status).
+		WillReturnRows(pgxmock.NewRows(createdPostIDColumn).AddRow(postID))
 
-		require.NoError(t, err)
-		assert.Equal(t, postID, id)
-	})
+	got, err := repo.CreatePost(context.Background(), &postUserID, post)
+
+	require.NoError(t, err)
+	require.Equal(t, postID, got)
+}
+
+func TestPostRepository_CreatePost_Errors(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
 		name    string
 		dbErr   error
 		wantErr error
 	}{
-		{"unknown author is reported as invalid author", pgError("23503"), models.ErrInvalidAuthorID},
-		{"check constraint is reported as validation error", pgError("23514"), models.ErrPostValidation},
-		{"other database errors are propagated", errDB, errDB},
+		{name: "unknown author", dbErr: testutils.PgError("23503"), wantErr: models.ErrInvalidAuthorID},
+		{name: "check constraint", dbErr: testutils.PgError("23514"), wantErr: models.ErrPostValidation},
+		{name: "storage failure", dbErr: technicalErr, wantErr: technicalErr},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, mock := newRepo(t)
-			mock.ExpectQuery(createQuery).
-				WithArgs(&userID, post.Title, post.Body, post.Status).
-				WillReturnError(tt.dbErr)
+			t.Parallel()
 
-			id, err := repo.CreatePost(context.Background(), &userID, post)
+			post := models.Post{Title: "Мой первый пост", Body: "Текст поста", Status: "draft"}
+			repo, pool := newRepository(t)
+			pool.ExpectQuery(createPostQuery).WithArgs(&postUserID, post.Title, post.Body, post.Status).WillReturnError(tt.dbErr)
 
+			got, err := repo.CreatePost(context.Background(), &postUserID, post)
+
+			require.Equal(t, uuid.Nil, got)
 			require.ErrorIs(t, err, tt.wantErr)
-			assert.Equal(t, uuid.Nil, id)
 		})
 	}
 }
 
-func TestGetPost(t *testing.T) {
-	getQuery := sqlInOrder("FROM post p", `JOIN "user" u ON u.id = p.author_id AND u.status = 'active'`,
-		"WHERE p.id = $2", "AND (p.status = 'published' OR p.author_id = $1)")
-	columns := []string{
-		"id", "author_id", "title", "body", "status", "published_at", "likes_count", "created_at", "updated_at",
-		"username", "nickname", "avatar_key", "locked", "liked_by_me",
-	}
-	want := &dto.PostInfo{
+func TestPostRepository_GetPost(t *testing.T) {
+	t.Parallel()
+
+	post := &dto.PostInfo{
 		ID:          postID,
-		Author:      dto.AuthorResponse{ID: authorID, Username: "author", Nickname: "Author"},
-		Title:       "Title",
-		Body:        "",
+		Author:      dto.AuthorResponse{ID: postAuthorID, Username: "ivan001", Nickname: "Иван", AvatarUrl: &postAvatar},
+		Title:       "Мой первый пост",
 		Status:      "published",
-		PublishedAt: ptr(publishedAt),
-		CreatedAt:   createdAt,
-		UpdatedAt:   publishedAt,
+		PublishedAt: &postTime,
+		CreatedAt:   postCreatedAt,
+		UpdatedAt:   postTime,
 		Locked:      true,
 		LikesCount:  3,
-		LikedByUser: false,
 	}
-
-	for _, viewer := range []struct {
-		name string
-		id   *uuid.UUID
-	}{{"authorized viewer", &userID}, {"anonymous viewer", nil}} {
-		t.Run("maps all columns for "+viewer.name, func(t *testing.T) {
-			repo, mock := newRepo(t)
-			mock.ExpectQuery(getQuery).
-				WithArgs(viewer.id, postID).
-				WillReturnRows(pgxmock.NewRows(columns).AddRow(
-					want.ID, want.Author.ID, want.Title, want.Body, want.Status, want.PublishedAt, want.LikesCount,
-					want.CreatedAt, want.UpdatedAt, want.Author.Username, want.Author.Nickname, want.Author.AvatarUrl,
-					want.Locked, want.LikedByUser,
-				))
-
-			got, err := repo.GetPost(context.Background(), viewer.id, postID)
-
-			require.NoError(t, err)
-			assert.Equal(t, want, got)
-		})
+	postRow := []any{
+		post.ID, post.Author.ID, post.Title, post.Body, post.Status, post.PublishedAt, post.LikesCount,
+		post.CreatedAt, post.UpdatedAt, post.Author.Username, post.Author.Nickname, post.Author.AvatarUrl,
+		post.Locked, post.LikedByUser,
 	}
-
-	t.Run("missing or hidden post is not found", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectQuery(getQuery).WithArgs(&userID, postID).WillReturnError(pgx.ErrNoRows)
-
-		got, err := repo.GetPost(context.Background(), &userID, postID)
-
-		require.ErrorIs(t, err, models.ErrPostNotFound)
-		assert.Nil(t, got)
-	})
-
-	t.Run("database error is propagated", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectQuery(getQuery).WithArgs(&userID, postID).WillReturnError(errDB)
-
-		got, err := repo.GetPost(context.Background(), &userID, postID)
-
-		require.ErrorIs(t, err, errDB)
-		assert.NotErrorIs(t, err, models.ErrPostNotFound)
-		assert.Nil(t, got)
-	})
-}
-
-type listCase struct {
-	name  string
-	query string
-	args  []any
-	call  func(ctx context.Context, r *PostRepository) ([]*dto.PostPreview, error)
-}
-
-func timedCursor() *dto.TimedPostsCursor {
-	return &dto.TimedPostsCursor{PublishedOrUpdatedAt: publishedAt, PostID: postID}
-}
-
-func popularCursor() *dto.PopularPostsCursor {
-	return &dto.PopularPostsCursor{Likes: 12, PublishedAt: publishedAt, PostID: postID}
-}
-
-func timedCases(name, query string, method func(*PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error)) []listCase {
-	cur := timedCursor()
-	return []listCase{
-		{
-			name:  name + " first page",
-			query: query,
-			args:  []any{&userID, (*time.Time)(nil), (*uuid.UUID)(nil), 21},
-			call: func(ctx context.Context, r *PostRepository) ([]*dto.PostPreview, error) {
-				return method(r)(ctx, &userID, nil, 21)
-			},
-		},
-		{
-			name:  name + " next page",
-			query: query,
-			args:  []any{&userID, &cur.PublishedOrUpdatedAt, &cur.PostID, 21},
-			call: func(ctx context.Context, r *PostRepository) ([]*dto.PostPreview, error) {
-				return method(r)(ctx, &userID, cur, 21)
-			},
-		},
-	}
-}
-
-func popularCases(name, query string, method func(*PostRepository) func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error)) []listCase {
-	cur := popularCursor()
-	return []listCase{
-		{
-			name:  name + " first page",
-			query: query,
-			args:  []any{&userID, (*int64)(nil), (*time.Time)(nil), (*uuid.UUID)(nil), 21},
-			call: func(ctx context.Context, r *PostRepository) ([]*dto.PostPreview, error) {
-				return method(r)(ctx, &userID, nil, 21)
-			},
-		},
-		{
-			name:  name + " next page",
-			query: query,
-			args:  []any{&userID, &cur.Likes, &cur.PublishedAt, &cur.PostID, 21},
-			call: func(ctx context.Context, r *PostRepository) ([]*dto.PostPreview, error) {
-				return method(r)(ctx, &userID, cur, 21)
-			},
-		},
-	}
-}
-
-func userTimedCases(name, query string, method func(*PostRepository) func(context.Context, *uuid.UUID, string, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error)) []listCase {
-	cur := timedCursor()
-	return []listCase{
-		{
-			name:  name + " first page",
-			query: query,
-			args:  []any{&userID, "author", (*time.Time)(nil), (*uuid.UUID)(nil), 21},
-			call: func(ctx context.Context, r *PostRepository) ([]*dto.PostPreview, error) {
-				return method(r)(ctx, &userID, "author", nil, 21)
-			},
-		},
-		{
-			name:  name + " next page",
-			query: query,
-			args:  []any{&userID, "author", &cur.PublishedOrUpdatedAt, &cur.PostID, 21},
-			call: func(ctx context.Context, r *PostRepository) ([]*dto.PostPreview, error) {
-				return method(r)(ctx, &userID, "author", cur, 21)
-			},
-		},
-	}
-}
-
-func userPopularCases(name, query string, method func(*PostRepository) func(context.Context, *uuid.UUID, string, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error)) []listCase {
-	cur := popularCursor()
-	return []listCase{
-		{
-			name:  name + " first page",
-			query: query,
-			args:  []any{&userID, "author", (*int64)(nil), (*time.Time)(nil), (*uuid.UUID)(nil), 21},
-			call: func(ctx context.Context, r *PostRepository) ([]*dto.PostPreview, error) {
-				return method(r)(ctx, &userID, "author", nil, 21)
-			},
-		},
-		{
-			name:  name + " next page",
-			query: query,
-			args:  []any{&userID, "author", &cur.Likes, &cur.PublishedAt, &cur.PostID, 21},
-			call: func(ctx context.Context, r *PostRepository) ([]*dto.PostPreview, error) {
-				return method(r)(ctx, &userID, "author", cur, 21)
-			},
-		},
-	}
-}
-
-func allListCases() []listCase {
-	var cases []listCase
-	cases = append(cases, timedCases("GetMyNewPosts",
-		sqlInOrder("WHERE p.status = 'published'", "(p.published_at, p.id) < ($2::timestamptz, $3::uuid)",
-			"AND p.author_id = $1", "ORDER BY p.published_at DESC, p.id DESC", "LIMIT $4"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetMyNewPosts
-		})...)
-	cases = append(cases, timedCases("GetMyOldPosts",
-		sqlInOrder("WHERE p.status = 'published'", "(p.published_at, p.id) > ($2::timestamptz, $3::uuid)",
-			"AND p.author_id = $1", "ORDER BY p.published_at, p.id", "LIMIT $4"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetMyOldPosts
-		})...)
-	cases = append(cases, timedCases("GetMyNewDrafts",
-		sqlInOrder("p.updated_at", "WHERE p.status = 'draft'", "(p.updated_at, p.id) < ($2::timestamptz, $3::uuid)",
-			"AND p.author_id = $1", "ORDER BY p.updated_at DESC, p.id DESC", "LIMIT $4"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetMyNewDrafts
-		})...)
-	cases = append(cases, timedCases("GetMyOldDrafts",
-		sqlInOrder("p.updated_at", "WHERE p.status = 'draft'", "(p.updated_at, p.id) > ($2::timestamptz, $3::uuid)",
-			"AND p.author_id = $1", "ORDER BY p.updated_at, p.id", "LIMIT $4"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetMyOldDrafts
-		})...)
-	cases = append(cases, timedCases("GetNewPosts",
-		sqlInOrder("WITH page AS", "WHERE p.status = 'published' AND u.status = 'active'",
-			"(p.published_at, p.id) < ($2::timestamptz, $3::uuid)", "ORDER BY p.published_at DESC, p.id DESC", "LIMIT $4",
-			"LEFT JOIN post_access pa", "ORDER BY p.published_at DESC, p.id DESC"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetNewPosts
-		})...)
-	cases = append(cases, timedCases("GetOldPosts",
-		sqlInOrder("WITH page AS", "WHERE p.status = 'published' AND u.status = 'active'",
-			"(p.published_at, p.id) > ($2::timestamptz, $3::uuid)", "ORDER BY p.published_at, p.id", "LIMIT $4",
-			"LEFT JOIN post_access pa", "ORDER BY p.published_at, p.id"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetOldPosts
-		})...)
-	cases = append(cases, popularCases("GetMyPopularPosts",
-		sqlInOrder("WHERE p.status = 'published'",
-			"(p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid)",
-			"AND p.author_id = $1", "ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC", "LIMIT $5"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetMyPopularPosts
-		})...)
-	cases = append(cases, popularCases("GetPopularPosts",
-		sqlInOrder("WITH page AS", "WHERE p.status = 'published' AND u.status = 'active'",
-			"(p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid)",
-			"ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC", "LIMIT $5", "LEFT JOIN post_access pa"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetPopularPosts
-		})...)
-	cases = append(cases, userTimedCases("GetUserNewPosts",
-		sqlInOrder("WITH page AS", "WHERE p.status = 'published'", "AND u.username = $2",
-			"(p.published_at, p.id) < ($3::timestamptz, $4::uuid)", "ORDER BY p.published_at DESC, p.id DESC", "LIMIT $5",
-			"LEFT JOIN post_access pa"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, string, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetUserNewPosts
-		})...)
-	cases = append(cases, userTimedCases("GetUserOldPosts",
-		sqlInOrder("WITH page AS", "WHERE p.status = 'published'", "AND u.username = $2",
-			"(p.published_at, p.id) > ($3::timestamptz, $4::uuid)", "ORDER BY p.published_at ASC, p.id ASC", "LIMIT $5",
-			"LEFT JOIN post_access pa"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, string, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetUserOldPosts
-		})...)
-	cases = append(cases, userPopularCases("GetUserPopularPosts",
-		sqlInOrder("WITH page AS", "WHERE p.status = 'published'", "AND u.username = $2",
-			"(p.likes_count, p.published_at, p.id) < ($3::bigint, $4::timestamptz, $5::uuid)",
-			"ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC", "LIMIT $6", "LEFT JOIN post_access pa"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, string, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetUserPopularPosts
-		})...)
-	return cases
-}
-
-func TestListPosts_ReturnsScannedPreviews(t *testing.T) {
-	locked := samplePreview()
-	locked.ID = uuid.MustParse("00000000-0000-4000-8000-000000000102")
-	locked.BodyPreview = ""
-	locked.Locked = true
-	locked.LikedByUser = false
-	locked.Author.AvatarUrl = nil
-
-	for _, tc := range allListCases() {
-		t.Run(tc.name, func(t *testing.T) {
-			repo, mock := newRepo(t)
-			mock.ExpectQuery(tc.query).WithArgs(tc.args...).WillReturnRows(previewRows(samplePreview(), locked))
-
-			got, err := tc.call(context.Background(), repo)
-
-			require.NoError(t, err)
-			assert.Equal(t, []*dto.PostPreview{samplePreview(), locked}, got)
-		})
-	}
-}
-
-func TestListPosts_EmptyResultIsEmptySlice(t *testing.T) {
-	for _, tc := range allListCases() {
-		t.Run(tc.name, func(t *testing.T) {
-			repo, mock := newRepo(t)
-			mock.ExpectQuery(tc.query).WithArgs(tc.args...).WillReturnRows(previewRows())
-
-			got, err := tc.call(context.Background(), repo)
-
-			require.NoError(t, err)
-			assert.NotNil(t, got)
-			assert.Empty(t, got)
-		})
-	}
-}
-
-func TestListPosts_PropagatesQueryError(t *testing.T) {
-	for _, tc := range allListCases() {
-		t.Run(tc.name, func(t *testing.T) {
-			repo, mock := newRepo(t)
-			mock.ExpectQuery(tc.query).WithArgs(tc.args...).WillReturnError(errDB)
-
-			got, err := tc.call(context.Background(), repo)
-
-			require.ErrorIs(t, err, errDB)
-			assert.Nil(t, got)
-		})
-	}
-}
-
-func TestListPosts_PropagatesRowIterationError(t *testing.T) {
-	for _, tc := range allListCases() {
-		t.Run(tc.name, func(t *testing.T) {
-			repo, mock := newRepo(t)
-			mock.ExpectQuery(tc.query).WithArgs(tc.args...).
-				WillReturnRows(previewRows(samplePreview(), samplePreview()).RowError(1, errDB))
-
-			got, err := tc.call(context.Background(), repo)
-
-			require.ErrorIs(t, err, errDB)
-			assert.Nil(t, got)
-		})
-	}
-}
-
-func TestListPosts_FailsOnUnexpectedColumns(t *testing.T) {
-	for _, tc := range allListCases() {
-		t.Run(tc.name, func(t *testing.T) {
-			repo, mock := newRepo(t)
-			mock.ExpectQuery(tc.query).WithArgs(tc.args...).
-				WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(postID))
-
-			got, err := tc.call(context.Background(), repo)
-
-			require.Error(t, err)
-			assert.Nil(t, got)
-		})
-	}
-}
-
-func TestUpdatePost(t *testing.T) {
-	post := models.Post{ID: postID, Title: "New title", Body: "New body", Status: "published"}
-	lastUpdatedAt := publishedAt
-	updateQuery := sqlInOrder("UPDATE post SET", "WHERE id = $1 AND author_id = $2 AND updated_at = $6")
-	selectQuery := sqlInOrder("SELECT author_id, updated_at FROM post WHERE id = $1")
-	expectUpdate := func(mock pgxmock.PgxPoolIface) *pgxmock.ExpectedExec {
-		return mock.ExpectExec(updateQuery).
-			WithArgs(post.ID, &userID, post.Title, post.Body, post.Status, lastUpdatedAt)
-	}
-
-	t.Run("updates post with actual version", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		expectUpdate(mock).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-
-		require.NoError(t, repo.UpdatePost(context.Background(), &userID, post, lastUpdatedAt))
-	})
-
-	t.Run("check constraint is reported as validation error", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		expectUpdate(mock).WillReturnError(pgError("23514"))
-
-		require.ErrorIs(t, repo.UpdatePost(context.Background(), &userID, post, lastUpdatedAt), models.ErrPostValidation)
-	})
-
-	t.Run("update database error is propagated", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		expectUpdate(mock).WillReturnError(errDB)
-
-		require.ErrorIs(t, repo.UpdatePost(context.Background(), &userID, post, lastUpdatedAt), errDB)
-	})
-
-	notUpdated := []struct {
+	tests := []struct {
 		name    string
-		author  uuid.UUID
-		version time.Time
+		userID  *uuid.UUID
+		rows    *pgxmock.Rows
+		dbErr   error
+		want    *dto.PostInfo
 		wantErr error
 	}{
-		{"post of another author is hidden as not found", authorID, lastUpdatedAt, models.ErrPostNotFound},
-		{"stale version is a conflict", userID, lastUpdatedAt.Add(time.Second), models.ErrPostConflict},
-		{"version changed and restored concurrently is a conflict", userID, lastUpdatedAt, models.ErrPostConflict},
+		{name: "authorized viewer", userID: &postUserID, rows: pgxmock.NewRows(postColumns).AddRow(postRow...), want: post},
+		{name: "anonymous viewer", userID: anonymous, rows: pgxmock.NewRows(postColumns).AddRow(postRow...), want: post},
+		{name: "hidden or unknown post", userID: &postUserID, dbErr: pgx.ErrNoRows, wantErr: models.ErrPostNotFound},
+		{name: "storage failure", userID: &postUserID, dbErr: technicalErr, wantErr: technicalErr},
 	}
-	for _, tt := range notUpdated {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, mock := newRepo(t)
-			expectUpdate(mock).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
-			mock.ExpectQuery(selectQuery).WithArgs(post.ID).
-				WillReturnRows(pgxmock.NewRows([]string{"author_id", "updated_at"}).AddRow(tt.author, tt.version))
+			t.Parallel()
 
-			require.ErrorIs(t, repo.UpdatePost(context.Background(), &userID, post, lastUpdatedAt), tt.wantErr)
+			repo, pool := newRepository(t)
+			query := pool.ExpectQuery(getPostQuery).WithArgs(tt.userID, postID)
+			if tt.rows != nil {
+				query.WillReturnRows(tt.rows)
+			} else {
+				query.WillReturnError(tt.dbErr)
+			}
+
+			got, err := repo.GetPost(context.Background(), tt.userID, postID)
+
+			if tt.wantErr != nil {
+				require.Nil(t, got)
+				require.ErrorIs(t, err, tt.wantErr)
+				if tt.wantErr != models.ErrPostNotFound {
+					require.False(t, errors.Is(err, models.ErrPostNotFound))
+				}
+
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
 		})
 	}
-
-	t.Run("missing post is not found", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		expectUpdate(mock).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
-		mock.ExpectQuery(selectQuery).WithArgs(post.ID).WillReturnError(pgx.ErrNoRows)
-
-		require.ErrorIs(t, repo.UpdatePost(context.Background(), &userID, post, lastUpdatedAt), models.ErrPostNotFound)
-	})
-
-	t.Run("lookup database error is propagated", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		expectUpdate(mock).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
-		mock.ExpectQuery(selectQuery).WithArgs(post.ID).WillReturnError(errDB)
-
-		err := repo.UpdatePost(context.Background(), &userID, post, lastUpdatedAt)
-
-		require.ErrorIs(t, err, errDB)
-		assert.NotErrorIs(t, err, models.ErrPostNotFound)
-	})
 }
 
-func TestDeletePost(t *testing.T) {
-	deleteQuery := sqlInOrder("DELETE FROM post WHERE id = $1 AND author_id = $2")
+func TestPostRepository_ListPosts_Success(t *testing.T) {
+	t.Parallel()
 
-	t.Run("deletes own post", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectExec(deleteQuery).WithArgs(postID, &userID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
-
-		require.NoError(t, repo.DeletePost(context.Background(), &userID, postID))
-	})
-
-	t.Run("missing or foreign post is not found", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectExec(deleteQuery).WithArgs(postID, &userID).WillReturnResult(pgxmock.NewResult("DELETE", 0))
-
-		require.ErrorIs(t, repo.DeletePost(context.Background(), &userID, postID), models.ErrPostNotFound)
-	})
-
-	t.Run("database error is propagated", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectExec(deleteQuery).WithArgs(postID, &userID).WillReturnError(errDB)
-
-		err := repo.DeletePost(context.Background(), &userID, postID)
-
-		require.ErrorIs(t, err, errDB)
-		assert.NotErrorIs(t, err, models.ErrPostNotFound)
-	})
-}
-
-var (
-	likeTxOptions       = pgx.TxOptions{IsoLevel: pgx.ReadCommitted}
-	selectAvailablePost = sqlInOrder("SELECT p.author_id", "WHERE p.id = $2", "AND p.status = 'published'", "FOR KEY SHARE OF p")
-	insertLikeQuery     = sqlInOrder("INSERT INTO post_like (post_id, user_id)", "ON CONFLICT (post_id, user_id) DO NOTHING", "RETURNING id")
-	insertNotification  = sqlInOrder("INSERT INTO notification (user_id, event_kind, post_like_id)", "'post_liked'")
-	selectLikesCount    = sqlInOrder("SELECT likes_count FROM post WHERE id = $1")
-	authorColumn        = []string{"author_id"}
-	likeIDColumn        = []string{"id"}
-	likesCountColumn    = []string{"likes_count"}
-)
-
-func expectTxCommitted(mock pgxmock.PgxPoolIface) {
-	mock.ExpectCommit()
-	mock.ExpectRollback().WillReturnError(pgx.ErrTxClosed)
-}
-
-func expectTxRolledBack(mock pgxmock.PgxPoolIface) {
-	mock.ExpectRollback()
-	mock.ExpectRollback().WillReturnError(pgx.ErrTxClosed)
-}
-
-func TestLikePost(t *testing.T) {
-	t.Run("new like notifies author and returns likes count", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectBeginTx(likeTxOptions)
-		mock.ExpectQuery(selectAvailablePost).WithArgs(&userID, postID).
-			WillReturnRows(pgxmock.NewRows(authorColumn).AddRow(authorID))
-		mock.ExpectQuery(insertLikeQuery).WithArgs(postID, &userID).
-			WillReturnRows(pgxmock.NewRows(likeIDColumn).AddRow(likeID))
-		mock.ExpectExec(insertNotification).WithArgs(authorID, likeID).
-			WillReturnResult(pgxmock.NewResult("INSERT", 1))
-		mock.ExpectQuery(selectLikesCount).WithArgs(postID).
-			WillReturnRows(pgxmock.NewRows(likesCountColumn).AddRow(int64(13)))
-		expectTxCommitted(mock)
-
-		likes, err := repo.LikePost(context.Background(), &userID, postID)
-
-		require.NoError(t, err)
-		assert.Equal(t, int64(13), likes)
-	})
-
-	t.Run("liking own post does not notify", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectBeginTx(likeTxOptions)
-		mock.ExpectQuery(selectAvailablePost).WithArgs(&userID, postID).
-			WillReturnRows(pgxmock.NewRows(authorColumn).AddRow(userID))
-		mock.ExpectQuery(insertLikeQuery).WithArgs(postID, &userID).
-			WillReturnRows(pgxmock.NewRows(likeIDColumn).AddRow(likeID))
-		mock.ExpectQuery(selectLikesCount).WithArgs(postID).
-			WillReturnRows(pgxmock.NewRows(likesCountColumn).AddRow(int64(1)))
-		expectTxCommitted(mock)
-
-		likes, err := repo.LikePost(context.Background(), &userID, postID)
-
-		require.NoError(t, err)
-		assert.Equal(t, int64(1), likes)
-	})
-
-	t.Run("repeated like is idempotent and does not notify", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectBeginTx(likeTxOptions)
-		mock.ExpectQuery(selectAvailablePost).WithArgs(&userID, postID).
-			WillReturnRows(pgxmock.NewRows(authorColumn).AddRow(authorID))
-		mock.ExpectQuery(insertLikeQuery).WithArgs(postID, &userID).
-			WillReturnRows(pgxmock.NewRows(likeIDColumn))
-		mock.ExpectQuery(selectLikesCount).WithArgs(postID).
-			WillReturnRows(pgxmock.NewRows(likesCountColumn).AddRow(int64(13)))
-		expectTxCommitted(mock)
-
-		likes, err := repo.LikePost(context.Background(), &userID, postID)
-
-		require.NoError(t, err)
-		assert.Equal(t, int64(13), likes)
-	})
-
-	t.Run("unavailable post is not found and transaction is rolled back", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectBeginTx(likeTxOptions)
-		mock.ExpectQuery(selectAvailablePost).WithArgs(&userID, postID).
-			WillReturnRows(pgxmock.NewRows(authorColumn))
-		expectTxRolledBack(mock)
-
-		likes, err := repo.LikePost(context.Background(), &userID, postID)
-
-		require.ErrorIs(t, err, models.ErrPostNotFound)
-		assert.Zero(t, likes)
-	})
-
-	t.Run("begin error is propagated", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectBeginTx(likeTxOptions).WillReturnError(errDB)
-
-		likes, err := repo.LikePost(context.Background(), &userID, postID)
-
-		require.ErrorIs(t, err, errDB)
-		assert.Zero(t, likes)
-	})
-
-	failures := []struct {
-		name   string
-		expect func(mock pgxmock.PgxPoolIface)
+	tests := []struct {
+		name  string
+		posts []*dto.PostPreview
 	}{
-		{"post lookup fails", func(mock pgxmock.PgxPoolIface) {
-			mock.ExpectQuery(selectAvailablePost).WithArgs(&userID, postID).WillReturnError(errDB)
-		}},
-		{"like insert fails", func(mock pgxmock.PgxPoolIface) {
-			mock.ExpectQuery(selectAvailablePost).WithArgs(&userID, postID).
-				WillReturnRows(pgxmock.NewRows(authorColumn).AddRow(authorID))
-			mock.ExpectQuery(insertLikeQuery).WithArgs(postID, &userID).WillReturnError(errDB)
-		}},
-		{"notification insert fails", func(mock pgxmock.PgxPoolIface) {
-			mock.ExpectQuery(selectAvailablePost).WithArgs(&userID, postID).
-				WillReturnRows(pgxmock.NewRows(authorColumn).AddRow(authorID))
-			mock.ExpectQuery(insertLikeQuery).WithArgs(postID, &userID).
-				WillReturnRows(pgxmock.NewRows(likeIDColumn).AddRow(likeID))
-			mock.ExpectExec(insertNotification).WithArgs(authorID, likeID).WillReturnError(errDB)
-		}},
-		{"likes count fails", func(mock pgxmock.PgxPoolIface) {
-			mock.ExpectQuery(selectAvailablePost).WithArgs(&userID, postID).
-				WillReturnRows(pgxmock.NewRows(authorColumn).AddRow(userID))
-			mock.ExpectQuery(insertLikeQuery).WithArgs(postID, &userID).
-				WillReturnRows(pgxmock.NewRows(likeIDColumn).AddRow(likeID))
-			mock.ExpectQuery(selectLikesCount).WithArgs(postID).WillReturnError(errDB)
-		}},
+		{name: "open and locked posts", posts: previews()},
+		{name: "empty page", posts: []*dto.PostPreview{}},
 	}
-	for _, tt := range failures {
-		t.Run(tt.name+" rolls back", func(t *testing.T) {
-			repo, mock := newRepo(t)
-			mock.ExpectBeginTx(likeTxOptions)
-			tt.expect(mock)
-			expectTxRolledBack(mock)
+	for _, m := range listMethods() {
+		for _, tt := range tests {
+			t.Run(m.name+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
 
-			likes, err := repo.LikePost(context.Background(), &userID, postID)
+				repo, pool := newRepository(t)
+				pool.ExpectQuery(m.query).WithArgs(m.args...).WillReturnRows(previewRows(tt.posts))
 
-			require.ErrorIs(t, err, errDB)
-			assert.Zero(t, likes)
+				got, err := m.call(repo)
+
+				require.NoError(t, err)
+				require.Equal(t, tt.posts, got)
+			})
+		}
+	}
+}
+
+func TestPostRepository_ListPosts_Errors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		expect  func(q *pgxmock.ExpectedQuery)
+		wantErr error
+	}{
+		{
+			name:    "query failure",
+			expect:  func(q *pgxmock.ExpectedQuery) { q.WillReturnError(technicalErr) },
+			wantErr: technicalErr,
+		},
+		{
+			name:    "row iteration failure",
+			expect:  func(q *pgxmock.ExpectedQuery) { q.WillReturnRows(previewRows(previews()).RowError(1, technicalErr)) },
+			wantErr: technicalErr,
+		},
+		{
+			name:   "unexpected columns",
+			expect: func(q *pgxmock.ExpectedQuery) { q.WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(postID)) },
+		},
+	}
+	for _, m := range listMethods() {
+		for _, tt := range tests {
+			t.Run(m.name+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				repo, pool := newRepository(t)
+				tt.expect(pool.ExpectQuery(m.query).WithArgs(m.args...))
+
+				got, err := m.call(repo)
+
+				require.Nil(t, got)
+				require.Error(t, err)
+				if tt.wantErr != nil {
+					require.ErrorIs(t, err, tt.wantErr)
+				}
+			})
+		}
+	}
+}
+
+func TestPostRepository_UpdatePost(t *testing.T) {
+	t.Parallel()
+
+	post := models.Post{ID: postID, Title: "Новый заголовок", Body: "Новый текст", Status: "published"}
+	notUpdated := func(pool pgxmock.PgxPoolIface) {
+		pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime).
+			WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+	}
+	currentVersion := func(pool pgxmock.PgxPoolIface, authorID uuid.UUID, updatedAt time.Time) {
+		notUpdated(pool)
+		pool.ExpectQuery(postVersionQuery).WithArgs(post.ID).
+			WillReturnRows(pgxmock.NewRows(postVersionColumns).AddRow(authorID, updatedAt))
+	}
+	tests := []struct {
+		name    string
+		expect  func(pool pgxmock.PgxPoolIface)
+		wantErr error
+	}{
+		{
+			name: "actual version",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime).
+					WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+			},
+		},
+		{
+			name: "check constraint",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime).
+					WillReturnError(testutils.PgError("23514"))
+			},
+			wantErr: models.ErrPostValidation,
+		},
+		{
+			name: "update storage failure",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime).
+					WillReturnError(technicalErr)
+			},
+			wantErr: technicalErr,
+		},
+		{
+			name: "unknown post",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				notUpdated(pool)
+				pool.ExpectQuery(postVersionQuery).WithArgs(post.ID).WillReturnError(pgx.ErrNoRows)
+			},
+			wantErr: models.ErrPostNotFound,
+		},
+		{
+			name:    "foreign post is hidden",
+			expect:  func(pool pgxmock.PgxPoolIface) { currentVersion(pool, postAuthorID, postTime) },
+			wantErr: models.ErrPostNotFound,
+		},
+		{
+			name:    "stale version",
+			expect:  func(pool pgxmock.PgxPoolIface) { currentVersion(pool, postUserID, postTime.Add(time.Second)) },
+			wantErr: models.ErrPostConflict,
+		},
+		{
+			name:    "version changed and restored concurrently",
+			expect:  func(pool pgxmock.PgxPoolIface) { currentVersion(pool, postUserID, postTime) },
+			wantErr: models.ErrPostConflict,
+		},
+		{
+			name: "version lookup storage failure",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				notUpdated(pool)
+				pool.ExpectQuery(postVersionQuery).WithArgs(post.ID).WillReturnError(technicalErr)
+			},
+			wantErr: technicalErr,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo, pool := newRepository(t)
+			tt.expect(pool)
+
+			err := repo.UpdatePost(context.Background(), &postUserID, post, postTime)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }
 
-func TestDeletePostLike(t *testing.T) {
-	deleteLikeQuery := sqlInOrder("DELETE FROM post_like WHERE post_id = $1 AND user_id = $2")
+func TestPostRepository_DeletePost(t *testing.T) {
+	t.Parallel()
 
-	for _, deleted := range []int64{1, 0} {
-		t.Run("returns likes count regardless of whether like existed", func(t *testing.T) {
-			repo, mock := newRepo(t)
-			mock.ExpectExec(deleteLikeQuery).WithArgs(postID, &userID).
-				WillReturnResult(pgxmock.NewResult("DELETE", deleted))
-			mock.ExpectQuery(selectLikesCount).WithArgs(postID).
-				WillReturnRows(pgxmock.NewRows(likesCountColumn).AddRow(int64(12)))
+	tests := []struct {
+		name    string
+		deleted int64
+		dbErr   error
+		wantErr error
+	}{
+		{name: "own post", deleted: 1},
+		{name: "foreign or unknown post", deleted: 0, wantErr: models.ErrPostNotFound},
+		{name: "storage failure", dbErr: technicalErr, wantErr: technicalErr},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-			likes, err := repo.DeletePostLike(context.Background(), &userID, postID)
+			repo, pool := newRepository(t)
+			exec := pool.ExpectExec(deletePostQuery).WithArgs(postID, &postUserID)
+			if tt.dbErr != nil {
+				exec.WillReturnError(tt.dbErr)
+			} else {
+				exec.WillReturnResult(pgxmock.NewResult("DELETE", tt.deleted))
+			}
+
+			err := repo.DeletePost(context.Background(), &postUserID, postID)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestPostRepository_LikePost_Success(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		expect func(pool pgxmock.PgxPoolIface)
+	}{
+		{
+			name: "new like notifies author",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				expectLikeInserted(pool, postAuthorID)
+				pool.ExpectExec(insertNotifyQuery).WithArgs(postAuthorID, postLikeID).
+					WillReturnResult(pgxmock.NewResult("INSERT", 1))
+			},
+		},
+		{
+			name:   "own post like does not notify",
+			expect: func(pool pgxmock.PgxPoolIface) { expectLikeInserted(pool, postUserID) },
+		},
+		{
+			name: "repeated like is idempotent",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				expectAvailablePost(pool, postAuthorID)
+				pool.ExpectQuery(insertLikeQuery).WithArgs(postID, &postUserID).WillReturnRows(pgxmock.NewRows(likeIDColumn))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo, pool := newRepository(t)
+			tt.expect(pool)
+			expectLikesCount(pool, 13)
+			testutils.ExpectTxCommitted(pool)
+
+			got, err := repo.LikePost(context.Background(), &postUserID, postID)
 
 			require.NoError(t, err)
-			assert.Equal(t, int64(12), likes)
+			require.Equal(t, int64(13), got)
 		})
 	}
+}
 
-	t.Run("delete database error is propagated", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectExec(deleteLikeQuery).WithArgs(postID, &userID).WillReturnError(errDB)
+func TestPostRepository_LikePost_Errors(t *testing.T) {
+	t.Parallel()
 
-		likes, err := repo.DeletePostLike(context.Background(), &userID, postID)
+	tests := []struct {
+		name    string
+		expect  func(pool pgxmock.PgxPoolIface)
+		wantErr error
+	}{
+		{
+			name: "unavailable post",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				pool.ExpectBeginTx(likeTxOptions)
+				pool.ExpectQuery(availablePostQuery).WithArgs(&postUserID, postID).WillReturnRows(pgxmock.NewRows(authorIDColumn))
+			},
+			wantErr: models.ErrPostNotFound,
+		},
+		{
+			name: "post lookup storage failure",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				pool.ExpectBeginTx(likeTxOptions)
+				pool.ExpectQuery(availablePostQuery).WithArgs(&postUserID, postID).WillReturnError(technicalErr)
+			},
+			wantErr: technicalErr,
+		},
+		{
+			name: "like insert storage failure",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				expectAvailablePost(pool, postAuthorID)
+				pool.ExpectQuery(insertLikeQuery).WithArgs(postID, &postUserID).WillReturnError(technicalErr)
+			},
+			wantErr: technicalErr,
+		},
+		{
+			name: "notification storage failure",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				expectLikeInserted(pool, postAuthorID)
+				pool.ExpectExec(insertNotifyQuery).WithArgs(postAuthorID, postLikeID).WillReturnError(technicalErr)
+			},
+			wantErr: technicalErr,
+		},
+		{
+			name: "likes count storage failure",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				expectLikeInserted(pool, postUserID)
+				pool.ExpectQuery(likesCountQuery).WithArgs(postID).WillReturnError(technicalErr)
+			},
+			wantErr: technicalErr,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		require.ErrorIs(t, err, errDB)
-		assert.NotErrorIs(t, err, models.ErrPostNotFound)
-		assert.Zero(t, likes)
-	})
+			repo, pool := newRepository(t)
+			tt.expect(pool)
+			testutils.ExpectTxRolledBack(pool)
 
-	t.Run("missing post is not found", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectExec(deleteLikeQuery).WithArgs(postID, &userID).
-			WillReturnResult(pgxmock.NewResult("DELETE", 0))
-		mock.ExpectQuery(selectLikesCount).WithArgs(postID).WillReturnRows(pgxmock.NewRows(likesCountColumn))
+			got, err := repo.LikePost(context.Background(), &postUserID, postID)
 
-		likes, err := repo.DeletePostLike(context.Background(), &userID, postID)
+			require.Zero(t, got)
+			require.ErrorIs(t, err, tt.wantErr)
+		})
+	}
+}
 
-		require.ErrorIs(t, err, models.ErrPostNotFound)
-		assert.Zero(t, likes)
-	})
+func TestPostRepository_LikePost_BeginFailure(t *testing.T) {
+	t.Parallel()
 
-	t.Run("likes count database error is propagated", func(t *testing.T) {
-		repo, mock := newRepo(t)
-		mock.ExpectExec(deleteLikeQuery).WithArgs(postID, &userID).
-			WillReturnResult(pgxmock.NewResult("DELETE", 1))
-		mock.ExpectQuery(selectLikesCount).WithArgs(postID).WillReturnError(errDB)
+	repo, pool := newRepository(t)
+	pool.ExpectBeginTx(likeTxOptions).WillReturnError(technicalErr)
 
-		likes, err := repo.DeletePostLike(context.Background(), &userID, postID)
+	got, err := repo.LikePost(context.Background(), &postUserID, postID)
 
-		require.ErrorIs(t, err, errDB)
-		assert.Zero(t, likes)
-	})
+	require.Zero(t, got)
+	require.ErrorIs(t, err, technicalErr)
+}
+
+func TestPostRepository_DeletePostLike(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		expect    func(pool pgxmock.PgxPoolIface)
+		wantLikes int64
+		wantErr   error
+	}{
+		{
+			name: "existing like is removed",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				pool.ExpectExec(deleteLikeQuery).WithArgs(postID, &postUserID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+				expectLikesCount(pool, 12)
+			},
+			wantLikes: 12,
+		},
+		{
+			name: "missing like is idempotent",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				pool.ExpectExec(deleteLikeQuery).WithArgs(postID, &postUserID).WillReturnResult(pgxmock.NewResult("DELETE", 0))
+				expectLikesCount(pool, 12)
+			},
+			wantLikes: 12,
+		},
+		{
+			name: "unknown post",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				pool.ExpectExec(deleteLikeQuery).WithArgs(postID, &postUserID).WillReturnResult(pgxmock.NewResult("DELETE", 0))
+				pool.ExpectQuery(likesCountQuery).WithArgs(postID).WillReturnRows(pgxmock.NewRows(likesCountColumn))
+			},
+			wantErr: models.ErrPostNotFound,
+		},
+		{
+			name: "delete storage failure",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				pool.ExpectExec(deleteLikeQuery).WithArgs(postID, &postUserID).WillReturnError(technicalErr)
+			},
+			wantErr: technicalErr,
+		},
+		{
+			name: "likes count storage failure",
+			expect: func(pool pgxmock.PgxPoolIface) {
+				pool.ExpectExec(deleteLikeQuery).WithArgs(postID, &postUserID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+				pool.ExpectQuery(likesCountQuery).WithArgs(postID).WillReturnError(technicalErr)
+			},
+			wantErr: technicalErr,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo, pool := newRepository(t)
+			tt.expect(pool)
+
+			got, err := repo.DeletePostLike(context.Background(), &postUserID, postID)
+
+			require.Equal(t, tt.wantLikes, got)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				if tt.wantErr != models.ErrPostNotFound {
+					require.False(t, errors.Is(err, models.ErrPostNotFound))
+				}
+
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }

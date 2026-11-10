@@ -85,7 +85,8 @@ func Run(configPath string) error {
 	if err != nil {
 		return fmt.Errorf("sanitizer initialization error: %w", err)
 	}
-	postUc := PostUsecase.NewPostUsecase(postRepo, postSanitizer)
+
+	postUc := PostUsecase.NewPostUsecase(postRepo, postSanitizer, valid)
 	postHandler := PostHandlers.NewHandler(postUc, valid, appLogger)
 
 	provider := PaymentProvider.NewMockProvider()

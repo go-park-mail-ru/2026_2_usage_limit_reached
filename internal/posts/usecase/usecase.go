@@ -59,11 +59,17 @@ type PostRepository interface {
 	DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error)
 }
 
+// Проверка тела поста после санитайзинга. Интерфейс определен здесь, чтобы usecase не зависел от пакета validator целиком
+type SanitizedBodyValidator interface {
+	IsValidSanitizedPostBody(raw, sanitized string) bool
+}
+
 type PostUsecase struct {
 	repo      PostRepository
 	sanitizer *sanitizer.Sanitizer
+	bodyCheck SanitizedBodyValidator
 }
 
-func NewPostUsecase(r PostRepository, s *sanitizer.Sanitizer) *PostUsecase {
-	return &PostUsecase{repo: r, sanitizer: s}
+func NewPostUsecase(r PostRepository, s *sanitizer.Sanitizer, v SanitizedBodyValidator) *PostUsecase {
+	return &PostUsecase{repo: r, sanitizer: s, bodyCheck: v}
 }

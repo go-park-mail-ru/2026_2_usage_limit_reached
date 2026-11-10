@@ -256,6 +256,10 @@ func (uc *PostUsecase) sanitizeBody(body string) (string, error) {
 		return "", fmt.Errorf("sanitize body: %w: %w", ErrValidation, err)
 	}
 
+	if !uc.bodyCheck.IsValidSanitizedPostBody(body, clean) {
+		return "", fmt.Errorf("sanitize body: %w: sanitized body is too large", ErrValidation)
+	}
+
 	if !sanitizer.HasText(clean) {
 		return "", fmt.Errorf("sanitize body: %w: no text", ErrValidation)
 	}

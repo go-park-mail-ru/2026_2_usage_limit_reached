@@ -258,6 +258,12 @@ components:
         error:
           type: string
       type: object
+    dto.CreateDonationRequest:
+      type: object
+    dto.CreateDonationResponse:
+      type: object
+    dto.DonationPageResponse:
+      type: object
   securitySchemes:
     CookieAuth:
       in: cookie
@@ -1347,3 +1353,159 @@ paths:
       summary: Лента постов автора
       tags:
       - posts
+  /authors/{author_id}/donations:
+    post:
+      description: Отправляет донат указанному автору. Операция создаёт платёжную попытку, заказ и возвращает ID и статус заказа.
+      parameters:
+      - description: ID автора
+        in: path
+        name: author_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.CreateDonationRequest'
+              description: Данные доната
+              summary: request
+        description: Данные доната
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.CreateDonationResponse'
+          description: Заказ создан
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации или некорректный ID автора
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Автор не найден
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Конфликт оплаты
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Отправка доната
+      tags:
+      - donations
+  /profile/me/donations/sent:
+    get:
+      description: Возвращает список донатов, отправленных авторизованным пользователем, страницами. Чтобы получить следующую страницу, передайте next_cursor из ответа в параметр cursor; значение null означает, что страниц больше нет.
+      parameters:
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.DonationPageResponse'
+          description: Страница донатов
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный cursor
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Мои отправленные донаты
+      tags:
+      - donations
+  /profile/me/donations/received:
+    get:
+      description: Возвращает список донатов, полученных авторизованным пользователем (если он является автором), страницами. Чтобы получить следующую страницу, передайте next_cursor из ответа в параметр cursor; значение null означает, что страниц больше нет.
+      parameters:
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.DonationPageResponse'
+          description: Страница донатов
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный cursor
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Мои полученные донаты
+      tags:
+      - donations

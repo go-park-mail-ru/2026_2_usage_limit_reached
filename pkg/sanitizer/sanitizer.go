@@ -1,6 +1,7 @@
 package sanitizer
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -23,23 +24,90 @@ import (
 
 const linkRel = "noopener noreferrer nofollow"
 
-var allowedTags = map[atom.Atom]bool{
-	atom.P: true, atom.H3: true, atom.Strong: true, atom.Em: true, atom.U: true, atom.S: true,
-	atom.Ul: true, atom.Ol: true, atom.Li: true, atom.A: true, atom.Br: true,
+type SanitizerConfig struct {
+	AllowedTags        []string          `mapstructure:"allowed_tags"`
+	TagAliases         map[string]string `mapstructure:"tag_aliases"`
+	RemovedWithContent []string          `mapstructure:"removed_with_content"`
 }
 
-var tagAliases = map[atom.Atom]atom.Atom{
-	atom.B: atom.Strong, atom.I: atom.Em, atom.Del: atom.S, atom.Strike: atom.S, atom.Div: atom.P,
+func DefaultConfig() SanitizerConfig {
+	return SanitizerConfig{
+		AllowedTags: []string{"p", "h3", "strong", "em", "u", "s", "ul", "ol", "li", "a", "br"},
+		TagAliases: map[string]string{
+			"b": "strong", "i": "em", "del": "s", "strike": "s", "div": "p",
+		},
+		RemovedWithContent: []string{
+			"script", "style", "iframe", "object", "embed", "template",
+			"noscript", "svg", "math", "textarea", "select",
+		},
+	}
 }
 
-var removedWithContent = map[atom.Atom]bool{
-	atom.Script: true, atom.Style: true, atom.Iframe: true, atom.Object: true, atom.Embed: true, atom.Template: true,
-	atom.Noscript: true, atom.Svg: true, atom.Math: true, atom.Textarea: true, atom.Select: true,
+func (c SanitizerConfig) Validate() error {
+	var errs []error
+
+	if len(c.AllowedTags) == 0 {
+		errs = append(errs, errors.New("sanitizer: allowed_tags must not be empty"))
+	}
+
+	allowed := make(map[string]bool, len(c.AllowedTags))
+	for _, name := range c.AllowedTags {
+		if atom.Lookup([]byte(name)) == 0 {
+			errs = append(errs, fmt.Errorf("sanitizer: unknown tag %q in allowed_tags", name))
+		}
+		allowed[name] = true
+	}
+
+	for from, to := range c.TagAliases {
+		if atom.Lookup([]byte(from)) == 0 {
+			errs = append(errs, fmt.Errorf("sanitizer: unknown tag %q in tag_aliases", from))
+		}
+		if !allowed[to] {
+			errs = append(errs, fmt.Errorf("sanitizer: tag_aliases target %q (for %q) is not in allowed_tags", to, from))
+		}
+	}
+
+	for _, name := range c.RemovedWithContent {
+		if atom.Lookup([]byte(name)) == 0 {
+			errs = append(errs, fmt.Errorf("sanitizer: unknown tag %q in removed_with_content", name))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+type Sanitizer struct {
+	allowedTags        map[atom.Atom]bool
+	tagAliases         map[atom.Atom]atom.Atom
+	removedWithContent map[atom.Atom]bool
+}
+
+func NewSanitizer(cfg SanitizerConfig) (*Sanitizer, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	s := &Sanitizer{
+		allowedTags:        make(map[atom.Atom]bool, len(cfg.AllowedTags)),
+		tagAliases:         make(map[atom.Atom]atom.Atom, len(cfg.TagAliases)),
+		removedWithContent: make(map[atom.Atom]bool, len(cfg.RemovedWithContent)),
+	}
+	for _, name := range cfg.AllowedTags {
+		s.allowedTags[atom.Lookup([]byte(name))] = true
+	}
+	for from, to := range cfg.TagAliases {
+		s.tagAliases[atom.Lookup([]byte(from))] = atom.Lookup([]byte(to))
+	}
+	for _, name := range cfg.RemovedWithContent {
+		s.removedWithContent[atom.Lookup([]byte(name))] = true
+	}
+
+	return s, nil
 }
 
 var bodyContext = &html.Node{Type: html.ElementNode, Data: "body", DataAtom: atom.Body}
 
-func Sanitize(input string) (string, error) {
+func (s *Sanitizer) Sanitize(input string) (string, error) {
 	nodes, err := html.ParseFragment(strings.NewReader(input), bodyContext)
 	if err != nil {
 		return "", fmt.Errorf("parse html: %w", err)
@@ -47,7 +115,7 @@ func Sanitize(input string) (string, error) {
 
 	var output strings.Builder
 	for _, node := range nodes {
-		for _, tree := range cleanNode(node) {
+		for _, tree := range s.cleanNode(node) {
 			if err := html.Render(&output, tree); err != nil {
 				return "", fmt.Errorf("render html: %w", err)
 			}
@@ -70,24 +138,24 @@ func HasText(input string) bool {
 }
 
 // Рекурсия безопасна, т.к. html.ParseFragment отклоняет вложенность глубже 512 элементов
-func cleanNode(node *html.Node) []*html.Node {
+func (s *Sanitizer) cleanNode(node *html.Node) []*html.Node {
 	switch {
 	case node.Type == html.TextNode:
 		return []*html.Node{{Type: html.TextNode, Data: node.Data}}
-	case node.Type != html.ElementNode || removedWithContent[node.DataAtom]:
+	case node.Type != html.ElementNode || s.removedWithContent[node.DataAtom]:
 		return nil
 	}
 
 	var children []*html.Node
 	for child := node.FirstChild; child != nil; child = child.NextSibling {
-		children = append(children, cleanNode(child)...)
+		children = append(children, s.cleanNode(child)...)
 	}
 
 	tag := node.DataAtom
-	if alias, ok := tagAliases[tag]; ok {
+	if alias, ok := s.tagAliases[tag]; ok {
 		tag = alias
 	}
-	if !allowedTags[tag] {
+	if !s.allowedTags[tag] {
 		return children
 	}
 

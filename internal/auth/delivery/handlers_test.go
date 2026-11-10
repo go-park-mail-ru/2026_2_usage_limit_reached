@@ -116,7 +116,7 @@ func TestHandler_Register(t *testing.T) {
 
 			case tt.expectedToken != "":
 				cookies := w.Result().Cookies()
-				require.Len(t, cookies, 1)
+				require.Len(t, cookies, 2)
 				require.Equal(t, "__Host-token", cookies[0].Name)
 				require.Equal(t, tt.expectedToken, cookies[0].Value)
 				require.True(t, cookies[0].Secure)
@@ -214,7 +214,7 @@ func TestHandler_Login(t *testing.T) {
 
 			case tt.expectedToken != "":
 				cookies := w.Result().Cookies()
-				require.Len(t, cookies, 1)
+				require.Len(t, cookies, 2)
 				require.Equal(t, "__Host-token", cookies[0].Name)
 				require.Equal(t, tt.expectedToken, cookies[0].Value)
 				require.True(t, cookies[0].Secure)
@@ -237,7 +237,7 @@ func TestHandler_Logout(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 
 	cookies := w.Result().Cookies()
-	require.Len(t, cookies, 1)
+	require.Len(t, cookies, 2)
 
 	cookie := cookies[0]
 	require.Equal(t, "__Host-token", cookie.Name)

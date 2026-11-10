@@ -13,7 +13,7 @@ import (
 )
 
 type CSRFManager interface {
-	Resolve(in csrf.BindingInput) (binding, newAnonContext string, err error)
+	Resolve(in csrf.BindingInput) (string, string, error)
 	Token(binding string) (string, error)
 	ContextTTL() time.Duration
 }
@@ -41,24 +41,24 @@ func (h *CSRFHandler) RegisterRoutes(public *mux.Router) {
 // @Header 200 {string} Set-Cookie "__Host-csrf=<context>; Path=/; Secure; HttpOnly; SameSite=Lax"
 // @Router /csrf [get]
 func (h *CSRFHandler) GetToken(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	binding, err := h.currentBinding(w, r)
+	token, err := h.issueToken(w, r)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "create csrf context error", slog.String("handler", "csrf token"), slog.String("error", err.Error()))
-		response.ErrorInternal(w)
-		return
-	}
-
-	token, err := h.csrf.Token(binding)
-	if err != nil {
-		h.logger.ErrorContext(ctx, "create csrf token error", slog.String("handler", "csrf token"), slog.String("error", err.Error()))
+		h.logger.ErrorContext(r.Context(), "issue csrf token error", slog.String("handler", "csrf token"), slog.String("error", err.Error()))
 		response.ErrorInternal(w)
 		return
 	}
 
 	w.Header().Set("Cache-Control", "no-store")
 	response.WriteJSON(w, http.StatusOK, dto.CSRFTokenResponse{CSRFToken: token})
+}
+
+func (h *CSRFHandler) issueToken(w http.ResponseWriter, r *http.Request) (string, error) {
+	binding, err := h.currentBinding(w, r)
+	if err != nil {
+		return "", err
+	}
+
+	return h.csrf.Token(binding)
 }
 
 func (h *CSRFHandler) currentBinding(w http.ResponseWriter, r *http.Request) (string, error) {

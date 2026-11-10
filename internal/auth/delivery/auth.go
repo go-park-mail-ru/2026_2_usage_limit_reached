@@ -45,6 +45,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.setAuthCookie(w, token)
+	h.deleteContextCookie(w)
 	response.WriteJSON(w, http.StatusOK, user)
 }
 
@@ -84,6 +85,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.setAuthCookie(w, token)
+	h.deleteContextCookie(w)
 	response.WriteJSON(w, http.StatusOK, user)
 }
 
@@ -100,5 +102,6 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 // @Router /logout [post]
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	h.deleteAuthCookie(w)
+	h.deleteContextCookie(w)
 	w.WriteHeader(http.StatusOK)
 }

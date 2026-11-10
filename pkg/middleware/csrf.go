@@ -11,6 +11,7 @@ import (
 const CSRFHeaderName = "X-CSRF-Token"
 
 type CSRFVerifier interface {
+	Binding(in csrf.BindingInput) (string, bool)
 	Verify(binding, token string) bool
 }
 
@@ -25,8 +26,8 @@ func CSRFMiddleware(verifier CSRFVerifier) func(http.Handler) http.Handler {
 			}
 
 			token := r.Header.Get(CSRFHeaderName)
-			binding, ok := csrf.Binding(CSRFInput(r))
-			if token == "" || !ok || !verifier.Verify(binding, token) {
+			binding, ok := verifier.Binding(CSRFInput(r))
+			if !ok || !verifier.Verify(binding, token) {
 				response.ErrorCSRFFailed(w)
 				return
 			}

@@ -378,7 +378,7 @@ func (h *PostHandler) NewPost(w http.ResponseWriter, r *http.Request) {
 // @Success 200 "Пост обновлён"
 // @Failure 400 {object} response.ErrorResponse "Ошибка валидации или не передан last_updated_at"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
-// @Failure 403 {object} response.ErrorResponse "Неверный CSRF-токен или его отсутствие"
+// @Failure 403 {object} response.ErrorResponse "Пост принадлежит другому пользователю, либо неверный CSRF-токен или его отсутствие"
 // @Failure 404 {object} response.ErrorResponse "Пост не найден или недоступен"
 // @Failure 409 {object} response.ErrorResponse "Пост уже был изменён (устаревший last_updated_at)"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"

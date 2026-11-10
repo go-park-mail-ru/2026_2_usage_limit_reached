@@ -101,7 +101,7 @@ func (r *PostRepository) GetPost(ctx context.Context, userID *uuid.UUID, postID 
 func (r *PostRepository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
-			p.id, p.author_id, p.title, left(p.body, 200) AS body_preview, p.published_at, p.likes_count,
+			p.id, p.author_id, p.title, p.body, p.published_at, p.likes_count,
 			u.username, u.nickname, u.avatar_key, FALSE,
 			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM post p
@@ -130,7 +130,7 @@ func (r *PostRepository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, c
 func (r *PostRepository) GetMyOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
-			p.id, p.author_id, p.title, left(p.body, 200) AS body_preview, p.published_at, p.likes_count,
+			p.id, p.author_id, p.title, p.body, p.published_at, p.likes_count,
 			u.username, u.nickname, u.avatar_key, FALSE,
 			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM post p
@@ -159,7 +159,7 @@ func (r *PostRepository) GetMyOldPosts(ctx context.Context, userID *uuid.UUID, c
 func (r *PostRepository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
-			p.id, p.author_id, p.title, left(p.body, 200) AS body_preview, p.published_at, p.likes_count,
+			p.id, p.author_id, p.title, p.body, p.published_at, p.likes_count,
 			u.username, u.nickname, u.avatar_key, FALSE,
 			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM post p
@@ -188,7 +188,7 @@ func (r *PostRepository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUI
 func (r *PostRepository) GetMyNewDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
-			p.id, p.author_id, p.title, left(p.body, 200) AS body_preview, p.updated_at, p.likes_count,
+			p.id, p.author_id, p.title, p.body, p.updated_at, p.likes_count,
 			u.username, u.nickname, u.avatar_key, FALSE, FALSE
 		FROM post p
 		JOIN "user" u ON u.id = p.author_id
@@ -216,7 +216,7 @@ func (r *PostRepository) GetMyNewDrafts(ctx context.Context, userID *uuid.UUID, 
 func (r *PostRepository) GetMyOldDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
-			p.id, p.author_id, p.title, left(p.body, 200) AS body_preview, p.updated_at, p.likes_count,
+			p.id, p.author_id, p.title, p.body, p.updated_at, p.likes_count,
 			u.username, u.nickname, u.avatar_key, FALSE, FALSE
 		FROM post p
 		JOIN "user" u ON u.id = p.author_id
@@ -244,7 +244,7 @@ func (r *PostRepository) GetMyOldDrafts(ctx context.Context, userID *uuid.UUID, 
 func (r *PostRepository) GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
-			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview,
+			SELECT p.id, p.author_id, p.title, p.body,
 			       p.published_at, p.likes_count,
 			       u.username, u.nickname, u.avatar_key
 			FROM post p
@@ -299,7 +299,7 @@ func (r *PostRepository) GetUserNewPosts(ctx context.Context, userID *uuid.UUID,
 func (r *PostRepository) GetUserOldPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
-			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview,
+			SELECT p.id, p.author_id, p.title, p.body,
 			       p.published_at, p.likes_count,
 			       u.username, u.nickname, u.avatar_key
 			FROM post p
@@ -354,7 +354,7 @@ func (r *PostRepository) GetUserOldPosts(ctx context.Context, userID *uuid.UUID,
 func (r *PostRepository) GetUserPopularPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
-			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview,
+			SELECT p.id, p.author_id, p.title, p.body,
 			       p.published_at, p.likes_count,
 			       u.username, u.nickname, u.avatar_key
 			FROM post p
@@ -410,7 +410,7 @@ func (r *PostRepository) GetUserPopularPosts(ctx context.Context, userID *uuid.U
 func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
-			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview,
+			SELECT p.id, p.author_id, p.title, p.body,
 				p.published_at, p.likes_count, u.username, u.nickname, u.avatar_key
 			FROM post p
 			JOIN "user" u ON u.id = p.author_id
@@ -450,7 +450,7 @@ func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cur
 func (r *PostRepository) GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
-			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview,
+			SELECT p.id, p.author_id, p.title, p.body,
 				p.published_at, p.likes_count, u.username, u.nickname, u.avatar_key
 			FROM post p
 			JOIN "user" u ON u.id = p.author_id
@@ -490,7 +490,7 @@ func (r *PostRepository) GetOldPosts(ctx context.Context, userID *uuid.UUID, cur
 func (r *PostRepository) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
-			SELECT p.id, p.author_id, p.title, left(p.body, 200) AS body_preview,
+			SELECT p.id, p.author_id, p.title, p.body,
 			p.published_at, p.likes_count, u.username, u.nickname, u.avatar_key
 			FROM post p
 			JOIN "user" u ON u.id = p.author_id
@@ -586,9 +586,6 @@ func scanPosts(rows pgx.Rows) ([]*dto.PostPreview, error) {
 		)
 		if err != nil {
 			return nil, err
-		}
-		if len([]rune(post.BodyPreview)) == 200 {
-			post.BodyPreview += "..."
 		}
 		posts = append(posts, post)
 	}

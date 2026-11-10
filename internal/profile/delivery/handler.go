@@ -27,6 +27,7 @@ type ProfileUsecase interface {
 	GetMyProfile(ctx context.Context, userID uuid.UUID) (*dto.ProfileResponse, error)
 	GetPublicProfile(ctx context.Context, username string) (*dto.PublicProfileResponse, error)
 	UpdateMyProfile(ctx context.Context, userID uuid.UUID, req dto.UpdateProfileRequest) (*dto.ProfileResponse, error)
+	BecomeAuthor(ctx context.Context, userID uuid.UUID, req dto.UpdateAuthorRequest) (*dto.ProfileResponse, error)
 	UploadAvatar(ctx context.Context, userID uuid.UUID, file io.ReadSeeker, size int64) (string, error)
 	DeleteAvatar(ctx context.Context, userID uuid.UUID) error
 }
@@ -44,6 +45,7 @@ func NewProfileHandler(uc ProfileUsecase, validator *validator.Validator, logger
 func (h *ProfileHandler) RegisterRoutes(public *mux.Router, private *mux.Router) {
 	private.HandleFunc("/profile/me", h.GetMe).Methods(http.MethodGet, http.MethodOptions)
 	private.HandleFunc("/profile/me", h.UpdateMe).Methods(http.MethodPut, http.MethodOptions)
+	private.HandleFunc("/profile/me/author", h.BecomeAuthor).Methods(http.MethodPost, http.MethodOptions)
 	private.HandleFunc("/profile/me/avatar", h.UploadAvatar).Methods(http.MethodPut, http.MethodOptions)
 	private.HandleFunc("/profile/me/avatar", h.DeleteAvatar).Methods(http.MethodDelete, http.MethodOptions)
 	public.HandleFunc("/users/{username}", h.GetByUsername).Methods(http.MethodGet, http.MethodOptions)
@@ -103,11 +105,12 @@ func (h *ProfileHandler) GetByUsername(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Security CookieAuth
+// @Param X-CSRF-Token header string true "CSRF-токен из GET /csrf"
 // @Param request body dto.UpdateProfileRequest true "Новые данные профиля"
 // @Success 200 {object} dto.ProfileResponse "Профиль изменен"
 // @Failure 400 {object} response.ErrorResponse "Ошибка валидации"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
-// @Failure 403 {object} response.ErrorResponse "Пользователь не является автором, заблокирован или удалён"
+// @Failure 403 {object} response.ErrorResponse "Пользователь не является автором, заблокирован или удалён, либо неверный CSRF-токен или его отсутствие"
 // @Failure 404 {object} response.ErrorResponse "Пользователь не найден"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /profile/me [put]
@@ -132,6 +135,49 @@ func (h *ProfileHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	profile, err := h.uc.UpdateMyProfile(r.Context(), user.UserID, req)
 	if err != nil {
 		h.handleError(r.Context(), w, "update my profile", err)
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, profile)
+}
+
+// BecomeAuthor создает профиль автора текущего пользователя
+// @Summary Создание профиля автора
+// @Description Создает профиль автора. Если профиль автора уже есть, возвращает его без изменений, переданные данные игнорируются. Если category не выбрана, поле опускается
+// @Tags profile
+// @Accept json
+// @Produce json
+// @Security CookieAuth
+// @Param X-CSRF-Token header string true "CSRF-токен из GET /csrf"
+// @Param request body internal_profile_dto.UpdateAuthorRequest true "Данные профиля автора"
+// @Success 200 {object} dto.ProfileResponse "Профиль с блоком author"
+// @Failure 400 {object} response.ErrorResponse "Ошибка валидации"
+// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
+// @Failure 403 {object} response.ErrorResponse "Пользователь заблокирован или удалён, либо неверный CSRF-токен или его отсутствие"
+// @Failure 404 {object} response.ErrorResponse "Пользователь не найден"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /profile/me/author [post]
+func (h *ProfileHandler) BecomeAuthor(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.UserInfoFromContext(r.Context())
+	if !ok || user == nil || user.UserID == uuid.Nil {
+		response.ErrorUnauthorized(w)
+		return
+	}
+
+	var req dto.UpdateAuthorRequest
+	if err := response.DecodeJSON(w, r, &req); err != nil {
+		h.handleError(r.Context(), w, "become author", fmt.Errorf("%w: %v", validator.ErrValidation, err))
+		return
+	}
+
+	if err := req.Validate(h.validator); err != nil {
+		h.handleError(r.Context(), w, "become author", err)
+		return
+	}
+
+	profile, err := h.uc.BecomeAuthor(r.Context(), user.UserID, req)
+	if err != nil {
+		h.handleError(r.Context(), w, "become author", err)
 		return
 	}
 

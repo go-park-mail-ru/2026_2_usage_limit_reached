@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
 )
 
 var (
@@ -58,10 +59,18 @@ type PostRepository interface {
 	DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error)
 }
 
-type PostUsecase struct {
-	repo PostRepository
+// Проверка тела поста после санитайзинга. Интерфейс определен здесь, чтобы usecase не зависел от пакета validator целиком
+type SanitizedBodyValidator interface {
+	IsValidSanitizedPostBody(raw, sanitized string) bool
 }
 
-func NewPostUsecase(r PostRepository) *PostUsecase {
-	return &PostUsecase{repo: r}
+type PostUsecase struct {
+	repo           PostRepository
+	sanitizer      *sanitizer.Sanitizer
+	bodyCheck      SanitizedBodyValidator
+	avatarBasePath string
+}
+
+func NewPostUsecase(r PostRepository, s *sanitizer.Sanitizer, v SanitizedBodyValidator, avatarBasePath string) *PostUsecase {
+	return &PostUsecase{repo: r, sanitizer: s, bodyCheck: v, avatarBasePath: avatarBasePath}
 }

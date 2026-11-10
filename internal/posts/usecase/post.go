@@ -37,10 +37,10 @@ func (uc *PostUsecase) CreatePost(ctx context.Context, userID *uuid.UUID, p dto.
 
 func (uc *PostUsecase) GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error) {
 	post, err := uc.repo.GetPost(ctx, userID, postID)
-	post.Author.AvatarUrl = mediaurl.PublicPtr(uc.avatarBasePath, post.Author.AvatarUrl)
 	if err != nil {
 		return nil, mapRepoError("get post", err)
 	}
+	post.Author.AvatarUrl = mediaurl.PublicPtr(uc.avatarBasePath, post.Author.AvatarUrl)
 	return post, nil
 }
 

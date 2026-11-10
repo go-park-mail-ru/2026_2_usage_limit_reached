@@ -32,10 +32,10 @@ func (uc *Usecase) CreateAuthor(ctx context.Context, req dto.UpdateAuthorRequest
 		Bio:      req.Bio,
 		Category: req.Category,
 	})
-	if errors.Is(err, models.ErrAuthorExists) {
-		return uc.FindAuthorByID(ctx, req.AuthorID)
-	}
 	if err != nil {
+		if errors.Is(err, models.ErrAuthorExists) {
+			return uc.FindAuthorByID(ctx, req.AuthorID)
+		}
 		return nil, fmt.Errorf("create author: %w", err)
 	}
 

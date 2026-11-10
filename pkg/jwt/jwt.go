@@ -26,7 +26,7 @@ var (
 const (
 	AlgorithmHS256 = "HS256"
 	TokenTypeJWT   = "JWT"
-	CookieName     = "token"
+	CookieName     = "__Host-token"
 
 	minSecretKeyLen = 32
 )
@@ -44,12 +44,15 @@ func DefaultConfig() JWTConfig {
 
 func (c JWTConfig) Validate() error {
 	var errs []error
+
 	if len(c.Secret) < minSecretKeyLen {
 		errs = append(errs, fmt.Errorf("jwt: %w, got %d", ErrInvalidSecretKey, len(c.Secret)))
 	}
+
 	if c.TokenTTL <= 0 {
 		errs = append(errs, fmt.Errorf("jwt: %w, got %s", ErrInvalidTTL, c.TokenTTL))
 	}
+
 	return errors.Join(errs...)
 }
 

@@ -13,6 +13,7 @@ require (
 	github.com/minio/minio-go/v7 v7.4.0
 	github.com/spf13/viper v1.21.0
 	golang.org/x/image v0.47.0
+	golang.org/x/net v0.60.0
 )
 
 require (
@@ -45,7 +46,6 @@ require (
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
-	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	gopkg.in/ini.v1 v1.67.3 // indirect
 )

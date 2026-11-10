@@ -11,6 +11,7 @@ require (
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/minio/minio-go/v7 v7.4.0
+	github.com/pashagolub/pgxmock/v5 v5.2.0
 	github.com/spf13/viper v1.21.0
 	golang.org/x/image v0.47.0
 )

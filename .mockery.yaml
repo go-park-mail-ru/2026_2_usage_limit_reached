@@ -10,6 +10,7 @@ packages:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery:
     interfaces:
       UseCase:
+      CSRFManager:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase:
     interfaces:
       UserUsecase:
@@ -25,3 +26,9 @@ packages:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase:
     interfaces:
       Repository:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase:
+    interfaces:
+      PaymentRepo:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider:
+    interfaces:
+      Provider:

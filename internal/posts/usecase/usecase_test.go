@@ -6,10 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/models"
 	postusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/usecase/mock_posts_usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -166,7 +168,7 @@ func TestPostUsecase_ListPosts_Pagination(t *testing.T) {
 				repo := mock_posts_usecase.NewMockPostRepository(t)
 				m.expect(repo, &postUserID, items, nil)
 
-				uc := postusecase.NewPostUsecase(repo)
+				uc := newTestUsecase(repo)
 				got, err := m.call(uc, &postUserID)
 
 				require.NoError(t, err)
@@ -193,7 +195,7 @@ func TestPostUsecase_ListPosts_Anonymous(t *testing.T) {
 				m.expect(repo, anonymous, previews(1), nil)
 			}
 
-			uc := postusecase.NewPostUsecase(repo)
+			uc := newTestUsecase(repo)
 			got, err := m.call(uc, anonymous)
 
 			if m.requiresAuth {
@@ -228,7 +230,7 @@ func TestPostUsecase_ListPosts_Errors(t *testing.T) {
 				repo := mock_posts_usecase.NewMockPostRepository(t)
 				m.expect(repo, &postUserID, nil, tt.repoErr)
 
-				uc := postusecase.NewPostUsecase(repo)
+				uc := newTestUsecase(repo)
 				got, err := m.call(uc, &postUserID)
 
 				require.Nil(t, got)
@@ -244,7 +246,7 @@ func TestPostUsecase_CreatePost_Success(t *testing.T) {
 	repo := mock_posts_usecase.NewMockPostRepository(t)
 	repo.EXPECT().CreatePost(mock.Anything, &postUserID, postModel).Return(postID, nil)
 
-	uc := postusecase.NewPostUsecase(repo)
+	uc := newTestUsecase(repo)
 	got, err := uc.CreatePost(context.Background(), &postUserID, postRequest)
 
 	require.NoError(t, err)
@@ -254,7 +256,7 @@ func TestPostUsecase_CreatePost_Success(t *testing.T) {
 func TestPostUsecase_CreatePost_Anonymous(t *testing.T) {
 	t.Parallel()
 
-	uc := postusecase.NewPostUsecase(mock_posts_usecase.NewMockPostRepository(t))
+	uc := newTestUsecase(mock_posts_usecase.NewMockPostRepository(t))
 
 	got, err := uc.CreatePost(context.Background(), anonymous, postRequest)
 
@@ -283,7 +285,7 @@ func TestPostUsecase_CreatePost_Errors(t *testing.T) {
 			repo := mock_posts_usecase.NewMockPostRepository(t)
 			repo.EXPECT().CreatePost(mock.Anything, &postUserID, postModel).Return(uuid.Nil, tt.repoErr)
 
-			uc := postusecase.NewPostUsecase(repo)
+			uc := newTestUsecase(repo)
 			got, err := uc.CreatePost(context.Background(), &postUserID, postRequest)
 
 			require.Equal(t, uuid.Nil, got)
@@ -316,7 +318,7 @@ func TestPostUsecase_GetPost(t *testing.T) {
 			repo := mock_posts_usecase.NewMockPostRepository(t)
 			repo.EXPECT().GetPost(mock.Anything, tt.userID, postID).Return(tt.post, tt.repoErr)
 
-			uc := postusecase.NewPostUsecase(repo)
+			uc := newTestUsecase(repo)
 			got, err := uc.GetPost(context.Background(), tt.userID, postID)
 
 			if tt.wantErr != nil {
@@ -354,7 +356,7 @@ func TestPostUsecase_UpdatePost(t *testing.T) {
 			repo := mock_posts_usecase.NewMockPostRepository(t)
 			repo.EXPECT().UpdatePost(mock.Anything, &postUserID, updated, postTime).Return(tt.repoErr)
 
-			uc := postusecase.NewPostUsecase(repo)
+			uc := newTestUsecase(repo)
 			err := uc.UpdatePost(context.Background(), &postUserID, postID, postRequest, postTime)
 
 			if tt.wantErr != nil {
@@ -370,7 +372,7 @@ func TestPostUsecase_UpdatePost(t *testing.T) {
 func TestPostUsecase_UpdatePost_Anonymous(t *testing.T) {
 	t.Parallel()
 
-	uc := postusecase.NewPostUsecase(mock_posts_usecase.NewMockPostRepository(t))
+	uc := newTestUsecase(mock_posts_usecase.NewMockPostRepository(t))
 
 	err := uc.UpdatePost(context.Background(), anonymous, postID, postRequest, postTime)
 
@@ -397,7 +399,7 @@ func TestPostUsecase_DeletePost(t *testing.T) {
 			repo := mock_posts_usecase.NewMockPostRepository(t)
 			repo.EXPECT().DeletePost(mock.Anything, &postUserID, postID).Return(tt.repoErr)
 
-			uc := postusecase.NewPostUsecase(repo)
+			uc := newTestUsecase(repo)
 			err := uc.DeletePost(context.Background(), &postUserID, postID)
 
 			if tt.wantErr != nil {
@@ -413,7 +415,7 @@ func TestPostUsecase_DeletePost(t *testing.T) {
 func TestPostUsecase_DeletePost_Anonymous(t *testing.T) {
 	t.Parallel()
 
-	uc := postusecase.NewPostUsecase(mock_posts_usecase.NewMockPostRepository(t))
+	uc := newTestUsecase(mock_posts_usecase.NewMockPostRepository(t))
 
 	err := uc.DeletePost(context.Background(), anonymous, postID)
 
@@ -473,7 +475,7 @@ func TestPostUsecase_Likes(t *testing.T) {
 				repo := mock_posts_usecase.NewMockPostRepository(t)
 				m.expect(repo, tt.repoLikes, tt.repoErr)
 
-				uc := postusecase.NewPostUsecase(repo)
+				uc := newTestUsecase(repo)
 				got, err := m.call(uc, &postUserID)
 
 				require.Equal(t, tt.wantLikes, got)
@@ -495,7 +497,7 @@ func TestPostUsecase_Likes_Anonymous(t *testing.T) {
 		t.Run(m.name, func(t *testing.T) {
 			t.Parallel()
 
-			uc := postusecase.NewPostUsecase(mock_posts_usecase.NewMockPostRepository(t))
+			uc := newTestUsecase(mock_posts_usecase.NewMockPostRepository(t))
 
 			got, err := m.call(uc, anonymous)
 
@@ -503,4 +505,13 @@ func TestPostUsecase_Likes_Anonymous(t *testing.T) {
 			require.ErrorIs(t, err, postusecase.ErrUnauthorized)
 		})
 	}
+}
+
+func newTestUsecase(repo postusecase.PostRepository) *postusecase.PostUsecase {
+	s, err := sanitizer.NewSanitizer(sanitizer.DefaultConfig())
+	if err != nil {
+		panic(err)
+	}
+
+	return postusecase.NewPostUsecase(repo, s, testutils.SetupValidator(), "/media")
 }

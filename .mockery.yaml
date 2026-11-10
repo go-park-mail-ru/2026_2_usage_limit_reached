@@ -24,3 +24,9 @@ packages:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase:
     interfaces:
       Repository:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/usecase:
+    interfaces:
+      PostRepository:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery:
+    interfaces:
+      PostUsecase:

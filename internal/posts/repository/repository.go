@@ -753,15 +753,15 @@ func (r *PostRepository) DeletePostLike(ctx context.Context, userID *uuid.UUID, 
 		slog.String("userID", userID.String()),
 	)
 
-	if result, err := r.pool.Exec(ctx, deletePostLike, postID, userID); err != nil {
-		if result.RowsAffected() == 0 {
-			return 0, models.ErrPostNotFound
-		}
+	if _, err := r.pool.Exec(ctx, deletePostLike, postID, userID); err != nil {
 		return 0, fmt.Errorf("delete post like error: %w", err)
 	}
 
 	var likesCount int64
 	if err := r.pool.QueryRow(ctx, getLikesCount, postID).Scan(&likesCount); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, models.ErrPostNotFound
+		}
 		return 0, fmt.Errorf("delete post like error: count likes: %w", err)
 	}
 	return likesCount, nil

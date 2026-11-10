@@ -26,7 +26,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
-	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/text v0.43.0
 )
 
 require (
@@ -52,6 +52,7 @@ require (
 
 require (
 	github.com/jackc/pgx/v5 v5.11.0
+	github.com/pashagolub/pgxmock/v5 v5.2.0
 	github.com/stretchr/testify v1.12.1
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 )

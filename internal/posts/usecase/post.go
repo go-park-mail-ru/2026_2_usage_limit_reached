@@ -8,6 +8,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
 	"github.com/google/uuid"
 )
 
@@ -22,9 +23,15 @@ func (uc *PostUsecase) CreatePost(ctx context.Context, userID *uuid.UUID, p dto.
 	if userID == nil {
 		return uuid.Nil, fmt.Errorf("%s: %w", "create post", ErrUnauthorized)
 	}
+
+	body, err := uc.sanitizeBody(p.Body)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("%s: %w", "create post", err)
+	}
+
 	post := models.Post{
 		Title:  p.Title,
-		Body:   p.Body,
+		Body:   body,
 		Status: p.Status,
 	}
 	postID, err := uc.repo.CreatePost(ctx, userID, post)
@@ -193,10 +200,16 @@ func (uc *PostUsecase) UpdatePost(ctx context.Context, userID *uuid.UUID, postID
 	if userID == nil {
 		return fmt.Errorf("%s: %w", "update post (unauthorized)", ErrUnauthorized)
 	}
+
+	body, err := uc.sanitizeBody(p.Body)
+	if err != nil {
+		return fmt.Errorf("%s: %w", "update post", err)
+	}
+
 	post := models.Post{
 		ID:     postID,
 		Title:  p.Title,
-		Body:   p.Body,
+		Body:   body,
 		Status: p.Status,
 	}
 	if err := uc.repo.UpdatePost(ctx, userID, post, lastUpdatedAt); err != nil {
@@ -235,4 +248,21 @@ func (uc *PostUsecase) DeletePostLike(ctx context.Context, userID *uuid.UUID, po
 		return 0, mapRepoError("delete like", err)
 	}
 	return likes, nil
+}
+
+func (uc *PostUsecase) sanitizeBody(body string) (string, error) {
+	clean, err := uc.sanitizer.Sanitize(body)
+	if err != nil {
+		return "", fmt.Errorf("sanitize body: %w: %w", ErrValidation, err)
+	}
+
+	if !uc.bodyCheck.IsValidSanitizedPostBody(body, clean) {
+		return "", fmt.Errorf("sanitize body: %w: sanitized body is too large", ErrValidation)
+	}
+
+	if !sanitizer.HasText(clean) {
+		return "", fmt.Errorf("sanitize body: %w: no text", ErrValidation)
+	}
+
+	return clean, nil
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v5"
@@ -26,7 +27,7 @@ func newTestRepository(t *testing.T) (*AuthorRepository, pgxmock.PgxPoolIface) {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 
-	return &AuthorRepository{pool: pool}, pool
+	return &AuthorRepository{pool: pool, logger: testutils.SetupLogger()}, pool
 }
 
 func TestAuthorRepository_GetAuthorByID(t *testing.T) {

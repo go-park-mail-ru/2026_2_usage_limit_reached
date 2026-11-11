@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/google/uuid"
@@ -29,7 +30,7 @@ func newTestRepository(t *testing.T) (*UserRepository, pgxmock.PgxPoolIface) {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 
-	return &UserRepository{pool: pool}, pool
+	return &UserRepository{pool: pool, logger: testutils.SetupLogger()}, pool
 }
 
 func testUser() *models.User {

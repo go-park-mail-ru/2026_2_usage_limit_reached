@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -26,7 +27,7 @@ func newTestRepository(t *testing.T) (*ProfileRepository, pgxmock.PgxPoolIface) 
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 
-	return &ProfileRepository{pool: pool}, pool
+	return &ProfileRepository{pool: pool, logger: testutils.SetupLogger()}, pool
 }
 
 func TestProfileRepository_GetProfileByID(t *testing.T) {

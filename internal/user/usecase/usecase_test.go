@@ -157,3 +157,140 @@ func TestUsecase_FindUserByID(t *testing.T) {
 		})
 	}
 }
+
+var testUserID = uuid.MustParse("00000000-0000-4000-8000-000000000011")
+
+func ptr(s string) *string { return &s }
+
+func TestUsecase_CreateUser_Errors(t *testing.T) {
+	repoErr := errors.New("db down")
+
+	tests := []struct {
+		name        string
+		repoErr     error
+		expectedErr error
+	}{
+		{name: "User exists", repoErr: models.ErrUserExists, expectedErr: usecase.ErrUserExists},
+		{name: "Repository error", repoErr: repoErr, expectedErr: repoErr},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := mock_user_usecase.NewMockRepository(t)
+			repo.EXPECT().CreateUser(mock.Anything, mock.Anything).Return(nil, tt.repoErr)
+			uc := usecase.NewUsecase(repo, testAvatarBasePath)
+
+			got, err := uc.CreateUser(context.Background(), newCreateUserRequest())
+
+			require.ErrorIs(t, err, tt.expectedErr)
+			require.Nil(t, got)
+		})
+	}
+}
+
+func TestUsecase_UpdateAvatarKey(t *testing.T) {
+	repoErr := errors.New("db down")
+
+	tests := []struct {
+		name        string
+		oldKey      *string
+		repoErr     error
+		expectedErr error
+	}{
+		{name: "Success returns old key", oldKey: ptr("avatars/old.png")},
+		{name: "Success without old key"},
+		{name: "User not found", repoErr: models.ErrUserNotFound, expectedErr: usecase.ErrUserNotFound},
+		{name: "Repository error", repoErr: repoErr, expectedErr: repoErr},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := mock_user_usecase.NewMockRepository(t)
+			newKey := ptr("avatars/new.png")
+			repo.EXPECT().UpdateAvatarKey(mock.Anything, testUserID, newKey).Return(tt.oldKey, tt.repoErr)
+			uc := usecase.NewUsecase(repo, testAvatarBasePath)
+
+			got, err := uc.UpdateAvatarKey(context.Background(), testUserID, newKey)
+
+			if tt.expectedErr != nil {
+				require.ErrorIs(t, err, tt.expectedErr)
+				require.Nil(t, got)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.oldKey, got)
+		})
+	}
+}
+
+func TestUsecase_FindCredentialsByLogin_Lookup(t *testing.T) {
+	repoErr := errors.New("db down")
+	user := &models.User{
+		ID:           testUserID,
+		Username:     "ivan001",
+		Email:        "ivan@gmail.com",
+		PasswordHash: "hash",
+		AvatarKey:    ptr("avatars/ivan.png"),
+		Status:       models.StatusActive,
+	}
+
+	tests := []struct {
+		name         string
+		login        string
+		mockBehavior func(m *mock_user_usecase.MockRepository)
+		expectedErr  error
+	}{
+		{
+			name:  "Email login is normalized",
+			login: "  Ivan@Gmail.com ",
+			mockBehavior: func(m *mock_user_usecase.MockRepository) {
+				m.EXPECT().GetUserByEmail(mock.Anything, "ivan@gmail.com").Return(user, nil)
+			},
+		},
+		{
+			name:  "Username login is normalized",
+			login: " IVAN001 ",
+			mockBehavior: func(m *mock_user_usecase.MockRepository) {
+				m.EXPECT().GetUserByUsername(mock.Anything, "ivan001").Return(user, nil)
+			},
+		},
+		{
+			name:  "User not found",
+			login: "ghost",
+			mockBehavior: func(m *mock_user_usecase.MockRepository) {
+				m.EXPECT().GetUserByUsername(mock.Anything, "ghost").Return(nil, models.ErrUserNotFound)
+			},
+			expectedErr: usecase.ErrUserNotFound,
+		},
+		{
+			name:  "Repository error",
+			login: "ghost@mail.ru",
+			mockBehavior: func(m *mock_user_usecase.MockRepository) {
+				m.EXPECT().GetUserByEmail(mock.Anything, "ghost@mail.ru").Return(nil, repoErr)
+			},
+			expectedErr: repoErr,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := mock_user_usecase.NewMockRepository(t)
+			tt.mockBehavior(repo)
+			uc := usecase.NewUsecase(repo, testAvatarBasePath)
+
+			got, err := uc.FindCredentialsByLogin(context.Background(), tt.login)
+
+			if tt.expectedErr != nil {
+				require.ErrorIs(t, err, tt.expectedErr)
+				require.Nil(t, got)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, "hash", got.PasswordHash)
+			require.Equal(t, "ivan001", got.Username)
+			require.NotNil(t, got.AvatarURL)
+			require.Equal(t, "/media/avatars/ivan.png", *got.AvatarURL)
+		})
+	}
+}
+
+func newCreateUserRequest() dto.CreateUserRequest {
+	return dto.CreateUserRequest{Email: "a@b.c", Username: "user", Nickname: "nick", PasswordHash: "hash"}
+}

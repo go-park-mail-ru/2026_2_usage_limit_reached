@@ -339,6 +339,7 @@ func TestProfileHandler_UploadAvatar(t *testing.T) {
 		{name: "avatar too large", ucErr: profileusecase.ErrAvatarTooLarge, wantCode: http.StatusRequestEntityTooLarge, wantJSON: `{"error":"payload too large"}`},
 		{name: "unsupported type", ucErr: profileusecase.ErrUnsupportedAvatarType, wantCode: http.StatusUnsupportedMediaType, wantJSON: `{"error":"unsupported media type"}`},
 		{name: "profile not found", ucErr: profileusecase.ErrProfileNotFound, wantCode: http.StatusNotFound, wantJSON: `{"error":"not found"}`},
+		{name: "usecase failure", ucErr: errors.New("storage unavailable"), wantCode: http.StatusInternalServerError, wantJSON: `{"error":"internal server error"}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -353,6 +354,137 @@ func TestProfileHandler_UploadAvatar(t *testing.T) {
 
 			require.Equal(t, tt.wantCode, recorder.Code)
 			require.JSONEq(t, tt.wantJSON, recorder.Body.String())
+		})
+	}
+}
+
+func requestAuthorized(router http.Handler, method, path string, body io.Reader) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, body)
+	req.AddCookie(&http.Cookie{Name: jwt.CookieName, Value: "test-token"})
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	return recorder
+}
+
+func TestProfileHandler_UpdateMe_Success(t *testing.T) {
+	t.Parallel()
+
+	category := "Книги"
+	req := dto.UpdateProfileRequest{Nickname: "Иван", Author: &dto.UpdateAuthorRequest{Bio: "Пишу о книгах", Category: &category}}
+	profile := &dto.ProfileResponse{
+		User:   dto.ProfileUserResponse{PublicProfileUserResponse: dto.PublicProfileUserResponse{ID: testUserID, Username: "ivan001", Nickname: "Иван", CreatedAt: testTime}, Email: "ivan@example.test"},
+		Author: &dto.AuthorResponse{Bio: "Пишу о книгах", Category: &category},
+	}
+	uc := mock_profile_delivery.NewMockProfileUsecase(t)
+	uc.EXPECT().UpdateMyProfile(mock.Anything, testUserID, req).Return(profile, nil)
+
+	recorder := requestAuthorized(newTestRouter(uc, testUserID), http.MethodPut, "/profile/me",
+		bytes.NewBufferString(`{"nickname":"Иван","author":{"bio":"Пишу о книгах","category":"Книги"}}`))
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","created_at":"2026-09-01T12:00:00Z"},"author":{"bio":"Пишу о книгах","category":"Книги"}}`, recorder.Body.String())
+}
+
+func TestProfileHandler_UpdateMe_InvalidRequest(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "malformed json", body: `{"nickname":`},
+		{name: "empty nickname", body: `{"nickname":""}`},
+		{name: "empty bio", body: `{"nickname":"Иван","author":{"bio":""}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+
+			recorder := requestAuthorized(newTestRouter(uc, testUserID), http.MethodPut, "/profile/me", bytes.NewBufferString(tt.body))
+
+			require.Equal(t, http.StatusBadRequest, recorder.Code)
+			require.JSONEq(t, `{"error":"bad request"}`, recorder.Body.String())
+		})
+	}
+}
+
+func TestProfileHandler_UpdateMe_UsecaseErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		ucErr    error
+		wantCode int
+		wantJSON string
+	}{
+		{name: "not an author", ucErr: profileusecase.ErrNotAuthor, wantCode: http.StatusForbidden, wantJSON: `{"error":"forbidden"}`},
+		{name: "inactive user", ucErr: profileusecase.ErrUserInactive, wantCode: http.StatusForbidden, wantJSON: `{"error":"forbidden"}`},
+		{name: "profile not found", ucErr: profileusecase.ErrProfileNotFound, wantCode: http.StatusNotFound, wantJSON: `{"error":"not found"}`},
+		{name: "usecase failure", ucErr: errors.New("storage unavailable"), wantCode: http.StatusInternalServerError, wantJSON: `{"error":"internal server error"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+			uc.EXPECT().UpdateMyProfile(mock.Anything, testUserID, dto.UpdateProfileRequest{Nickname: "Иван"}).Return(nil, tt.ucErr)
+
+			recorder := requestAuthorized(newTestRouter(uc, testUserID), http.MethodPut, "/profile/me", bytes.NewBufferString(`{"nickname":"Иван"}`))
+
+			require.Equal(t, tt.wantCode, recorder.Code)
+			require.JSONEq(t, tt.wantJSON, recorder.Body.String())
+		})
+	}
+}
+
+func TestProfileHandler_DeleteAvatar(t *testing.T) {
+	tests := []struct {
+		name     string
+		ucErr    error
+		wantCode int
+		wantJSON string
+	}{
+		{name: "deleted", wantCode: http.StatusNoContent},
+		{name: "profile not found", ucErr: profileusecase.ErrProfileNotFound, wantCode: http.StatusNotFound, wantJSON: `{"error":"not found"}`},
+		{name: "usecase failure", ucErr: errors.New("storage unavailable"), wantCode: http.StatusInternalServerError, wantJSON: `{"error":"internal server error"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+			uc.EXPECT().DeleteAvatar(mock.Anything, testUserID).Return(tt.ucErr)
+
+			recorder := requestAuthorized(newTestRouter(uc, testUserID), http.MethodDelete, "/profile/me/avatar", nil)
+
+			require.Equal(t, tt.wantCode, recorder.Code)
+			if tt.wantJSON == "" {
+				require.Empty(t, recorder.Body.String())
+
+				return
+			}
+			require.JSONEq(t, tt.wantJSON, recorder.Body.String())
+		})
+	}
+}
+
+// Защита обработчиков не должна зависеть от того, что middleware аутентификации стоит перед ними
+func TestProfileHandler_RejectsRequestWithoutUser(t *testing.T) {
+	handler := profilehandlers.NewProfileHandler(
+		mock_profile_delivery.NewMockProfileUsecase(t),
+		testutils.SetupValidator(),
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+	}{
+		{name: "get me", handler: handler.GetMe},
+		{name: "update me", handler: handler.UpdateMe},
+		{name: "upload avatar", handler: handler.UploadAvatar},
+		{name: "delete avatar", handler: handler.DeleteAvatar},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+
+			tt.handler(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+
+			require.Equal(t, http.StatusUnauthorized, recorder.Code)
+			require.JSONEq(t, `{"error":"unauthorized"}`, recorder.Body.String())
 		})
 	}
 }

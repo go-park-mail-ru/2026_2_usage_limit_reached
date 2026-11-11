@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -19,11 +20,12 @@ const (
 )
 
 type UserRepository struct {
-	pool postgres.DB
+	pool   postgres.DB
+	logger *slog.Logger
 }
 
-func NewUserRepository(db *postgres.DBClient) *UserRepository {
-	return &UserRepository{pool: db.Pool}
+func NewUserRepository(db *postgres.DBClient, logger *slog.Logger) *UserRepository {
+	return &UserRepository{pool: db.Pool, logger: logger}
 }
 
 func (r *UserRepository) CreateUser(ctx context.Context, u models.User) (*models.User, error) {
@@ -32,6 +34,11 @@ func (r *UserRepository) CreateUser(ctx context.Context, u models.User) (*models
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at, updated_at
 	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "create user"),
+		slog.String("username", u.Username),
+	)
 
 	err := r.pool.QueryRow(ctx, query, u.Username, u.Nickname, u.Email, u.PasswordHash, u.Status).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
@@ -53,6 +60,11 @@ func (r *UserRepository) UpdateNickname(ctx context.Context, id uuid.UUID, nickn
 		WHERE id = $1
 		RETURNING nickname
 	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "update nickname"),
+		slog.String("userID", id.String()),
+	)
 
 	var updated string
 
@@ -76,6 +88,12 @@ func (r *UserRepository) UpdateAvatarKey(ctx context.Context, id uuid.UUID, key 
 		WHERE u.id = old.id
 		RETURNING old.avatar_key
 	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "update avatar key"),
+		slog.String("userID", id.String()),
+		slog.Bool("removeAvatar", key == nil),
+	)
 
 	var oldKey *string
 
@@ -118,6 +136,12 @@ func (r *UserRepository) getUser(ctx context.Context, field string, v any) (*mod
 	default:
 		return nil, fmt.Errorf("Invalid search field")
 	}
+
+	attrs := []slog.Attr{slog.String("op", "get user by "+field)}
+	if field != EmailField {
+		attrs = append(attrs, slog.Any(field, v))
+	}
+	r.logger.LogAttrs(ctx, slog.LevelDebug, "executing query", attrs...)
 
 	query := fmt.Sprintf(getQuery, field)
 

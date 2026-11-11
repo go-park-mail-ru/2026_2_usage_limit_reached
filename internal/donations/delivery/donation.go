@@ -146,7 +146,7 @@ func (h *DonationHandler) getMyDonations(ctx context.Context, query url.Values, 
 		return nil, fmt.Errorf("decode cursor error: %w: %w", validator.ErrValidation, err)
 	}
 
-	page, err := getDonations(ctx, userID, cur, limit+1)
+	page, err := getDonations(ctx, userID, cur, limit)
 	if err != nil {
 		return nil, err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -13,11 +14,12 @@ import (
 )
 
 type AuthorRepository struct {
-	pool postgres.DB
+	pool   postgres.DB
+	logger *slog.Logger
 }
 
-func NewAuthorRepository(db *postgres.DBClient) *AuthorRepository {
-	return &AuthorRepository{pool: db.Pool}
+func NewAuthorRepository(db *postgres.DBClient, logger *slog.Logger) *AuthorRepository {
+	return &AuthorRepository{pool: db.Pool, logger: logger}
 }
 
 func (r *AuthorRepository) GetAuthorByID(ctx context.Context, id uuid.UUID) (*models.Author, error) {
@@ -26,6 +28,11 @@ func (r *AuthorRepository) GetAuthorByID(ctx context.Context, id uuid.UUID) (*mo
 		FROM author
 		WHERE id = $1
 	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get author by ID"),
+		slog.String("authorID", id.String()),
+	)
 
 	var author models.Author
 
@@ -57,6 +64,11 @@ func (r *AuthorRepository) UpdateAuthor(ctx context.Context, id uuid.UUID, detai
 		RETURNING id, bio, category
 	`
 
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "update author"),
+		slog.String("authorID", id.String()),
+	)
+
 	var author models.Author
 
 	err := r.pool.QueryRow(ctx, query, id, details.Bio, details.Category).Scan(&author.ID, &author.Bio, &author.Category)
@@ -78,6 +90,11 @@ func (r *AuthorRepository) CreateAuthor(ctx context.Context, id uuid.UUID, detai
 		ON CONFLICT (id) DO NOTHING
 		RETURNING id, bio, category
 	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "create author"),
+		slog.String("authorID", id.String()),
+	)
 
 	var author models.Author
 

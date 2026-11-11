@@ -57,9 +57,9 @@ func Run(configPath string) error {
 		return fmt.Errorf("s3 client initialization error: %w", err)
 	}
 
-	userRepo := UserRepo.NewUserRepository(postgresClient)
-	authorRepo := AuthorRepo.NewAuthorRepository(postgresClient)
-	profileRepo := ProfileRepo.NewProfileRepository(postgresClient)
+	userRepo := UserRepo.NewUserRepository(postgresClient, appLogger)
+	authorRepo := AuthorRepo.NewAuthorRepository(postgresClient, appLogger)
+	profileRepo := ProfileRepo.NewProfileRepository(postgresClient, appLogger)
 	postRepo := PostRepo.NewPostRepository(postgresClient, appLogger)
 	paymentRepo := PaymentsRepo.NewPaymentRepository(postgresClient, appLogger)
 	donationRepo := DonationRepo.NewDonationRepository(postgresClient, appLogger)

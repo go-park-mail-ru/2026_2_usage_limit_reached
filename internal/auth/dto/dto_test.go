@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/dto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -68,4 +69,18 @@ func TestLoginRequest_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestToUserResponse(t *testing.T) {
+	avatar := "/media/avatars/ivan.png"
+
+	t.Run("Nil user", func(t *testing.T) {
+		require.Nil(t, dto.ToUserResponse(nil))
+	})
+
+	t.Run("Mapping", func(t *testing.T) {
+		got := dto.ToUserResponse(&userdto.UserInfo{Username: "ivan001", Nickname: "Ivan", AvatarURL: &avatar, Email: "ivan@gmail.com"})
+
+		require.Equal(t, &dto.UserResponse{Username: "ivan001", Nickname: "Ivan", AvatarURL: &avatar}, got)
+	})
 }

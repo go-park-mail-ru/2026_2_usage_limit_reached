@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
@@ -12,11 +13,12 @@ import (
 )
 
 type ProfileRepository struct {
-	pool postgres.DB
+	pool   postgres.DB
+	logger *slog.Logger
 }
 
-func NewProfileRepository(db *postgres.DBClient) *ProfileRepository {
-	return &ProfileRepository{pool: db.Pool}
+func NewProfileRepository(db *postgres.DBClient, logger *slog.Logger) *ProfileRepository {
+	return &ProfileRepository{pool: db.Pool, logger: logger}
 }
 
 const selectProfile = `
@@ -28,11 +30,21 @@ const selectProfile = `
 func (r *ProfileRepository) GetProfileByID(ctx context.Context, userID uuid.UUID) (*models.Profile, error) {
 	const query = selectProfile + `WHERE u.id = $1`
 
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get profile by ID"),
+		slog.String("userID", userID.String()),
+	)
+
 	return scanProfile(r.pool.QueryRow(ctx, query, userID))
 }
 
 func (r *ProfileRepository) GetProfileByUsername(ctx context.Context, username string) (*models.Profile, error) {
 	const query = selectProfile + `WHERE u.username = $1`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get profile by username"),
+		slog.String("username", username),
+	)
 
 	return scanProfile(r.pool.QueryRow(ctx, query, username))
 }

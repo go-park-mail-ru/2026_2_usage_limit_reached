@@ -1,12 +1,21 @@
 components:
   schemas:
-    dto.AuthorResponse:
+    dto.AvatarResponse:
       properties:
-        bio:
-          example: i am author
+        avatar_url:
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
           type: string
-        category:
-          example: Cars
+      type: object
+    dto.CSRFTokenResponse:
+      properties:
+        csrf_token:
+          example: q3VtX2Jhc2U2NHVybF9zYWx0X2FuZF9obWFjX3NpZ25hdHVyZV9leGFtcGxlXzAx
+          type: string
+      type: object
+    dto.CreatePostResponse:
+      properties:
+        id:
+          example: 00000000-0000-4000-8000-000000000101
           type: string
       type: object
     dto.LoginRequest:
@@ -19,14 +28,28 @@ components:
           example: secret_password_123
           type: string
       type: object
-    dto.PostResponse:
+    dto.PostInfo:
       properties:
+        author:
+          $ref: '#/components/schemas/internal_posts_dto.AuthorResponse'
         body:
-          example: smth in body
+          example: Текст поста
+          type: string
+        created_at:
+          example: "2026-09-01T11:00:00Z"
           type: string
         id:
           example: 00000000-0000-4000-8000-000000000101
           type: string
+        liked_by_user:
+          example: true
+          type: boolean
+        likes_count:
+          example: 12
+          type: integer
+        locked:
+          example: false
+          type: boolean
         published_at:
           example: "2026-09-01T12:00:00Z"
           type: string
@@ -34,37 +57,122 @@ components:
           example: published
           type: string
         title:
-          example: my title
+          example: Мой первый пост
+          type: string
+        updated_at:
+          example: "2026-09-01T12:00:00Z"
           type: string
       type: object
-    dto.ProfilePostsResponse:
+    dto.PostLikeResponse:
       properties:
-        posts:
+        liked_by_user:
+          example: true
+          type: boolean
+        likes_count:
+          example: 13
+          type: integer
+      type: object
+    dto.PostPreview:
+      properties:
+        author:
+          $ref: '#/components/schemas/internal_posts_dto.AuthorResponse'
+        body_preview:
+          example: Первые 200 символов текста поста
+          type: string
+        id:
+          example: 00000000-0000-4000-8000-000000000101
+          type: string
+        liked_by_user:
+          example: true
+          type: boolean
+        likes_count:
+          example: 12
+          type: integer
+        locked:
+          example: false
+          type: boolean
+        published_or_updated_at:
+          example: "2026-09-01T12:00:00Z"
+          type: string
+        title:
+          example: Мой первый пост
+          type: string
+      type: object
+    dto.PostRequest:
+      properties:
+        body:
+          example: Текст поста
+          type: string
+        last_updated_at:
+          example: "2026-11-02T12:00:00Z"
+          type: string
+        status:
+          enum:
+          - draft
+          - published
+          example: published
+          type: string
+        title:
+          example: Мой первый пост
+          type: string
+      type: object
+    dto.PostsPageResponse:
+      properties:
+        items:
           items:
-            $ref: '#/components/schemas/dto.PostResponse'
+            $ref: '#/components/schemas/dto.PostPreview'
           type: array
           uniqueItems: false
-        user_id:
-          example: 00000000-0000-4000-8000-000000000001
+        next_cursor:
+          example: eyJraW5kIjoibmV3X3Bvc3RzIn0
           type: string
       type: object
     dto.ProfileResponse:
       properties:
         author:
-          $ref: '#/components/schemas/dto.AuthorResponse'
+          $ref: '#/components/schemas/internal_profile_dto.AuthorResponse'
+          description: Нет, если пользователь не автор
         user:
           $ref: '#/components/schemas/dto.ProfileUserResponse'
       type: object
     dto.ProfileUserResponse:
       properties:
-        avatar_key:
-          example: avatars/user-1.png
+        avatar_url:
+          description: Нет, если аватара нет
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
           type: string
         created_at:
           example: "2026-08-01T12:00:00Z"
           type: string
         email:
           example: user@example.com
+          type: string
+        id:
+          example: 00000000-0000-4000-8000-000000000001
+          type: string
+        nickname:
+          example: nickname_123
+          type: string
+        username:
+          example: username123
+          type: string
+      type: object
+    dto.PublicProfileResponse:
+      properties:
+        author:
+          $ref: '#/components/schemas/internal_profile_dto.AuthorResponse'
+          description: Нет, если пользователь не автор
+        user:
+          $ref: '#/components/schemas/dto.PublicProfileUserResponse'
+      type: object
+    dto.PublicProfileUserResponse:
+      properties:
+        avatar_url:
+          description: Нет, если аватара нет
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          type: string
+        created_at:
+          example: "2026-08-01T12:00:00Z"
           type: string
         id:
           example: 00000000-0000-4000-8000-000000000001
@@ -91,10 +199,19 @@ components:
           example: username123
           type: string
       type: object
+    dto.UpdateProfileRequest:
+      properties:
+        author:
+          $ref: '#/components/schemas/internal_profile_dto.UpdateAuthorRequest'
+          description: Отправляет только автор. Если блока нет, данные автора не меняются
+        nickname:
+          example: nickname_123
+          type: string
+      type: object
     dto.UserResponse:
       properties:
-        email:
-          example: user@example.com
+        avatar_url:
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
           type: string
         nickname:
           example: nickname_123
@@ -103,28 +220,155 @@ components:
           example: username123
           type: string
       type: object
+    internal_posts_dto.AuthorResponse:
+      properties:
+        avatar_url:
+          example: avatars/user-1.png
+          type: string
+        id:
+          example: 00000000-0000-4000-8000-000000000001
+          type: string
+        nickname:
+          example: nickname_123
+          type: string
+        username:
+          example: username123
+          type: string
+      type: object
+    internal_profile_dto.AuthorResponse:
+      properties:
+        bio:
+          example: i am author
+          type: string
+        category:
+          example: Cars
+          type: string
+      type: object
+    internal_profile_dto.UpdateAuthorRequest:
+      properties:
+        bio:
+          example: i am author
+          type: string
+        category:
+          example: Cars
+          type: string
+      type: object
     response.ErrorResponse:
       properties:
         error:
           type: string
       type: object
+    dto.CreateDonationRequest:
+      type: object
+    dto.CreateDonationResponse:
+      type: object
+    dto.DonationPageResponse:
+      type: object
   securitySchemes:
     CookieAuth:
       in: cookie
-      name: token
+      name: __Host-token
       type: apiKey
 externalDocs:
   description: ""
   url: ""
 info:
-  description: Регистрация, вход, выход и профиль пользователя.
+  description: REST API для платформы публикации контента (аналог Patreon).
   title: Patreon Clone API
   version: "1.0"
 openapi: 3.1.0
 paths:
+  /csrf:
+    get:
+      description: Возвращает токен для заголовка X-CSRF-Token. Доступен до и после
+        входа, авторизацию не меняет. Токен авторизованного пользователя привязан
+        к его JWT, после входа или выхода нужно получить новый. Неавторизованному
+        пользователю создает cookie с анонимным CSRF-контекстом, если ее нет
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.CSRFTokenResponse'
+          description: Токен выдан
+          headers:
+            Set-Cookie:
+              description: __Host-csrf=<context>; Path=/; Secure; HttpOnly; SameSite=Lax
+              schema:
+                type: string
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Получение CSRF-токена
+      tags:
+      - auth
+  /feed:
+    get:
+      description: 'Возвращает опубликованные посты страницами. Авторизация необязательна:
+        для авторизованного пользователя заполняется liked_by_user. У закрытых постов
+        (locked = true) body_preview пустой. Чтобы получить следующую страницу, передайте
+        next_cursor из ответа в параметр cursor; значение null означает, что страниц
+        больше нет.'
+      parameters:
+      - description: Порядок сортировки
+        in: query
+        name: sort
+        required: true
+        schema:
+          enum:
+          - new
+          - old
+          - popular
+          type: string
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
+          не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostsPageResponse'
+          description: Страница постов
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный sort или cursor
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Лента постов
+      tags:
+      - posts
   /login:
     post:
       description: Принимает учетные данные, проверяет их и выпускает токен
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -143,7 +387,7 @@ paths:
           description: Успешная аутентификация
           headers:
             Set-Cookie:
-              description: token=JWT_TOKEN; Path=/; HttpOnly; SameSite=Lax
+              description: __Host-token=JWT_TOKEN; Path=/; Secure; HttpOnly; SameSite=Lax
               schema:
                 type: string
         "400":
@@ -157,7 +401,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
-          description: Неверный логин или пароль
+          description: Неверный логин или пароль, либо аккаунт неактивен
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный CSRF-токен или его отсутствие
         "500":
           content:
             application/json:
@@ -170,18 +420,19 @@ paths:
   /logout:
     post:
       description: Удаляет авторизационную cookie с токеном
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
       responses:
         "200":
-          content:
-            application/json:
-              schema:
-                additionalProperties:
-                  type: string
-                type: object
           description: Успешный выход из системы
           headers:
             Set-Cookie:
-              description: token=; Path=/; Max-Age=-1
+              description: __Host-token=; Path=/; Secure; Max-Age=-1
               schema:
                 type: string
         "401":
@@ -190,6 +441,64 @@ paths:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
           description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный CSRF-токен или его отсутствие
+      security:
+      - CookieAuth: []
+      summary: Деавторизация пользователя
+      tags:
+      - auth
+  /posts:
+    post:
+      description: Создаёт пост от имени текущего пользователя. Создавать посты могут
+        только авторы. Поле last_updated_at при создании не используется. Для статуса
+        published дата публикации проставляется автоматически.
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.PostRequest'
+              description: Данные поста
+              summary: request
+        description: Данные поста
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.CreatePostResponse'
+          description: ID созданного поста
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не является автором, либо неверный CSRF-токен
+            или его отсутствие
         "500":
           content:
             application/json:
@@ -198,13 +507,310 @@ paths:
           description: Внутренняя ошибка сервера
       security:
       - CookieAuth: []
-      summary: Деавторизация пользователя
+      summary: Создание поста
       tags:
-      - auth
+      - posts
+  /posts/{id}:
+    delete:
+      description: Удаляет пост текущего пользователя вместе с лайками, комментариями
+        и уведомлениями.
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+          description: Пост удалён
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Некорректный ID поста
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный CSRF-токен или его отсутствие
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пост не найден или принадлежит другому пользователю
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Удаление поста
+      tags:
+      - posts
+    get:
+      description: 'Возвращает пост целиком. Авторизация необязательна: автор видит
+        свои неопубликованные посты, для остальных они недоступны (404). У закрытого
+        поста (locked = true) поле body пустое.'
+      parameters:
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostInfo'
+          description: Пост
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Некорректный ID поста
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пост не найден или недоступен
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Просмотр поста
+      tags:
+      - posts
+    put:
+      description: 'Полностью заменяет title, body и status поста. Используется оптимистическая
+        блокировка: в last_updated_at нужно передать значение updated_at, полученное
+        при последнем чтении поста. Если пост успели изменить, вернётся 409, и пост
+        нужно перечитать.'
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.PostRequest'
+              description: Новые данные поста (last_updated_at обязателен)
+              summary: request
+        description: Новые данные поста (last_updated_at обязателен)
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+          description: Пост обновлён
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации или не передан last_updated_at
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пост принадлежит другому пользователю, либо неверный CSRF-токен
+            или его отсутствие
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пост не найден или недоступен
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пост уже был изменён (устаревший last_updated_at)
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Изменение поста
+      tags:
+      - posts
+  /posts/{id}/like:
+    delete:
+      description: 'Снимает лайк пользователя с поста. Операция идемпотентна: если
+        лайка нет, счётчик не меняется.'
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostLikeResponse'
+          description: Актуальное число лайков
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Некорректный ID поста
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный CSRF-токен или его отсутствие
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Лайк не найден или пост недоступен
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Снятие лайка с поста
+      tags:
+      - posts
+    post:
+      description: 'Ставит лайк опубликованному посту. Операция идемпотентна: повторный
+        лайк не увеличивает счётчик. Лайкнуть можно только пост, доступный пользователю;
+        автору о лайке своего поста уведомление не отправляется.'
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostLikeResponse'
+          description: Актуальное число лайков
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Некорректный ID поста
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный CSRF-токен или его отсутствие
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пост не найден или недоступен
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Лайк поста
+      tags:
+      - posts
   /profile/me:
     get:
-      description: Возвращает данные пользователя и информацию о том, является ли
-        он автором
+      description: Возвращает данные пользователя. Блок author есть только у автора,
+        avatar_url - только при наличии аватара
       responses:
         "200":
           content:
@@ -212,6 +818,167 @@ paths:
               schema:
                 $ref: '#/components/schemas/dto.ProfileResponse'
           description: Профиль пользователя
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь заблокирован или удалён
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Получение профиля текущего пользователя
+      tags:
+      - profile
+    put:
+      description: Сохраняет nickname и, если передан блок author, bio и category.
+        Если category нет или она null, категория очищается
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.UpdateProfileRequest'
+              description: Новые данные профиля
+              summary: request
+        description: Новые данные профиля
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.ProfileResponse'
+          description: Профиль изменен
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не является автором, заблокирован или удалён,
+            либо неверный CSRF-токен или его отсутствие
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Изменение профиля текущего пользователя
+      tags:
+      - profile
+  /profile/me/author:
+    post:
+      description: Создает профиль автора. Если профиль автора уже есть, возвращает
+        его без изменений, переданные данные игнорируются. Если category не выбрана,
+        поле опускается
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_profile_dto.UpdateAuthorRequest'
+              description: Данные профиля автора
+              summary: request
+        description: Данные профиля автора
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.ProfileResponse'
+          description: Профиль с блоком author
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь заблокирован или удалён, либо неверный CSRF-токен
+            или его отсутствие
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Создание профиля автора
+      tags:
+      - profile
+  /profile/me/avatar:
+    delete:
+      description: Удаляет текущий аватар. Если аватара нет, тоже возвращает 204
+      responses:
+        "204":
+          description: Аватар удален
         "401":
           content:
             application/json:
@@ -232,20 +999,114 @@ paths:
           description: Внутренняя ошибка сервера
       security:
       - CookieAuth: []
-      summary: Получение профиля текущего пользователя
+      summary: Удаление аватара текущего пользователя
       tags:
       - profile
-  /profile/me/posts:
-    get:
-      description: Возвращает посты текущего пользователя; если постов нет, возвращает
-        пустой список
+    put:
+      description: Принимает изображение jpeg, png или webp до 5 МБ в поле avatar
+        и заменяет им текущий аватар. Формат определяется по содержимому файла
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                avatar:
+                  description: Изображение аватара
+                  format: binary
+                  type: string
+              required:
+              - avatar
+              type: object
+        description: Изображение аватара
+        required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/dto.ProfilePostsResponse'
-          description: Посты пользователя
+                $ref: '#/components/schemas/dto.AvatarResponse'
+          description: Аватар загружен
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Запрос не multipart/form-data или в нем нет файла
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Файл больше 5 МБ
+        "415":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неподдерживаемый формат изображения
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Загрузка аватара текущего пользователя
+      tags:
+      - profile
+  /profile/me/drafts:
+    get:
+      description: Возвращает черновики авторизованного пользователя страницами. Поддерживается
+        только sort=new.
+      parameters:
+      - description: Порядок сортировки (поддерживается только new)
+        in: query
+        name: sort
+        required: true
+        schema:
+          enum:
+          - new
+          type: string
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
+          не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostsPageResponse'
+          description: Страница черновиков
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный sort или cursor
         "401":
           content:
             application/json:
@@ -260,12 +1121,77 @@ paths:
           description: Внутренняя ошибка сервера
       security:
       - CookieAuth: []
-      summary: Получение постов текущего пользователя
+      summary: Черновики текущего пользователя
       tags:
-      - profile
+      - posts
+  /profile/me/posts:
+    get:
+      description: Возвращает опубликованные посты авторизованного пользователя страницами.
+        Черновики доступны через /profile/me/drafts.
+      parameters:
+      - description: Порядок сортировки
+        in: query
+        name: sort
+        required: true
+        schema:
+          enum:
+          - new
+          - popular
+          type: string
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
+          не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostsPageResponse'
+          description: Страница постов
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный sort или cursor
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Посты текущего пользователя
+      tags:
+      - posts
   /signup:
     post:
       description: Принимает регистрационные данные, валидирует и создает новый аккаунт
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -282,12 +1208,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/dto.UserResponse'
           description: Пользователь успешно зарегистрирован
+          headers:
+            Set-Cookie:
+              description: __Host-token=JWT_TOKEN; Path=/; Secure; HttpOnly; SameSite=Lax
+              schema:
+                type: string
         "400":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
           description: Ошибка валидации
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный CSRF-токен или его отсутствие
         "409":
           content:
             application/json:
@@ -304,3 +1241,246 @@ paths:
       summary: Регистрация пользователя
       tags:
       - auth
+  /users/{username}:
+    get:
+      description: Возвращает публичные данные пользователя без email. Блок author
+        есть только у автора, avatar_url - только при наличии аватара
+      parameters:
+      - description: Username пользователя
+        in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PublicProfileResponse'
+          description: Публичный профиль пользователя
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден, заблокирован или удалён
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Получение публичного профиля пользователя
+      tags:
+      - profile
+  /users/{username}/posts:
+    get:
+      description: 'Возвращает опубликованные автора посты страницами. Авторизация
+        необязательна: для авторизованного пользователя заполняется liked_by_user.
+        У закрытых постов (locked = true) body_preview пустой. Чтобы получить следующую
+        страницу, передайте next_cursor из ответа в параметр cursor; значение null
+        означает, что страниц больше нет.'
+      parameters:
+      - description: Порядок сортировки
+        in: query
+        name: sort
+        required: true
+        schema:
+          enum:
+          - new
+          - old
+          - popular
+          type: string
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
+          не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PostsPageResponse'
+          description: Страница постов
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный sort или cursor
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Лента постов автора
+      tags:
+      - posts
+  /authors/{author_id}/donations:
+    post:
+      description: Отправляет донат указанному автору. Операция создаёт платёжную попытку, заказ и возвращает ID и статус заказа.
+      parameters:
+      - description: ID автора
+        in: path
+        name: author_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.CreateDonationRequest'
+              description: Данные доната
+              summary: request
+        description: Данные доната
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.CreateDonationResponse'
+          description: Заказ создан
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации или некорректный ID автора
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Автор не найден
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Конфликт оплаты
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Отправка доната
+      tags:
+      - donations
+  /profile/me/donations/sent:
+    get:
+      description: Возвращает список донатов, отправленных авторизованным пользователем, страницами. Чтобы получить следующую страницу, передайте next_cursor из ответа в параметр cursor; значение null означает, что страниц больше нет.
+      parameters:
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.DonationPageResponse'
+          description: Страница донатов
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный cursor
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Мои отправленные донаты
+      tags:
+      - donations
+  /profile/me/donations/received:
+    get:
+      description: Возвращает список донатов, полученных авторизованным пользователем (если он является автором), страницами. Чтобы получить следующую страницу, передайте next_cursor из ответа в параметр cursor; значение null означает, что страниц больше нет.
+      parameters:
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.DonationPageResponse'
+          description: Страница донатов
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный cursor
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Мои полученные донаты
+      tags:
+      - donations

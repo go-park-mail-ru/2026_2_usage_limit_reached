@@ -30,18 +30,35 @@ func ErrorUnauthorized(w http.ResponseWriter) {
 	write(w, http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
 }
 
-func ErrorUserConflict(w http.ResponseWriter) {
-	write(w, http.StatusConflict, ErrorResponse{Error: "user already exist"})
+func ErrorForbidden(w http.ResponseWriter) {
+	write(w, http.StatusForbidden, ErrorResponse{Error: "forbidden"})
+}
+
+func ErrorCSRFFailed(w http.ResponseWriter) {
+	write(w, http.StatusForbidden, ErrorResponse{Error: "csrf_failed"})
+}
+
+func ErrorConflict(w http.ResponseWriter) {
+	write(w, http.StatusConflict, ErrorResponse{Error: "conflict"})
 }
 
 func ErrorNotFound(w http.ResponseWriter) {
 	write(w, http.StatusNotFound, ErrorResponse{Error: "not found"})
 }
 
+func ErrorPayloadTooLarge(w http.ResponseWriter) {
+	write(w, http.StatusRequestEntityTooLarge, ErrorResponse{Error: "payload too large"})
+}
+
+func ErrorUnsupportedMediaType(w http.ResponseWriter) {
+	write(w, http.StatusUnsupportedMediaType, ErrorResponse{Error: "unsupported media type"})
+}
+
 func write(w http.ResponseWriter, code int, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
 		ErrorInternal(w)
+		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)

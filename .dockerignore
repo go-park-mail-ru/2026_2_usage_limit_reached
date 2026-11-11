@@ -1,0 +1,19 @@
+# VCS
+.git
+.gitignore
+
+# Secrets and local configs
+.env
+configs/prod.yaml
+
+# Docker
+Dockerfile
+docker-compose.yaml
+.dockerignore
+
+# Test artifacts
+*.test
+*.out
+coverage.*
+*.coverprofile
+profile.cov

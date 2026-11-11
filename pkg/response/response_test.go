@@ -92,10 +92,10 @@ func TestErrorResponses(t *testing.T) {
 			expectedError:  "unauthorized",
 		},
 		{
-			name:           "ErrorUserConflict",
-			invoke:         response.ErrorUserConflict,
+			name:           "ErrorConflict",
+			invoke:         response.ErrorConflict,
 			expectedStatus: http.StatusConflict,
-			expectedError:  "user already exist",
+			expectedError:  "conflict",
 		},
 		{
 			name:           "ErrorNotFound",

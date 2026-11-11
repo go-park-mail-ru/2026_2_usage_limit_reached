@@ -1,67 +1,60 @@
 package profilehandlers_test
 
 import (
-	"context"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	profilehandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery/mock_profile_delivery"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/dto"
 	profileusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
 var (
 	testUserID = uuid.MustParse("00000000-0000-4000-8000-000000000001")
-	testPostID = uuid.MustParse("00000000-0000-4000-8000-000000000101")
 	testTime   = time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
 )
 
-type profileUsecaseMock struct {
-	profiles   map[uuid.UUID]*dto.ProfileResponse
-	posts      map[uuid.UUID]*dto.ProfilePostsResponse
-	profileErr error
-	postsErr   error
-}
-
-func (s profileUsecaseMock) GetMyProfile(_ context.Context, id uuid.UUID) (*dto.ProfileResponse, error) {
-	if s.profileErr != nil {
-		return nil, s.profileErr
-	}
-	return s.profiles[id], nil
-}
-
-func (s profileUsecaseMock) GetMyPosts(_ context.Context, id uuid.UUID) (*dto.ProfilePostsResponse, error) {
-	if s.postsErr != nil {
-		return nil, s.postsErr
-	}
-	return s.posts[id], nil
-}
-
 type tokenVerifierMock struct {
-	userID uuid.UUID
+	userID   uuid.UUID
+	email    string
+	username string
+	role     string
 }
 
 func (v tokenVerifierMock) Verify(token string) (json.RawMessage, error) {
 	if token != "test-token" {
 		return nil, errors.New("invalid test token")
 	}
-	return json.Marshal(jwt.UserPayload{UserID: v.userID, Role: "user"})
+	if v.userID == uuid.Nil {
+		return nil, errors.New("nil user id")
+	}
+	return json.Marshal(jwt.UserPayload{
+		UserID:   v.userID,
+		Email:    v.email,
+		Username: v.username,
+		Role:     v.role,
+	})
 }
 
 func newTestRouter(uc profilehandlers.ProfileUsecase, userID uuid.UUID) http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := profilehandlers.NewProfileHandler(uc, logger)
+	handler := profilehandlers.NewProfileHandler(uc, testutils.SetupValidator(), logger)
 	router := mux.NewRouter()
 	private := router.NewRoute().Subrouter()
 	private.Use(middleware.AuthMiddleware(tokenVerifierMock{userID: userID}))
@@ -81,11 +74,16 @@ func requestProfile(router http.Handler, path, token string) *httptest.ResponseR
 
 func TestProfileHandler_GetMe_Success(t *testing.T) {
 	t.Parallel()
-
+	url := "/media/avatars/ivan.png"
+	avatar := &url
 	user := dto.ProfileUserResponse{
-		ID: testUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test",
-		AvatarKey: "avatars/ivan.png", CreatedAt: testTime,
+		PublicProfileUserResponse: dto.PublicProfileUserResponse{
+			ID: testUserID, Username: "ivan001", Nickname: "Иван",
+			AvatarURL: avatar, CreatedAt: testTime,
+		},
+		Email: "ivan@example.test",
 	}
+	category := "Книги"
 	tests := []struct {
 		name     string
 		response *dto.ProfileResponse
@@ -93,19 +91,20 @@ func TestProfileHandler_GetMe_Success(t *testing.T) {
 	}{
 		{
 			name:     "author profile",
-			response: &dto.ProfileResponse{User: user, Author: &dto.AuthorResponse{Bio: "Пишу о книгах", Category: "Книги"}},
-			wantJSON: `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","avatar_key":"avatars/ivan.png","created_at":"2026-09-01T12:00:00Z"},"author":{"bio":"Пишу о книгах","category":"Книги"}}`,
+			response: &dto.ProfileResponse{User: user, Author: &dto.AuthorResponse{Bio: "Пишу о книгах", Category: &category}},
+			wantJSON: `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","avatar_url":"/media/avatars/ivan.png","created_at":"2026-09-01T12:00:00Z"},"author":{"bio":"Пишу о книгах","category":"Книги"}}`,
 		},
 		{
 			name:     "reader profile",
 			response: &dto.ProfileResponse{User: user},
-			wantJSON: `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","avatar_key":"avatars/ivan.png","created_at":"2026-09-01T12:00:00Z"}}`,
+			wantJSON: `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","avatar_url":"/media/avatars/ivan.png","created_at":"2026-09-01T12:00:00Z"}}`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			uc := profileUsecaseMock{profiles: map[uuid.UUID]*dto.ProfileResponse{testUserID: tt.response}}
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+			uc.EXPECT().GetMyProfile(mock.Anything, testUserID).Return(tt.response, nil)
 			recorder := requestProfile(newTestRouter(uc, testUserID), "/profile/me", "test-token")
 			require.Equal(t, http.StatusOK, recorder.Code)
 			require.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
@@ -116,7 +115,6 @@ func TestProfileHandler_GetMe_Success(t *testing.T) {
 
 func TestProfileHandler_GetMe_Errors(t *testing.T) {
 	t.Parallel()
-
 	tests := []struct {
 		name     string
 		ucErr    error
@@ -124,12 +122,14 @@ func TestProfileHandler_GetMe_Errors(t *testing.T) {
 		wantJSON string
 	}{
 		{name: "profile not found", ucErr: profileusecase.ErrProfileNotFound, wantCode: http.StatusNotFound, wantJSON: `{"error":"not found"}`},
+		{name: "inactive user", ucErr: profileusecase.ErrUserInactive, wantCode: http.StatusForbidden, wantJSON: `{"error":"forbidden"}`},
 		{name: "usecase failure", ucErr: errors.New("user storage unavailable"), wantCode: http.StatusInternalServerError, wantJSON: `{"error":"internal server error"}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			uc := profileUsecaseMock{profileErr: tt.ucErr}
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+			uc.EXPECT().GetMyProfile(mock.Anything, testUserID).Return(nil, tt.ucErr)
 			recorder := requestProfile(newTestRouter(uc, testUserID), "/profile/me", "test-token")
 			require.Equal(t, tt.wantCode, recorder.Code)
 			require.JSONEq(t, tt.wantJSON, recorder.Body.String())
@@ -137,51 +137,90 @@ func TestProfileHandler_GetMe_Errors(t *testing.T) {
 	}
 }
 
-func TestProfileHandler_GetMePosts_Success(t *testing.T) {
+func TestProfileHandler_ErrorLogLevel(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		err       error
+		wantLevel string
+	}{
+		{name: "expected error", err: profileusecase.ErrProfileNotFound, wantLevel: "level=INFO"},
+		{name: "unexpected error", err: errors.New("storage unavailable"), wantLevel: "level=ERROR"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var logs bytes.Buffer
+
+			logger := slog.New(slog.NewTextHandler(&logs, nil))
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+			uc.EXPECT().GetMyProfile(mock.Anything, testUserID).Return(nil, tt.err)
+
+			handler := profilehandlers.NewProfileHandler(uc, testutils.SetupValidator(), logger)
+			router := mux.NewRouter()
+			private := router.NewRoute().Subrouter()
+			private.Use(middleware.AuthMiddleware(tokenVerifierMock{userID: testUserID}))
+			handler.RegisterRoutes(router, private)
+
+			requestProfile(router, "/profile/me", "test-token")
+
+			require.Contains(t, logs.String(), tt.wantLevel)
+		})
+	}
+}
+
+func TestProfileHandler_GetByUsername(t *testing.T) {
 	t.Parallel()
 
+	public := &dto.PublicProfileResponse{User: dto.PublicProfileUserResponse{ID: testUserID, Username: "ivan001", Nickname: "Иван", CreatedAt: testTime}}
 	tests := []struct {
-		name     string
-		response *dto.ProfilePostsResponse
-		wantJSON string
+		name       string
+		setupMocks func(m *mock_profile_delivery.MockProfileUsecase)
+		wantCode   int
+		wantJSON   string
 	}{
 		{
-			name: "author has a post",
-			response: &dto.ProfilePostsResponse{UserID: testUserID, Posts: []dto.PostResponse{{
-				ID: testPostID, Title: "Первый пост", Body: "Текст", Status: "published", PublishedAt: &testTime,
-			}}},
-			wantJSON: `{"user_id":"00000000-0000-4000-8000-000000000001","posts":[{"id":"00000000-0000-4000-8000-000000000101","title":"Первый пост","body":"Текст","status":"published","published_at":"2026-09-01T12:00:00Z"}]}`,
+			name: "public profile without email and token",
+			setupMocks: func(m *mock_profile_delivery.MockProfileUsecase) {
+				m.EXPECT().GetPublicProfile(mock.Anything, "ivan001").Return(public, nil)
+			},
+			wantCode: http.StatusOK,
+			wantJSON: `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","created_at":"2026-09-01T12:00:00Z"}}`,
 		},
 		{
-			name:     "author has no posts",
-			response: &dto.ProfilePostsResponse{UserID: testUserID, Posts: []dto.PostResponse{}},
-			wantJSON: `{"user_id":"00000000-0000-4000-8000-000000000001","posts":[]}`,
+			name: "not found",
+			setupMocks: func(m *mock_profile_delivery.MockProfileUsecase) {
+				m.EXPECT().GetPublicProfile(mock.Anything, "ivan001").Return(nil, profileusecase.ErrProfileNotFound)
+			},
+			wantCode: http.StatusNotFound,
+			wantJSON: `{"error":"not found"}`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			uc := profileUsecaseMock{posts: map[uuid.UUID]*dto.ProfilePostsResponse{testUserID: tt.response}}
-			recorder := requestProfile(newTestRouter(uc, testUserID), "/profile/me/posts", "test-token")
-			require.Equal(t, http.StatusOK, recorder.Code)
-			require.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+			tt.setupMocks(uc)
+
+			recorder := requestProfile(newTestRouter(uc, testUserID), "/users/ivan001", "")
+
+			require.Equal(t, tt.wantCode, recorder.Code)
 			require.JSONEq(t, tt.wantJSON, recorder.Body.String())
 		})
 	}
 }
 
-func TestProfileHandler_GetMePosts_Error(t *testing.T) {
+func TestProfileHandler_MeRouteIsNotPublicProfile(t *testing.T) {
 	t.Parallel()
-
-	uc := profileUsecaseMock{postsErr: errors.New("posts storage unavailable")}
-	recorder := requestProfile(newTestRouter(uc, testUserID), "/profile/me/posts", "test-token")
-	require.Equal(t, http.StatusInternalServerError, recorder.Code)
-	require.JSONEq(t, `{"error":"internal server error"}`, recorder.Body.String())
+	uc := mock_profile_delivery.NewMockProfileUsecase(t)
+	recorder := requestProfile(newTestRouter(uc, testUserID), "/profile/me", "")
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
 }
 
 func TestProfileHandler_Unauthorized(t *testing.T) {
 	t.Parallel()
-
 	tests := []struct {
 		name   string
 		path   string
@@ -189,15 +228,13 @@ func TestProfileHandler_Unauthorized(t *testing.T) {
 		userID uuid.UUID
 	}{
 		{name: "profile without token", path: "/profile/me", userID: testUserID},
-		{name: "posts without token", path: "/profile/me/posts", userID: testUserID},
 		{name: "profile with invalid token", path: "/profile/me", token: "invalid", userID: testUserID},
 		{name: "profile with nil user ID", path: "/profile/me", token: "test-token"},
-		{name: "posts with nil user ID", path: "/profile/me/posts", token: "test-token"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			recorder := requestProfile(newTestRouter(profileUsecaseMock{}, tt.userID), tt.path, tt.token)
+			recorder := requestProfile(newTestRouter(mock_profile_delivery.NewMockProfileUsecase(t), tt.userID), tt.path, tt.token)
 			require.Equal(t, http.StatusUnauthorized, recorder.Code)
 			require.JSONEq(t, `{"error":"unauthorized"}`, recorder.Body.String())
 		})
@@ -206,12 +243,248 @@ func TestProfileHandler_Unauthorized(t *testing.T) {
 
 func TestProfileHandler_RegisterRoutes(t *testing.T) {
 	t.Parallel()
+	router := newTestRouter(mock_profile_delivery.NewMockProfileUsecase(t), testUserID)
 
-	router := newTestRouter(profileUsecaseMock{}, testUserID)
-	for _, path := range []string{"/profile/me", "/profile/me/posts"} {
+	for _, path := range []string{"/profile/me"} {
 		req := httptest.NewRequest(http.MethodPost, path, nil)
 		recorder := httptest.NewRecorder()
 		router.ServeHTTP(recorder, req)
 		require.Equal(t, http.StatusMethodNotAllowed, recorder.Code, path)
+	}
+}
+
+func multipartBody(t *testing.T, field string, content []byte) (*bytes.Buffer, string) {
+	t.Helper()
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile(field, "avatar.png")
+	require.NoError(t, err)
+	_, err = part.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	return body, writer.FormDataContentType()
+}
+
+func requestUploadAvatar(router http.Handler, body io.Reader, contentType string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPut, "/profile/me/avatar", body)
+	req.Header.Set("Content-Type", contentType)
+	req.AddCookie(&http.Cookie{Name: jwt.CookieName, Value: "test-token"})
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	return recorder
+}
+
+func TestProfileHandler_UploadAvatar_InvalidForm(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		body     func(t *testing.T) (io.Reader, string)
+		wantCode int
+	}{
+		{
+			name: "not multipart",
+			body: func(*testing.T) (io.Reader, string) {
+				return bytes.NewBufferString("avatar"), "text/plain"
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name: "no avatar field",
+			body: func(t *testing.T) (io.Reader, string) {
+				return multipartBody(t, "file", []byte("image"))
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name: "empty file",
+			body: func(t *testing.T) (io.Reader, string) {
+				return multipartBody(t, "avatar", nil)
+			},
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name: "request body too large",
+			body: func(t *testing.T) (io.Reader, string) {
+				return multipartBody(t, "avatar", make([]byte, profileusecase.MaxAvatarSize+2<<20))
+			},
+			wantCode: http.StatusRequestEntityTooLarge,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+			body, contentType := tt.body(t)
+
+			recorder := requestUploadAvatar(newTestRouter(uc, testUserID), body, contentType)
+
+			require.Equal(t, tt.wantCode, recorder.Code)
+		})
+	}
+}
+
+func TestProfileHandler_UploadAvatar(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		ucURL    string
+		ucErr    error
+		wantCode int
+		wantJSON string
+	}{
+		{name: "uploaded", ucURL: "/media/avatars/ivan.png", wantCode: http.StatusOK, wantJSON: `{"avatar_url":"/media/avatars/ivan.png"}`},
+		{name: "avatar too large", ucErr: profileusecase.ErrAvatarTooLarge, wantCode: http.StatusRequestEntityTooLarge, wantJSON: `{"error":"payload too large"}`},
+		{name: "unsupported type", ucErr: profileusecase.ErrUnsupportedAvatarType, wantCode: http.StatusUnsupportedMediaType, wantJSON: `{"error":"unsupported media type"}`},
+		{name: "profile not found", ucErr: profileusecase.ErrProfileNotFound, wantCode: http.StatusNotFound, wantJSON: `{"error":"not found"}`},
+		{name: "usecase failure", ucErr: errors.New("storage unavailable"), wantCode: http.StatusInternalServerError, wantJSON: `{"error":"internal server error"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			content := []byte("image")
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+			uc.EXPECT().UploadAvatar(mock.Anything, testUserID, mock.Anything, int64(len(content))).Return(tt.ucURL, tt.ucErr)
+			body, contentType := multipartBody(t, "avatar", content)
+
+			recorder := requestUploadAvatar(newTestRouter(uc, testUserID), body, contentType)
+
+			require.Equal(t, tt.wantCode, recorder.Code)
+			require.JSONEq(t, tt.wantJSON, recorder.Body.String())
+		})
+	}
+}
+
+func requestAuthorized(router http.Handler, method, path string, body io.Reader) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, body)
+	req.AddCookie(&http.Cookie{Name: jwt.CookieName, Value: "test-token"})
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	return recorder
+}
+
+func TestProfileHandler_UpdateMe_Success(t *testing.T) {
+	t.Parallel()
+
+	category := "Книги"
+	req := dto.UpdateProfileRequest{Nickname: "Иван", Author: &dto.UpdateAuthorRequest{Bio: "Пишу о книгах", Category: &category}}
+	profile := &dto.ProfileResponse{
+		User:   dto.ProfileUserResponse{PublicProfileUserResponse: dto.PublicProfileUserResponse{ID: testUserID, Username: "ivan001", Nickname: "Иван", CreatedAt: testTime}, Email: "ivan@example.test"},
+		Author: &dto.AuthorResponse{Bio: "Пишу о книгах", Category: &category},
+	}
+	uc := mock_profile_delivery.NewMockProfileUsecase(t)
+	uc.EXPECT().UpdateMyProfile(mock.Anything, testUserID, req).Return(profile, nil)
+
+	recorder := requestAuthorized(newTestRouter(uc, testUserID), http.MethodPut, "/profile/me",
+		bytes.NewBufferString(`{"nickname":"Иван","author":{"bio":"Пишу о книгах","category":"Книги"}}`))
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{"user":{"id":"00000000-0000-4000-8000-000000000001","username":"ivan001","nickname":"Иван","email":"ivan@example.test","created_at":"2026-09-01T12:00:00Z"},"author":{"bio":"Пишу о книгах","category":"Книги"}}`, recorder.Body.String())
+}
+
+func TestProfileHandler_UpdateMe_InvalidRequest(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "malformed json", body: `{"nickname":`},
+		{name: "empty nickname", body: `{"nickname":""}`},
+		{name: "empty bio", body: `{"nickname":"Иван","author":{"bio":""}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+
+			recorder := requestAuthorized(newTestRouter(uc, testUserID), http.MethodPut, "/profile/me", bytes.NewBufferString(tt.body))
+
+			require.Equal(t, http.StatusBadRequest, recorder.Code)
+			require.JSONEq(t, `{"error":"bad request"}`, recorder.Body.String())
+		})
+	}
+}
+
+func TestProfileHandler_UpdateMe_UsecaseErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		ucErr    error
+		wantCode int
+		wantJSON string
+	}{
+		{name: "not an author", ucErr: profileusecase.ErrNotAuthor, wantCode: http.StatusForbidden, wantJSON: `{"error":"forbidden"}`},
+		{name: "inactive user", ucErr: profileusecase.ErrUserInactive, wantCode: http.StatusForbidden, wantJSON: `{"error":"forbidden"}`},
+		{name: "profile not found", ucErr: profileusecase.ErrProfileNotFound, wantCode: http.StatusNotFound, wantJSON: `{"error":"not found"}`},
+		{name: "usecase failure", ucErr: errors.New("storage unavailable"), wantCode: http.StatusInternalServerError, wantJSON: `{"error":"internal server error"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+			uc.EXPECT().UpdateMyProfile(mock.Anything, testUserID, dto.UpdateProfileRequest{Nickname: "Иван"}).Return(nil, tt.ucErr)
+
+			recorder := requestAuthorized(newTestRouter(uc, testUserID), http.MethodPut, "/profile/me", bytes.NewBufferString(`{"nickname":"Иван"}`))
+
+			require.Equal(t, tt.wantCode, recorder.Code)
+			require.JSONEq(t, tt.wantJSON, recorder.Body.String())
+		})
+	}
+}
+
+func TestProfileHandler_DeleteAvatar(t *testing.T) {
+	tests := []struct {
+		name     string
+		ucErr    error
+		wantCode int
+		wantJSON string
+	}{
+		{name: "deleted", wantCode: http.StatusNoContent},
+		{name: "profile not found", ucErr: profileusecase.ErrProfileNotFound, wantCode: http.StatusNotFound, wantJSON: `{"error":"not found"}`},
+		{name: "usecase failure", ucErr: errors.New("storage unavailable"), wantCode: http.StatusInternalServerError, wantJSON: `{"error":"internal server error"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uc := mock_profile_delivery.NewMockProfileUsecase(t)
+			uc.EXPECT().DeleteAvatar(mock.Anything, testUserID).Return(tt.ucErr)
+
+			recorder := requestAuthorized(newTestRouter(uc, testUserID), http.MethodDelete, "/profile/me/avatar", nil)
+
+			require.Equal(t, tt.wantCode, recorder.Code)
+			if tt.wantJSON == "" {
+				require.Empty(t, recorder.Body.String())
+
+				return
+			}
+			require.JSONEq(t, tt.wantJSON, recorder.Body.String())
+		})
+	}
+}
+
+// Защита обработчиков не должна зависеть от того, что middleware аутентификации стоит перед ними
+func TestProfileHandler_RejectsRequestWithoutUser(t *testing.T) {
+	handler := profilehandlers.NewProfileHandler(
+		mock_profile_delivery.NewMockProfileUsecase(t),
+		testutils.SetupValidator(),
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+	}{
+		{name: "get me", handler: handler.GetMe},
+		{name: "update me", handler: handler.UpdateMe},
+		{name: "upload avatar", handler: handler.UploadAvatar},
+		{name: "delete avatar", handler: handler.DeleteAvatar},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+
+			tt.handler(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+
+			require.Equal(t, http.StatusUnauthorized, recorder.Code)
+			require.JSONEq(t, `{"error":"unauthorized"}`, recorder.Body.String())
+		})
 	}
 }

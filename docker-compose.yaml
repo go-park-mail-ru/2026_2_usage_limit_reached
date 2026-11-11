@@ -1,8 +1,69 @@
 services:
-  app:
-    build: .
-    ports:
-      - "${HTTP_PORT}:${HTTP_PORT}"
+  db:
+    image: postgres:16-alpine
+    container_name: postgres
     env_file:
       - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  db_migrate:
+    image: migrate/migrate
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./database/migrations:/migrations
+    command: ["-path=/migrations", "-database=${MIGRATE_DATABASE_URL}", "up"]
+    restart: "no"
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48
+    # mini запускает master, volume, filer и S3 в одном процессе, бакет S3_BUCKET создаётся при старте
+    command: ["mini", "-dir=/data", "-s3.config=/etc/seaweedfs/s3.json"]
+    environment:
+      S3_BUCKET: media
+    ports:
+      - "127.0.0.1:8333:8333"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8333/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./configs/s3.json:/etc/seaweedfs/s3.json:ro
+      - seaweedfsdata:/data
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["--config-file", "/etc/app/config.yaml"]
+    ports:
+      - "127.0.0.1:${HTTP_PORT}:${HTTP_PORT}"
+    env_file:
+      - .env
+    depends_on:
+      db_migrate:
+        condition: service_completed_successfully
+      seaweedfs:
+        condition: service_healthy
+    volumes:
+      - ./configs/prod.yaml:/etc/app/config.yaml:ro
     restart: unless-stopped
+
+volumes:
+    pgdata:
+    seaweedfsdata:

@@ -1,7 +1,10 @@
 package app
 
 import (
+	"context"
 	"fmt"
+	"os/signal"
+	"syscall"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
 	DonationHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/delivery"
@@ -89,9 +92,9 @@ func Run(configPath string) error {
 	if err != nil {
 		return fmt.Errorf("http server initialization error: %w", err)
 	}
-	if err := srv.Run(r); err != nil {
-		return fmt.Errorf("server error: %w", err)
-	}
 
-	return nil
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	return srv.Run(ctx, r)
 }

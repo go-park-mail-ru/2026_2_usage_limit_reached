@@ -26,20 +26,3 @@ func UnaryRecovery(logger *slog.Logger) grpc.UnaryServerInterceptor {
 		return handler(ctx, req)
 	}
 }
-
-func StreamRecovery(logger *slog.Logger) grpc.StreamServerInterceptor {
-	if logger == nil {
-		logger = slog.Default()
-	}
-
-	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
-		defer func() {
-			if recovered := recover(); recovered != nil {
-				logger.ErrorContext(stream.Context(), "grpc panic recovered", slog.String("method", info.FullMethod), slog.Any("panic", recovered))
-				err = status.Error(codes.Internal, "internal error")
-			}
-		}()
-
-		return handler(srv, stream)
-	}
-}

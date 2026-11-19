@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"google.golang.org/grpc"
@@ -66,16 +64,13 @@ func New(cfg GRPCConfig, logger *slog.Logger, server *grpc.Server) (*Server, err
 	}, nil
 }
 
-func (s *Server) Run() error {
+func (s *Server) Run(ctx context.Context) error {
 	addr := ":" + s.port
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("grpcserver: listen %s: %w", addr, err)
 	}
-
-	appCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	serveErr := make(chan error, 1)
 	go func() {
@@ -91,9 +86,8 @@ func (s *Server) Run() error {
 	select {
 	case err := <-serveErr:
 		return err
-	case <-appCtx.Done():
+	case <-ctx.Done():
 	}
-	stop()
 
 	s.logger.Info("shutting down server gracefully")
 

@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -61,10 +59,7 @@ func New(cfg HTTPConfig, logger *slog.Logger) (*Server, error) {
 	}, nil
 }
 
-func (s *Server) Run(r *mux.Router) error {
-	appCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
+func (s *Server) Run(ctx context.Context, r *mux.Router) error {
 	srv := &http.Server{
 		Addr:              s.port,
 		Handler:           r,
@@ -84,9 +79,8 @@ func (s *Server) Run(r *mux.Router) error {
 			return err
 		}
 		return nil
-	case <-appCtx.Done():
+	case <-ctx.Done():
 	}
-	stop()
 
 	s.logger.Info("shutting down server gracefully")
 

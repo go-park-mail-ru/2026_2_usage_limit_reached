@@ -11,6 +11,10 @@ postgres:
   max_conn_lifetime: 1h
   max_conn_idle_time: 30m
 
+grpc:
+  port: "50051"
+  shutdown_timeout: 5s
+
 s3:
   public_path: /media
 

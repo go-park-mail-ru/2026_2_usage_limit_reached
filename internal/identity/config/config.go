@@ -17,15 +17,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
-	DefaultConfigPath = "configs/identity.yaml"
-	envPrefix         = "IDENTITY"
-)
+const DefaultConfigPath = "configs/identity.yaml"
 
 type Config struct {
+	Identity   ServiceConfig              `mapstructure:"identity"`
 	Postgres   postgres.PostgresConfig    `mapstructure:"postgres"`
-	GRPC       grpcserver.GRPCConfig      `mapstructure:"grpc"`
-	HTTP       httpserver.HTTPConfig      `mapstructure:"http"`
 	S3         s3.S3Config                `mapstructure:"s3"`
 	Log        logger.LoggerConfig        `mapstructure:"log"`
 	JWT        jwt.JWTConfig              `mapstructure:"jwt"`
@@ -34,14 +30,18 @@ type Config struct {
 	Validation validator.ValidationConfig `mapstructure:"validation"`
 }
 
+type ServiceConfig struct {
+	HTTP httpserver.HTTPConfig `mapstructure:"http"`
+	GRPC grpcserver.GRPCConfig `mapstructure:"grpc"`
+}
+
 func DefaultConfig() Config {
 	httpCfg := httpserver.DefaultConfig()
 	httpCfg.Port = "8081"
 
 	return Config{
+		Identity:   ServiceConfig{HTTP: httpCfg, GRPC: grpcserver.DefaultConfig()},
 		Postgres:   postgres.DefaultConfig(),
-		GRPC:       grpcserver.DefaultConfig(),
-		HTTP:       httpCfg,
 		S3:         s3.DefaultConfig(),
 		Log:        logger.DefaultConfig(),
 		JWT:        jwt.DefaultConfig(),
@@ -53,9 +53,9 @@ func DefaultConfig() Config {
 
 func (c Config) Validate() error {
 	return errors.Join(
+		c.Identity.HTTP.Validate(),
+		c.Identity.GRPC.Validate(),
 		c.Postgres.Validate(),
-		c.GRPC.Validate(),
-		c.HTTP.Validate(),
 		c.S3.Validate(),
 		c.Log.Validate(),
 		c.JWT.Validate(),
@@ -72,7 +72,6 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("read config file %s: %w", path, err)
 	}
 
-	v.SetEnvPrefix(envPrefix)
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 

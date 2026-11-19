@@ -80,7 +80,7 @@ func Run(configPath string) error {
 	)
 	identitypb.RegisterIdentityServiceServer(grpcApp, identityHandler)
 
-	grpcSrv, err := grpcserver.New(cfg.GRPC, appLogger, grpcApp)
+	grpcSrv, err := grpcserver.New(cfg.Identity.GRPC, appLogger, grpcApp)
 	if err != nil {
 		return fmt.Errorf("grpc server initialization error: %w", err)
 	}
@@ -106,7 +106,7 @@ func Run(configPath string) error {
 		CSRF:    identityhttp.NewCSRFHandler(csrfManager, appLogger),
 	})
 
-	httpSrv, err := httpserver.New(cfg.HTTP, appLogger)
+	httpSrv, err := httpserver.New(cfg.Identity.HTTP, appLogger)
 	if err != nil {
 		return fmt.Errorf("http server initialization error: %w", err)
 	}

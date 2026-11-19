@@ -1,15 +1,18 @@
-http:
-  port: "8081"
-  read_header_timeout: 5s
-  shutdown_timeout: 5s
-
-grpc:
-  port: "50051"
-  shutdown_timeout: 5s
+identity:
+  http:
+    port: "8081"
+    read_header_timeout: 5s
+    shutdown_timeout: 5s
+  grpc:
+    port: "50051"
+    shutdown_timeout: 5s
 
 postgres:
-  host: postgres
+  host: 127.0.0.1
   port: 5432
+  user: patreon
+  password: database_password
+  db: patreon
   sslmode: disable
   min_conns: 0
   max_conns: 10
@@ -17,6 +20,10 @@ postgres:
   max_conn_idle_time: 30m
 
 s3:
+  endpoint: http://127.0.0.1:8333
+  access_key: s3_access_key
+  secret_key: s3_secret_key
+  bucket: media
   public_path: /media
 
 log:

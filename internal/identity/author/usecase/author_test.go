@@ -32,7 +32,7 @@ func TestUsecase_FindAuthorByID(t *testing.T) {
 	tests := []struct {
 		name         string
 		mockBehavior func(m *mock_author_usecase.MockRepository)
-		expected     *dto.AuthorInfo
+		expected     *authordto.AuthorInfo
 		expectedErr  error
 	}{
 		{
@@ -40,7 +40,7 @@ func TestUsecase_FindAuthorByID(t *testing.T) {
 			mockBehavior: func(m *mock_author_usecase.MockRepository) {
 				m.EXPECT().GetAuthorByID(mock.Anything, authorID).Return(newAuthor("bio", ptr("tech")), nil)
 			},
-			expected: &dto.AuthorInfo{ID: authorID, Bio: "bio", Category: ptr("tech")},
+			expected: &authordto.AuthorInfo{ID: authorID, Bio: "bio", Category: ptr("tech")},
 		},
 		{
 			name: "Author not found",
@@ -84,46 +84,46 @@ func TestUsecase_UpdateAuthor(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		req          dto.UpdateAuthorRequest
+		req          authordto.UpdateAuthorRequest
 		mockBehavior func(m *mock_author_usecase.MockRepository)
-		expected     *dto.AuthorInfo
+		expected     *authordto.AuthorInfo
 		expectedErr  error
 	}{
 		{
 			name: "Success trims bio and category",
-			req:  dto.UpdateAuthorRequest{AuthorID: authorID, Bio: "  bio  ", Category: ptr("  tech  ")},
+			req:  authordto.UpdateAuthorRequest{AuthorID: authorID, Bio: "  bio  ", Category: ptr("  tech  ")},
 			mockBehavior: func(m *mock_author_usecase.MockRepository) {
 				m.EXPECT().
 					UpdateAuthor(mock.Anything, authorID, models.AuthorDetails{Bio: "bio", Category: ptr("tech")}).
 					Return(newAuthor("bio", ptr("tech")), nil)
 			},
-			expected: &dto.AuthorInfo{ID: authorID, Bio: "bio", Category: ptr("tech")},
+			expected: &authordto.AuthorInfo{ID: authorID, Bio: "bio", Category: ptr("tech")},
 		},
 		{
 			name: "Success without category",
-			req:  dto.UpdateAuthorRequest{AuthorID: authorID, Bio: "bio"},
+			req:  authordto.UpdateAuthorRequest{AuthorID: authorID, Bio: "bio"},
 			mockBehavior: func(m *mock_author_usecase.MockRepository) {
 				m.EXPECT().
 					UpdateAuthor(mock.Anything, authorID, models.AuthorDetails{Bio: "bio"}).
 					Return(newAuthor("bio", nil), nil)
 			},
-			expected: &dto.AuthorInfo{ID: authorID, Bio: "bio"},
+			expected: &authordto.AuthorInfo{ID: authorID, Bio: "bio"},
 		},
 		{
 			name:         "Empty bio",
-			req:          dto.UpdateAuthorRequest{AuthorID: authorID, Bio: "   "},
+			req:          authordto.UpdateAuthorRequest{AuthorID: authorID, Bio: "   "},
 			mockBehavior: func(m *mock_author_usecase.MockRepository) {},
 			expectedErr:  validator.ErrValidation,
 		},
 		{
 			name:         "Empty category",
-			req:          dto.UpdateAuthorRequest{AuthorID: authorID, Bio: "bio", Category: ptr("   ")},
+			req:          authordto.UpdateAuthorRequest{AuthorID: authorID, Bio: "bio", Category: ptr("   ")},
 			mockBehavior: func(m *mock_author_usecase.MockRepository) {},
 			expectedErr:  validator.ErrValidation,
 		},
 		{
 			name: "Author not found",
-			req:  dto.UpdateAuthorRequest{AuthorID: authorID, Bio: "bio"},
+			req:  authordto.UpdateAuthorRequest{AuthorID: authorID, Bio: "bio"},
 			mockBehavior: func(m *mock_author_usecase.MockRepository) {
 				m.EXPECT().UpdateAuthor(mock.Anything, authorID, mock.Anything).Return(nil, models.ErrAuthorNotFound)
 			},
@@ -131,7 +131,7 @@ func TestUsecase_UpdateAuthor(t *testing.T) {
 		},
 		{
 			name: "Repository error",
-			req:  dto.UpdateAuthorRequest{AuthorID: authorID, Bio: "bio"},
+			req:  authordto.UpdateAuthorRequest{AuthorID: authorID, Bio: "bio"},
 			mockBehavior: func(m *mock_author_usecase.MockRepository) {
 				m.EXPECT().UpdateAuthor(mock.Anything, authorID, mock.Anything).Return(nil, repoErr)
 			},

@@ -1,4 +1,4 @@
-package dto_test
+package authordto_test
 
 import (
 	"testing"
@@ -16,7 +16,7 @@ func ptr(s string) *string { return &s }
 
 func TestUpdateAuthorRequest_Normalize(t *testing.T) {
 	t.Run("Trims bio and category", func(t *testing.T) {
-		got := dto.UpdateAuthorRequest{AuthorID: authorID, Bio: "  bio  ", Category: ptr("  tech  ")}.Normalize()
+		got := authordto.UpdateAuthorRequest{AuthorID: authorID, Bio: "  bio  ", Category: ptr("  tech  ")}.Normalize()
 
 		require.Equal(t, "bio", got.Bio)
 		require.Equal(t, "tech", *got.Category)
@@ -24,7 +24,7 @@ func TestUpdateAuthorRequest_Normalize(t *testing.T) {
 	})
 
 	t.Run("Keeps nil category", func(t *testing.T) {
-		got := dto.UpdateAuthorRequest{Bio: " bio "}.Normalize()
+		got := authordto.UpdateAuthorRequest{Bio: " bio "}.Normalize()
 
 		require.Equal(t, "bio", got.Bio)
 		require.Nil(t, got.Category)
@@ -34,13 +34,13 @@ func TestUpdateAuthorRequest_Normalize(t *testing.T) {
 func TestUpdateAuthorRequest_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
-		req     dto.UpdateAuthorRequest
+		req     authordto.UpdateAuthorRequest
 		wantErr bool
 	}{
-		{name: "Valid", req: dto.UpdateAuthorRequest{Bio: "bio", Category: ptr("tech")}},
-		{name: "Valid without category", req: dto.UpdateAuthorRequest{Bio: "bio"}},
-		{name: "Empty bio", req: dto.UpdateAuthorRequest{Bio: ""}, wantErr: true},
-		{name: "Empty category", req: dto.UpdateAuthorRequest{Bio: "bio", Category: ptr("")}, wantErr: true},
+		{name: "Valid", req: authordto.UpdateAuthorRequest{Bio: "bio", Category: ptr("tech")}},
+		{name: "Valid without category", req: authordto.UpdateAuthorRequest{Bio: "bio"}},
+		{name: "Empty bio", req: authordto.UpdateAuthorRequest{Bio: ""}, wantErr: true},
+		{name: "Empty category", req: authordto.UpdateAuthorRequest{Bio: "bio", Category: ptr("")}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -57,15 +57,15 @@ func TestUpdateAuthorRequest_Validate(t *testing.T) {
 
 func TestToAuthorInfo(t *testing.T) {
 	t.Run("Nil author", func(t *testing.T) {
-		require.Nil(t, dto.ToAuthorInfo(nil))
+		require.Nil(t, authordto.ToAuthorInfo(nil))
 	})
 
 	t.Run("Mapping", func(t *testing.T) {
-		got := dto.ToAuthorInfo(&models.Author{
+		got := authordto.ToAuthorInfo(&models.Author{
 			ID:            authorID,
 			AuthorDetails: models.AuthorDetails{Bio: "bio", Category: ptr("tech")},
 		})
 
-		require.Equal(t, &dto.AuthorInfo{ID: authorID, Bio: "bio", Category: ptr("tech")}, got)
+		require.Equal(t, &authordto.AuthorInfo{ID: authorID, Bio: "bio", Category: ptr("tech")}, got)
 	})
 }

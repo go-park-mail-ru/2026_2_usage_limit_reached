@@ -64,7 +64,7 @@ func TestAuthorRepository_GetAuthorByID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo, pool := newTestRepository(t)
-			expect := pool.ExpectQuery(`FROM author`).WithArgs(testAuthorID)
+			expect := pool.ExpectQuery(`FROM identity.author`).WithArgs(testAuthorID)
 			if tt.err != nil {
 				expect.WillReturnError(tt.err)
 			} else {
@@ -108,7 +108,7 @@ func TestAuthorRepository_UpdateAuthor(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo, pool := newTestRepository(t)
-			expect := pool.ExpectQuery(`UPDATE author`).WithArgs(testAuthorID, tt.details.Bio, tt.details.Category)
+			expect := pool.ExpectQuery(`UPDATE identity.author`).WithArgs(testAuthorID, tt.details.Bio, tt.details.Category)
 			if tt.err != nil {
 				expect.WillReturnError(tt.err)
 			} else {

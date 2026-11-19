@@ -21,6 +21,7 @@ type Repository interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
 	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
+	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]models.User, error)
 }
 
 type Usecase struct {

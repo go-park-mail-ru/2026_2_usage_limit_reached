@@ -30,7 +30,7 @@ func NewUserRepository(db *postgres.DBClient, logger *slog.Logger) *UserReposito
 
 func (r *UserRepository) CreateUser(ctx context.Context, u models.User) (*models.User, error) {
 	const query = `
-		INSERT INTO "user" (username, nickname, email, password_hash, status)
+		INSERT INTO identity."user" (username, nickname, email, password_hash, status)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at, updated_at
 	`
@@ -55,7 +55,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, u models.User) (*models
 
 func (r *UserRepository) UpdateNickname(ctx context.Context, id uuid.UUID, nickname string) (string, error) {
 	const query = `
-		UPDATE "user"
+		UPDATE identity."user"
 		SET nickname = $2
 		WHERE id = $1
 		RETURNING nickname
@@ -82,9 +82,9 @@ func (r *UserRepository) UpdateNickname(ctx context.Context, id uuid.UUID, nickn
 
 func (r *UserRepository) UpdateAvatarKey(ctx context.Context, id uuid.UUID, key *string) (*string, error) {
 	const query = `
-		UPDATE "user" AS u
+		UPDATE identity."user" AS u
 		SET avatar_key = $2
-		FROM (SELECT id, avatar_key FROM "user" WHERE id = $1 FOR UPDATE) AS old
+		FROM (SELECT id, avatar_key FROM identity."user" WHERE id = $1 FOR UPDATE) AS old
 		WHERE u.id = old.id
 		RETURNING old.avatar_key
 	`
@@ -113,6 +113,52 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*models
 	return r.getUser(ctx, IDField, id)
 }
 
+func (r *UserRepository) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]models.User, error) {
+	const query = `
+		SELECT id, username, nickname, email, password_hash, avatar_key, status, created_at, updated_at
+		FROM identity."user"
+		WHERE id = ANY($1)
+	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get users by ids"),
+		slog.Int("count", len(ids)),
+	)
+
+	rows, err := r.pool.Query(ctx, query, ids)
+	if err != nil {
+		return nil, fmt.Errorf("get users by ids error: %w", err)
+	}
+	defer rows.Close()
+
+	users := make([]models.User, 0, len(ids))
+	for rows.Next() {
+		var user models.User
+
+		if err := rows.Scan(
+			&user.ID,
+			&user.Username,
+			&user.Nickname,
+			&user.Email,
+			&user.PasswordHash,
+			&user.AvatarKey,
+			&user.Status,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("get users by ids scan error: %w", err)
+		}
+
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get users by ids error: %w", err)
+	}
+
+	return users, nil
+}
+
 func (r *UserRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	return r.getUser(ctx, UsernameField, username)
 }
@@ -124,7 +170,7 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 func (r *UserRepository) getUser(ctx context.Context, field string, v any) (*models.User, error) {
 	const getQuery = `
 		SELECT id, username, nickname, email, password_hash, avatar_key, status, created_at, updated_at
-		FROM "user"
+		FROM identity."user"
 		WHERE %s = $1
 	`
 

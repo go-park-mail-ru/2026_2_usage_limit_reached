@@ -190,6 +190,74 @@ func (_c *MockRepository_GetAuthorByID_Call) RunAndReturn(run func(ctx context.C
 	return _c
 }
 
+// GetAuthorsByIDs provides a mock function for the type MockRepository
+func (_mock *MockRepository) GetAuthorsByIDs(ctx context.Context, ids []uuid.UUID) ([]models.Author, error) {
+	ret := _mock.Called(ctx, ids)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAuthorsByIDs")
+	}
+
+	var r0 []models.Author
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) ([]models.Author, error)); ok {
+		return returnFunc(ctx, ids)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) []models.Author); ok {
+		r0 = returnFunc(ctx, ids)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.Author)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, []uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, ids)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_GetAuthorsByIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAuthorsByIDs'
+type MockRepository_GetAuthorsByIDs_Call struct {
+	*mock.Call
+}
+
+// GetAuthorsByIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ids []uuid.UUID
+func (_e *MockRepository_Expecter) GetAuthorsByIDs(ctx any, ids any) *MockRepository_GetAuthorsByIDs_Call {
+	return &MockRepository_GetAuthorsByIDs_Call{Call: _e.mock.On("GetAuthorsByIDs", ctx, ids)}
+}
+
+func (_c *MockRepository_GetAuthorsByIDs_Call) Run(run func(ctx context.Context, ids []uuid.UUID)) *MockRepository_GetAuthorsByIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].([]uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_GetAuthorsByIDs_Call) Return(authors []models.Author, err error) *MockRepository_GetAuthorsByIDs_Call {
+	_c.Call.Return(authors, err)
+	return _c
+}
+
+func (_c *MockRepository_GetAuthorsByIDs_Call) RunAndReturn(run func(ctx context.Context, ids []uuid.UUID) ([]models.Author, error)) *MockRepository_GetAuthorsByIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateAuthor provides a mock function for the type MockRepository
 func (_mock *MockRepository) UpdateAuthor(ctx context.Context, id uuid.UUID, details models.AuthorDetails) (*models.Author, error) {
 	ret := _mock.Called(ctx, id, details)

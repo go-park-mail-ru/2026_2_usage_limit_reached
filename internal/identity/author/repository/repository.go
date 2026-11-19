@@ -25,7 +25,7 @@ func NewAuthorRepository(db *postgres.DBClient, logger *slog.Logger) *AuthorRepo
 func (r *AuthorRepository) GetAuthorByID(ctx context.Context, id uuid.UUID) (*models.Author, error) {
 	const query = `
 		SELECT id, bio, category, payout_provider, payout_account_id, created_at, updated_at
-		FROM author
+		FROM identity.author
 		WHERE id = $1
 	`
 
@@ -56,9 +56,53 @@ func (r *AuthorRepository) GetAuthorByID(ctx context.Context, id uuid.UUID) (*mo
 	return &author, nil
 }
 
+func (r *AuthorRepository) GetAuthorsByIDs(ctx context.Context, ids []uuid.UUID) ([]models.Author, error) {
+	const query = `
+		SELECT id, bio, category, payout_provider, payout_account_id, created_at, updated_at
+		FROM identity.author
+		WHERE id = ANY($1)
+	`
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get authors by ids"),
+		slog.Int("count", len(ids)),
+	)
+
+	rows, err := r.pool.Query(ctx, query, ids)
+	if err != nil {
+		return nil, fmt.Errorf("get authors by ids error: %w", err)
+	}
+	defer rows.Close()
+
+	authors := make([]models.Author, 0, len(ids))
+	for rows.Next() {
+		var author models.Author
+
+		if err := rows.Scan(
+			&author.ID,
+			&author.Bio,
+			&author.Category,
+			&author.PayoutProvider,
+			&author.PayoutAccountID,
+			&author.CreatedAt,
+			&author.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("get authors by ids scan error: %w", err)
+		}
+
+		authors = append(authors, author)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get authors by ids error: %w", err)
+	}
+
+	return authors, nil
+}
+
 func (r *AuthorRepository) UpdateAuthor(ctx context.Context, id uuid.UUID, details models.AuthorDetails) (*models.Author, error) {
 	const query = `
-		UPDATE author
+		UPDATE identity.author
 		SET bio = $2, category = $3
 		WHERE id = $1
 		RETURNING id, bio, category
@@ -85,7 +129,7 @@ func (r *AuthorRepository) UpdateAuthor(ctx context.Context, id uuid.UUID, detai
 
 func (r *AuthorRepository) CreateAuthor(ctx context.Context, id uuid.UUID, details models.AuthorDetails) (*models.Author, error) {
 	const query = `
-		INSERT INTO author (id, bio, category)
+		INSERT INTO identity.author (id, bio, category)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (id) DO NOTHING
 		RETURNING id, bio, category

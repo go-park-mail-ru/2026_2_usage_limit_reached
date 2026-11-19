@@ -71,6 +71,24 @@ func (uc *Usecase) FindUserByID(ctx context.Context, userID uuid.UUID) (*dto.Use
 	return dto.ToUserInfo(user, mediaurl.PublicPtr(uc.avatarBasePath, user.AvatarKey)), nil
 }
 
+func (uc *Usecase) FindUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]*dto.UserInfo, error) {
+	if len(ids) == 0 {
+		return []*dto.UserInfo{}, nil
+	}
+
+	users, err := uc.repo.GetUsersByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("find users: %w", err)
+	}
+
+	infos := make([]*dto.UserInfo, 0, len(users))
+	for i := range users {
+		infos = append(infos, dto.ToUserInfo(&users[i], mediaurl.PublicPtr(uc.avatarBasePath, users[i].AvatarKey)))
+	}
+
+	return infos, nil
+}
+
 func (uc *Usecase) FindCredentialsByLogin(ctx context.Context, login string) (*dto.UserCredentials, error) {
 	user, err := uc.findUserByLogin(ctx, normalizeLogin(login))
 	if err != nil {

@@ -2,225 +2,88 @@ package grpc
 
 import (
 	"context"
-	"errors"
-	"io"
 	"log/slog"
-	"os"
-	"strings"
-	"time"
 
-	authdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/dto"
-	profiledto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/profile/dto"
-	profileuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/profile/usecase"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
+	authordto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/author/dto"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/dto"
 	identitypb "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/identity/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-type AuthUsecase interface {
-	Register(ctx context.Context, req authdto.RegistrationRequest) (*authdto.UserResponse, string, error)
-	Login(ctx context.Context, req authdto.LoginRequest) (*authdto.UserResponse, string, error)
-	TokenTTL() time.Duration
+type UserUsecase interface {
+	FindUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]*userdto.UserInfo, error)
 }
 
-type ProfileUsecase interface {
-	GetMyProfile(ctx context.Context, userID uuid.UUID) (*profiledto.ProfileResponse, error)
-	GetPublicProfile(ctx context.Context, username string) (*profiledto.PublicProfileResponse, error)
-	UpdateMyProfile(ctx context.Context, userID uuid.UUID, req profiledto.UpdateProfileRequest) (*profiledto.ProfileResponse, error)
-	BecomeAuthor(ctx context.Context, userID uuid.UUID, req profiledto.UpdateAuthorRequest) (*profiledto.ProfileResponse, error)
-	UploadAvatar(ctx context.Context, userID uuid.UUID, file io.ReadSeeker, size int64) (string, error)
-	DeleteAvatar(ctx context.Context, userID uuid.UUID) error
+type AuthorUsecase interface {
+	FindAuthorsByIDs(ctx context.Context, ids []uuid.UUID) ([]*authordto.AuthorInfo, error)
 }
 
 type Handler struct {
 	identitypb.UnimplementedIdentityServiceServer
 
-	auth      AuthUsecase
-	profile   ProfileUsecase
-	validator *validator.Validator
-	logger    *slog.Logger
+	users   UserUsecase
+	authors AuthorUsecase
+	logger  *slog.Logger
 }
 
-func NewHandler(auth AuthUsecase, profile ProfileUsecase, validator *validator.Validator, logger *slog.Logger) *Handler {
-	return &Handler{
-		auth:      auth,
-		profile:   profile,
-		validator: validator,
-		logger:    logger,
-	}
+func NewHandler(users UserUsecase, authors AuthorUsecase, logger *slog.Logger) *Handler {
+	return &Handler{users: users, authors: authors, logger: logger}
 }
 
-func (h *Handler) Register(ctx context.Context, req *identitypb.RegisterRequest) (*identitypb.AuthResponse, error) {
-	reg := newRegistrationRequest(req)
-	if err := reg.Validate(h.validator); err != nil {
-		return nil, h.fail(ctx, "register", err)
-	}
-
-	user, token, err := h.auth.Register(ctx, reg)
+func (h *Handler) GetUsers(ctx context.Context, req *identitypb.GetUsersRequest) (*identitypb.GetUsersResponse, error) {
+	ids, err := parseIDs(req.GetIds())
 	if err != nil {
-		return nil, h.fail(ctx, "register", err)
+		return nil, status.Error(codes.InvalidArgument, "invalid user id")
 	}
 
-	return newAuthResponse(user, token, h.auth.TokenTTL()), nil
-}
-
-func (h *Handler) Login(ctx context.Context, req *identitypb.LoginRequest) (*identitypb.AuthResponse, error) {
-	login := newLoginRequest(req)
-	if err := login.Validate(); err != nil {
-		return nil, h.fail(ctx, "login", err)
-	}
-
-	user, token, err := h.auth.Login(ctx, login)
+	users, err := h.users.FindUsersByIDs(ctx, ids)
 	if err != nil {
-		return nil, h.fail(ctx, "login", err)
-	}
-
-	return newAuthResponse(user, token, h.auth.TokenTTL()), nil
-}
-
-func (h *Handler) GetMe(ctx context.Context, _ *identitypb.GetMeRequest) (*identitypb.MyProfile, error) {
-	userID, err := userIDFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	profile, err := h.profile.GetMyProfile(ctx, userID)
-	if err != nil {
-		return nil, h.fail(ctx, "get my profile", err)
-	}
-
-	return newMyProfile(profile), nil
-}
-
-func (h *Handler) GetPublicProfile(ctx context.Context, req *identitypb.GetPublicProfileRequest) (*identitypb.PublicProfile, error) {
-	if strings.TrimSpace(req.GetUsername()) == "" {
-		return nil, status.Error(codes.InvalidArgument, "username is required")
-	}
-
-	profile, err := h.profile.GetPublicProfile(ctx, req.GetUsername())
-	if err != nil {
-		return nil, h.fail(ctx, "get public profile", err)
-	}
-
-	return newPublicProfile(profile), nil
-}
-
-func (h *Handler) UpdateMyProfile(ctx context.Context, req *identitypb.UpdateMyProfileRequest) (*identitypb.MyProfile, error) {
-	userID, err := userIDFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	update := newUpdateProfileRequest(req)
-	if err := update.Validate(h.validator); err != nil {
-		return nil, h.fail(ctx, "update my profile", err)
-	}
-
-	profile, err := h.profile.UpdateMyProfile(ctx, userID, update)
-	if err != nil {
-		return nil, h.fail(ctx, "update my profile", err)
-	}
-
-	return newMyProfile(profile), nil
-}
-
-func (h *Handler) BecomeAuthor(ctx context.Context, req *identitypb.BecomeAuthorRequest) (*identitypb.MyProfile, error) {
-	userID, err := userIDFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	update := newBecomeAuthorRequest(req)
-	if err := update.Validate(h.validator); err != nil {
-		return nil, h.fail(ctx, "become author", err)
-	}
-
-	profile, err := h.profile.BecomeAuthor(ctx, userID, update)
-	if err != nil {
-		return nil, h.fail(ctx, "become author", err)
-	}
-
-	return newMyProfile(profile), nil
-}
-
-func (h *Handler) UploadAvatar(stream identitypb.IdentityService_UploadAvatarServer) error {
-	ctx := stream.Context()
-	userID, err := userIDFromContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	first, err := stream.Recv()
-	if errors.Is(err, io.EOF) {
-		return status.Error(codes.InvalidArgument, "metadata is required")
-	}
-	if err != nil {
-		return status.Error(codes.Aborted, "upload aborted")
-	}
-	if first.GetMetadata() == nil {
-		return status.Error(codes.InvalidArgument, "metadata must be first")
-	}
-
-	file, err := os.CreateTemp("", "avatar-*")
-	if err != nil {
-		return status.Error(codes.Internal, "cannot create temporary file")
-	}
-	defer os.Remove(file.Name())
-	defer file.Close()
-
-	var size int64
-	for {
-		req, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			break
+		if h.logger != nil {
+			h.logger.ErrorContext(ctx, "identity grpc error",
+				slog.String("handler", "get users"),
+				slog.String("error", err.Error()),
+			)
 		}
+
+		return nil, status.Error(codes.Internal, "internal error")
+	}
+
+	return newGetUsersResponse(users), nil
+}
+
+func (h *Handler) GetAuthors(ctx context.Context, req *identitypb.GetAuthorsRequest) (*identitypb.GetAuthorsResponse, error) {
+	ids, err := parseIDs(req.GetIds())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid author id")
+	}
+
+	authors, err := h.authors.FindAuthorsByIDs(ctx, ids)
+	if err != nil {
+		if h.logger != nil {
+			h.logger.ErrorContext(ctx, "identity grpc error",
+				slog.String("handler", "get authors"),
+				slog.String("error", err.Error()),
+			)
+		}
+
+		return nil, status.Error(codes.Internal, "internal error")
+	}
+
+	return newGetAuthorsResponse(authors), nil
+}
+
+func parseIDs(raw []string) ([]uuid.UUID, error) {
+	ids := make([]uuid.UUID, 0, len(raw))
+	for _, value := range raw {
+		id, err := uuid.Parse(value)
 		if err != nil {
-			return status.Error(codes.Aborted, "upload aborted")
-		}
-		if req.GetMetadata() != nil {
-			return status.Error(codes.InvalidArgument, "metadata must be first")
+			return nil, err
 		}
 
-		chunk := req.GetChunk()
-		if len(chunk) == 0 {
-			continue
-		}
-
-		size += int64(len(chunk))
-		if size > profileuc.MaxAvatarSize {
-			return status.Error(codes.ResourceExhausted, "avatar too large")
-		}
-		if _, err := file.Write(chunk); err != nil {
-			return status.Error(codes.Internal, "cannot write avatar")
-		}
+		ids = append(ids, id)
 	}
 
-	if size == 0 {
-		return status.Error(codes.InvalidArgument, "avatar is empty")
-	}
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return status.Error(codes.Internal, "cannot rewind avatar")
-	}
-
-	avatarURL, err := h.profile.UploadAvatar(ctx, userID, file, size)
-	if err != nil {
-		return h.fail(ctx, "upload avatar", err)
-	}
-
-	return stream.SendAndClose(&identitypb.AvatarResponse{AvatarUrl: avatarURL})
-}
-
-func (h *Handler) DeleteAvatar(ctx context.Context, _ *identitypb.DeleteAvatarRequest) (*identitypb.AvatarResponse, error) {
-	userID, err := userIDFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := h.profile.DeleteAvatar(ctx, userID); err != nil {
-		return nil, h.fail(ctx, "delete avatar", err)
-	}
-
-	return &identitypb.AvatarResponse{}, nil
+	return ids, nil
 }

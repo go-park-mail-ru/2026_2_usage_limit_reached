@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (uc *Usecase) FindAuthorByID(ctx context.Context, authorID uuid.UUID) (*dto.AuthorInfo, error) {
+func (uc *Usecase) FindAuthorByID(ctx context.Context, authorID uuid.UUID) (*authordto.AuthorInfo, error) {
 	author, err := uc.repo.GetAuthorByID(ctx, authorID)
 	if err != nil {
 		if errors.Is(err, models.ErrAuthorNotFound) {
@@ -19,10 +19,28 @@ func (uc *Usecase) FindAuthorByID(ctx context.Context, authorID uuid.UUID) (*dto
 		return nil, fmt.Errorf("find author: %w", err)
 	}
 
-	return dto.ToAuthorInfo(author), nil
+	return authordto.ToAuthorInfo(author), nil
 }
 
-func (uc *Usecase) CreateAuthor(ctx context.Context, req dto.UpdateAuthorRequest) (*dto.AuthorInfo, error) {
+func (uc *Usecase) FindAuthorsByIDs(ctx context.Context, ids []uuid.UUID) ([]*authordto.AuthorInfo, error) {
+	if len(ids) == 0 {
+		return []*authordto.AuthorInfo{}, nil
+	}
+
+	authors, err := uc.repo.GetAuthorsByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("find authors: %w", err)
+	}
+
+	infos := make([]*authordto.AuthorInfo, 0, len(authors))
+	for i := range authors {
+		infos = append(infos, authordto.ToAuthorInfo(&authors[i]))
+	}
+
+	return infos, nil
+}
+
+func (uc *Usecase) CreateAuthor(ctx context.Context, req authordto.UpdateAuthorRequest) (*authordto.AuthorInfo, error) {
 	req = req.Normalize()
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("create author: %w", err)
@@ -39,10 +57,10 @@ func (uc *Usecase) CreateAuthor(ctx context.Context, req dto.UpdateAuthorRequest
 		return nil, fmt.Errorf("create author: %w", err)
 	}
 
-	return dto.ToAuthorInfo(author), nil
+	return authordto.ToAuthorInfo(author), nil
 }
 
-func (uc *Usecase) UpdateAuthor(ctx context.Context, req dto.UpdateAuthorRequest) (*dto.AuthorInfo, error) {
+func (uc *Usecase) UpdateAuthor(ctx context.Context, req authordto.UpdateAuthorRequest) (*authordto.AuthorInfo, error) {
 	req = req.Normalize()
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("update author: %w", err)
@@ -59,5 +77,5 @@ func (uc *Usecase) UpdateAuthor(ctx context.Context, req dto.UpdateAuthorRequest
 		return nil, fmt.Errorf("update author: %w", err)
 	}
 
-	return dto.ToAuthorInfo(author), nil
+	return authordto.ToAuthorInfo(author), nil
 }

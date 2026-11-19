@@ -2,88 +2,29 @@ package grpc_test
 
 import (
 	"context"
-	"io"
 	"net"
 	"testing"
-	"time"
 
-	authdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/dto"
-	authuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/usecase"
+	authordto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/author/dto"
 	identitygrpc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc"
-	profiledto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/profile/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
+	mockgrpc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc/mock_delivery_grpc"
+	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/dto"
 	identitypb "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/identity/v1"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
 
-type fakeAuth struct {
-	user  *authdto.UserResponse
-	token string
-	err   error
-}
-
-func (f *fakeAuth) Register(context.Context, authdto.RegistrationRequest) (*authdto.UserResponse, string, error) {
-	return f.user, f.token, f.err
-}
-
-func (f *fakeAuth) Login(context.Context, authdto.LoginRequest) (*authdto.UserResponse, string, error) {
-	return f.user, f.token, f.err
-}
-
-func (f *fakeAuth) TokenTTL() time.Duration {
-	return time.Hour
-}
-
-type fakeProfile struct {
-	myProfile *profiledto.ProfileResponse
-	public    *profiledto.PublicProfileResponse
-	avatarURL string
-}
-
-func (f *fakeProfile) GetMyProfile(context.Context, uuid.UUID) (*profiledto.ProfileResponse, error) {
-	return f.myProfile, nil
-}
-
-func (f *fakeProfile) GetPublicProfile(context.Context, string) (*profiledto.PublicProfileResponse, error) {
-	return f.public, nil
-}
-
-func (f *fakeProfile) UpdateMyProfile(context.Context, uuid.UUID, profiledto.UpdateProfileRequest) (*profiledto.ProfileResponse, error) {
-	return f.myProfile, nil
-}
-
-func (f *fakeProfile) BecomeAuthor(context.Context, uuid.UUID, profiledto.UpdateAuthorRequest) (*profiledto.ProfileResponse, error) {
-	return f.myProfile, nil
-}
-
-func (f *fakeProfile) UploadAvatar(context.Context, uuid.UUID, io.ReadSeeker, int64) (string, error) {
-	return f.avatarURL, nil
-}
-
-func (f *fakeProfile) DeleteAvatar(context.Context, uuid.UUID) error {
-	return nil
-}
-
-func newTestClient(t *testing.T, auth *fakeAuth, profile *fakeProfile) identitypb.IdentityServiceClient {
+func newTestClient(t *testing.T, users identitygrpc.UserUsecase, authors identitygrpc.AuthorUsecase) identitypb.IdentityServiceClient {
 	t.Helper()
 
-	valid, err := validator.NewValidator(validator.DefaultConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	listener := bufconn.Listen(1024 * 1024)
-	server := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(identitygrpc.UserContextInterceptor),
-		grpc.ChainStreamInterceptor(identitygrpc.UserContextStreamInterceptor),
-	)
-	identitypb.RegisterIdentityServiceServer(server, identitygrpc.NewHandler(auth, profile, valid, nil))
+	server := grpc.NewServer()
+	identitypb.RegisterIdentityServiceServer(server, identitygrpc.NewHandler(users, authors, nil))
 
 	go func() {
 		_ = server.Serve(listener)
@@ -104,115 +45,68 @@ func newTestClient(t *testing.T, auth *fakeAuth, profile *fakeProfile) identityp
 	return identitypb.NewIdentityServiceClient(conn)
 }
 
-func TestRegister(t *testing.T) {
-	client := newTestClient(t,
-		&fakeAuth{user: &authdto.UserResponse{Username: "user", Nickname: "nick"}, token: "access"},
-		&fakeProfile{},
-	)
-
-	resp, err := client.Register(context.Background(), &identitypb.RegisterRequest{
-		Email:    "user@example.com",
-		Username: "user",
-		Nickname: "nick",
-		Password: "password123",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.GetAccessToken() != "access" {
-		t.Fatalf("access token = %q", resp.GetAccessToken())
-	}
-}
-
-func TestGetMe(t *testing.T) {
+func TestGetUsers(t *testing.T) {
 	userID := uuid.New()
-	client := newTestClient(t,
-		&fakeAuth{},
-		&fakeProfile{myProfile: &profiledto.ProfileResponse{
-			User: profiledto.ProfileUserResponse{
-				PublicProfileUserResponse: profiledto.PublicProfileUserResponse{ID: userID, Username: "user", Nickname: "nick"},
-				Email:                     "user@example.com",
-			},
-		}},
-	)
 
-	ctx := metadata.AppendToOutgoingContext(context.Background(), "x-user-id", userID.String())
-	resp, err := client.GetMe(ctx, &identitypb.GetMeRequest{})
+	users := mockgrpc.NewMockUserUsecase(t)
+	users.On("FindUsersByIDs", mock.Anything, mock.Anything).
+		Return([]*userdto.UserInfo{{
+			ID:       userID,
+			Username: "user",
+			Nickname: "nick",
+			Status:   "active",
+		}}, nil)
+
+	client := newTestClient(t, users, mockgrpc.NewMockAuthorUsecase(t))
+
+	resp, err := client.GetUsers(context.Background(), &identitypb.GetUsersRequest{Ids: []string{userID.String()}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.GetEmail() != "user@example.com" {
-		t.Fatalf("email = %q", resp.GetEmail())
+
+	if len(resp.GetUsers()) != 1 {
+		t.Fatalf("users count = %d", len(resp.GetUsers()))
+	}
+	if resp.GetUsers()[0].GetUsername() != "user" {
+		t.Fatalf("username = %q", resp.GetUsers()[0].GetUsername())
+	}
+	if resp.GetUsers()[0].GetStatus() != "active" {
+		t.Fatalf("status = %q", resp.GetUsers()[0].GetStatus())
 	}
 }
 
-func TestGetPublicProfileEmptyUsername(t *testing.T) {
-	client := newTestClient(t, &fakeAuth{}, &fakeProfile{})
+func TestGetAuthors(t *testing.T) {
+	authorID := uuid.New()
+	category := "Cars"
 
-	_, err := client.GetPublicProfile(context.Background(), &identitypb.GetPublicProfileRequest{})
+	authors := mockgrpc.NewMockAuthorUsecase(t)
+	authors.On("FindAuthorsByIDs", mock.Anything, mock.Anything).
+		Return([]*authordto.AuthorInfo{{
+			ID:       authorID,
+			Bio:      "bio",
+			Category: &category,
+		}}, nil)
+
+	client := newTestClient(t, mockgrpc.NewMockUserUsecase(t), authors)
+
+	resp, err := client.GetAuthors(context.Background(), &identitypb.GetAuthorsRequest{Ids: []string{authorID.String()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(resp.GetAuthors()) != 1 {
+		t.Fatalf("authors count = %d", len(resp.GetAuthors()))
+	}
+	if resp.GetAuthors()[0].GetCategory() != category {
+		t.Fatalf("category = %q", resp.GetAuthors()[0].GetCategory())
+	}
+}
+
+func TestGetUsersInvalidID(t *testing.T) {
+	client := newTestClient(t, mockgrpc.NewMockUserUsecase(t), mockgrpc.NewMockAuthorUsecase(t))
+
+	_, err := client.GetUsers(context.Background(), &identitypb.GetUsersRequest{Ids: []string{"not-a-uuid"}})
 	if status.Code(err) != codes.InvalidArgument {
-		t.Fatalf("code = %v, want InvalidArgument", status.Code(err))
-	}
-}
-
-func TestGetMeWithoutUserID(t *testing.T) {
-	client := newTestClient(t, &fakeAuth{}, &fakeProfile{})
-
-	_, err := client.GetMe(context.Background(), &identitypb.GetMeRequest{})
-	if status.Code(err) != codes.Unauthenticated {
-		t.Fatalf("code = %v, want Unauthenticated", status.Code(err))
-	}
-}
-
-func TestLoginInvalidCredentials(t *testing.T) {
-	client := newTestClient(t, &fakeAuth{err: authuc.ErrLoginFailed}, &fakeProfile{})
-
-	_, err := client.Login(context.Background(), &identitypb.LoginRequest{Login: "user", Password: "secret"})
-	if status.Code(err) != codes.Unauthenticated {
-		t.Fatalf("code = %v, want Unauthenticated", status.Code(err))
-	}
-}
-
-func TestUploadAvatarWithoutMetadata(t *testing.T) {
-	userID := uuid.New()
-	client := newTestClient(t, &fakeAuth{}, &fakeProfile{})
-
-	ctx := metadata.AppendToOutgoingContext(context.Background(), "x-user-id", userID.String())
-	stream, err := client.UploadAvatar(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := stream.Send(&identitypb.UploadAvatarRequest{Payload: &identitypb.UploadAvatarRequest_Chunk{Chunk: []byte("avatar")}}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := stream.CloseAndRecv(); status.Code(err) != codes.InvalidArgument {
-		t.Fatalf("code = %v, want InvalidArgument", status.Code(err))
-	}
-}
-
-func TestUploadAvatar(t *testing.T) {
-	userID := uuid.New()
-	client := newTestClient(t,
-		&fakeAuth{},
-		&fakeProfile{avatarURL: "/media/avatar.png"},
-	)
-
-	ctx := metadata.AppendToOutgoingContext(context.Background(), "x-user-id", userID.String())
-	stream, err := client.UploadAvatar(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := stream.Send(&identitypb.UploadAvatarRequest{Payload: &identitypb.UploadAvatarRequest_Metadata{Metadata: &identitypb.AvatarMetadata{ContentType: "image/png"}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := stream.Send(&identitypb.UploadAvatarRequest{Payload: &identitypb.UploadAvatarRequest_Chunk{Chunk: []byte("avatar")}}); err != nil {
-		t.Fatal(err)
-	}
-	resp, err := stream.CloseAndRecv()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.GetAvatarUrl() != "/media/avatar.png" {
-		t.Fatalf("avatar url = %q", resp.GetAvatarUrl())
+		t.Fatalf("code = %v", status.Code(err))
 	}
 }

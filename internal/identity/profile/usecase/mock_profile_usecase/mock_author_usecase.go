@@ -48,26 +48,26 @@ func (_m *MockAuthorUsecase) EXPECT() *MockAuthorUsecase_Expecter {
 }
 
 // CreateAuthor provides a mock function for the type MockAuthorUsecase
-func (_mock *MockAuthorUsecase) CreateAuthor(ctx context.Context, req dto.UpdateAuthorRequest) (*dto.AuthorInfo, error) {
+func (_mock *MockAuthorUsecase) CreateAuthor(ctx context.Context, req authordto.UpdateAuthorRequest) (*authordto.AuthorInfo, error) {
 	ret := _mock.Called(ctx, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateAuthor")
 	}
 
-	var r0 *dto.AuthorInfo
+	var r0 *authordto.AuthorInfo
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, dto.UpdateAuthorRequest) (*dto.AuthorInfo, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, authordto.UpdateAuthorRequest) (*authordto.AuthorInfo, error)); ok {
 		return returnFunc(ctx, req)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, dto.UpdateAuthorRequest) *dto.AuthorInfo); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, authordto.UpdateAuthorRequest) *authordto.AuthorInfo); ok {
 		r0 = returnFunc(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*dto.AuthorInfo)
+			r0 = ret.Get(0).(*authordto.AuthorInfo)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, dto.UpdateAuthorRequest) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, authordto.UpdateAuthorRequest) error); ok {
 		r1 = returnFunc(ctx, req)
 	} else {
 		r1 = ret.Error(1)
@@ -82,20 +82,20 @@ type MockAuthorUsecase_CreateAuthor_Call struct {
 
 // CreateAuthor is a helper method to define mock.On call
 //   - ctx context.Context
-//   - req dto.UpdateAuthorRequest
+//   - req authordto.UpdateAuthorRequest
 func (_e *MockAuthorUsecase_Expecter) CreateAuthor(ctx any, req any) *MockAuthorUsecase_CreateAuthor_Call {
 	return &MockAuthorUsecase_CreateAuthor_Call{Call: _e.mock.On("CreateAuthor", ctx, req)}
 }
 
-func (_c *MockAuthorUsecase_CreateAuthor_Call) Run(run func(ctx context.Context, req dto.UpdateAuthorRequest)) *MockAuthorUsecase_CreateAuthor_Call {
+func (_c *MockAuthorUsecase_CreateAuthor_Call) Run(run func(ctx context.Context, req authordto.UpdateAuthorRequest)) *MockAuthorUsecase_CreateAuthor_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 dto.UpdateAuthorRequest
+		var arg1 authordto.UpdateAuthorRequest
 		if args[1] != nil {
-			arg1 = args[1].(dto.UpdateAuthorRequest)
+			arg1 = args[1].(authordto.UpdateAuthorRequest)
 		}
 		run(
 			arg0,
@@ -105,37 +105,37 @@ func (_c *MockAuthorUsecase_CreateAuthor_Call) Run(run func(ctx context.Context,
 	return _c
 }
 
-func (_c *MockAuthorUsecase_CreateAuthor_Call) Return(authorInfo *dto.AuthorInfo, err error) *MockAuthorUsecase_CreateAuthor_Call {
+func (_c *MockAuthorUsecase_CreateAuthor_Call) Return(authorInfo *authordto.AuthorInfo, err error) *MockAuthorUsecase_CreateAuthor_Call {
 	_c.Call.Return(authorInfo, err)
 	return _c
 }
 
-func (_c *MockAuthorUsecase_CreateAuthor_Call) RunAndReturn(run func(ctx context.Context, req dto.UpdateAuthorRequest) (*dto.AuthorInfo, error)) *MockAuthorUsecase_CreateAuthor_Call {
+func (_c *MockAuthorUsecase_CreateAuthor_Call) RunAndReturn(run func(ctx context.Context, req authordto.UpdateAuthorRequest) (*authordto.AuthorInfo, error)) *MockAuthorUsecase_CreateAuthor_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // UpdateAuthor provides a mock function for the type MockAuthorUsecase
-func (_mock *MockAuthorUsecase) UpdateAuthor(ctx context.Context, req dto.UpdateAuthorRequest) (*dto.AuthorInfo, error) {
+func (_mock *MockAuthorUsecase) UpdateAuthor(ctx context.Context, req authordto.UpdateAuthorRequest) (*authordto.AuthorInfo, error) {
 	ret := _mock.Called(ctx, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateAuthor")
 	}
 
-	var r0 *dto.AuthorInfo
+	var r0 *authordto.AuthorInfo
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, dto.UpdateAuthorRequest) (*dto.AuthorInfo, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, authordto.UpdateAuthorRequest) (*authordto.AuthorInfo, error)); ok {
 		return returnFunc(ctx, req)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, dto.UpdateAuthorRequest) *dto.AuthorInfo); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, authordto.UpdateAuthorRequest) *authordto.AuthorInfo); ok {
 		r0 = returnFunc(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*dto.AuthorInfo)
+			r0 = ret.Get(0).(*authordto.AuthorInfo)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, dto.UpdateAuthorRequest) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, authordto.UpdateAuthorRequest) error); ok {
 		r1 = returnFunc(ctx, req)
 	} else {
 		r1 = ret.Error(1)
@@ -150,20 +150,20 @@ type MockAuthorUsecase_UpdateAuthor_Call struct {
 
 // UpdateAuthor is a helper method to define mock.On call
 //   - ctx context.Context
-//   - req dto.UpdateAuthorRequest
+//   - req authordto.UpdateAuthorRequest
 func (_e *MockAuthorUsecase_Expecter) UpdateAuthor(ctx any, req any) *MockAuthorUsecase_UpdateAuthor_Call {
 	return &MockAuthorUsecase_UpdateAuthor_Call{Call: _e.mock.On("UpdateAuthor", ctx, req)}
 }
 
-func (_c *MockAuthorUsecase_UpdateAuthor_Call) Run(run func(ctx context.Context, req dto.UpdateAuthorRequest)) *MockAuthorUsecase_UpdateAuthor_Call {
+func (_c *MockAuthorUsecase_UpdateAuthor_Call) Run(run func(ctx context.Context, req authordto.UpdateAuthorRequest)) *MockAuthorUsecase_UpdateAuthor_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 dto.UpdateAuthorRequest
+		var arg1 authordto.UpdateAuthorRequest
 		if args[1] != nil {
-			arg1 = args[1].(dto.UpdateAuthorRequest)
+			arg1 = args[1].(authordto.UpdateAuthorRequest)
 		}
 		run(
 			arg0,
@@ -173,12 +173,12 @@ func (_c *MockAuthorUsecase_UpdateAuthor_Call) Run(run func(ctx context.Context,
 	return _c
 }
 
-func (_c *MockAuthorUsecase_UpdateAuthor_Call) Return(authorInfo *dto.AuthorInfo, err error) *MockAuthorUsecase_UpdateAuthor_Call {
+func (_c *MockAuthorUsecase_UpdateAuthor_Call) Return(authorInfo *authordto.AuthorInfo, err error) *MockAuthorUsecase_UpdateAuthor_Call {
 	_c.Call.Return(authorInfo, err)
 	return _c
 }
 
-func (_c *MockAuthorUsecase_UpdateAuthor_Call) RunAndReturn(run func(ctx context.Context, req dto.UpdateAuthorRequest) (*dto.AuthorInfo, error)) *MockAuthorUsecase_UpdateAuthor_Call {
+func (_c *MockAuthorUsecase_UpdateAuthor_Call) RunAndReturn(run func(ctx context.Context, req authordto.UpdateAuthorRequest) (*authordto.AuthorInfo, error)) *MockAuthorUsecase_UpdateAuthor_Call {
 	_c.Call.Return(run)
 	return _c
 }

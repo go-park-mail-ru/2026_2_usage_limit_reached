@@ -65,7 +65,7 @@ func TestUserRepository_CreateUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo, pool := newTestRepository(t)
-			expect := pool.ExpectQuery(`INSERT INTO "user"`).WithArgs("ivan001", "Иван", "ivan@example.test", "hash", models.StatusActive)
+			expect := pool.ExpectQuery(`INSERT INTO identity."user"`).WithArgs("ivan001", "Иван", "ivan@example.test", "hash", models.StatusActive)
 			if tt.err != nil {
 				expect.WillReturnError(tt.err)
 			} else {
@@ -83,7 +83,7 @@ func TestUserRepository_CreateUser(t *testing.T) {
 
 func TestUserRepository_CreateUser_OtherConstraintIsNotConflict(t *testing.T) {
 	repo, pool := newTestRepository(t)
-	pool.ExpectQuery(`INSERT INTO "user"`).WithArgs("", "", "", "", "").WillReturnError(&pgconn.PgError{Code: "23514"})
+	pool.ExpectQuery(`INSERT INTO identity."user"`).WithArgs("", "", "", "", "").WillReturnError(&pgconn.PgError{Code: "23514"})
 
 	got, err := repo.CreateUser(context.Background(), models.User{})
 

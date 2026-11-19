@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package identity.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/identity/v1;identityv1";
+
+service IdentityService {
+  rpc Register(RegisterRequest) returns (AuthResponse);
+  rpc Login(LoginRequest) returns (AuthResponse);
+
+  rpc GetMe(GetMeRequest) returns (MyProfile);
+  rpc GetPublicProfile(GetPublicProfileRequest) returns (PublicProfile);
+  rpc UpdateMyProfile(UpdateMyProfileRequest) returns (MyProfile);
+  rpc BecomeAuthor(BecomeAuthorRequest) returns (MyProfile);
+
+  rpc UploadAvatar(stream UploadAvatarRequest) returns (AvatarResponse);
+  rpc DeleteAvatar(DeleteAvatarRequest) returns (AvatarResponse);
+}
+
+message RegisterRequest {
+  string email = 1;
+  string username = 2;
+  string nickname = 3;
+  string password = 4;
+}
+
+message LoginRequest {
+  string login = 1;
+  string password = 2;
+}
+
+message AuthResponse {
+  string access_token = 1;
+  int64 expires_in = 2;
+  UserInfo user = 3;
+}
+
+message GetMeRequest {}
+
+message GetPublicProfileRequest {
+  string username = 1;
+}
+
+message UpdateMyProfileRequest {
+  string nickname = 1;
+  UpdateAuthorInput author = 2;
+}
+
+message UpdateAuthorInput {
+  string bio = 1;
+  optional string category = 2;
+}
+
+message BecomeAuthorRequest {
+  string bio = 1;
+  optional string category = 2;
+}
+
+message UploadAvatarRequest {
+  oneof payload {
+    AvatarMetadata metadata = 1;
+    bytes chunk = 2;
+  }
+}
+
+message AvatarMetadata {
+  string content_type = 1;
+}
+
+message AvatarResponse {
+  string avatar_url = 1;
+}
+
+message DeleteAvatarRequest {}
+
+message UserInfo {
+  string id = 1;
+  string username = 2;
+  string nickname = 3;
+  string avatar_url = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message Author {
+  string id = 1;
+  string bio = 2;
+  optional string category = 3;
+}
+
+message MyProfile {
+  UserInfo user = 1;
+  string email = 2;
+  Author author = 3;
+}
+
+message PublicProfile {
+  UserInfo user = 1;
+  Author author = 2;
+}

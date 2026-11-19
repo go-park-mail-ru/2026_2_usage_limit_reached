@@ -23,8 +23,8 @@ func NewProfileRepository(db *postgres.DBClient, logger *slog.Logger) *ProfileRe
 
 const selectProfile = `
 	SELECT u.id, u.username, u.nickname, u.email, u.avatar_key, u.created_at, u.status, a.bio, a.category
-	FROM "user" u
-	LEFT JOIN author a ON a.id = u.id
+	FROM identity."user" u
+	LEFT JOIN identity.author a ON a.id = u.id
 `
 
 func (r *ProfileRepository) GetProfileByID(ctx context.Context, userID uuid.UUID) (*models.Profile, error) {

@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/gateway/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/profile/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 	"github.com/google/uuid"
@@ -20,12 +22,13 @@ const (
 )
 
 type ProfileHandler struct {
-	identity Identity
-	logger   *slog.Logger
+	profile   ProfileUsecase
+	validator *validator.Validator
+	logger    *slog.Logger
 }
 
-func NewProfileHandler(identity Identity, logger *slog.Logger) *ProfileHandler {
-	return &ProfileHandler{identity: identity, logger: logger}
+func NewProfileHandler(profile ProfileUsecase, validator *validator.Validator, logger *slog.Logger) *ProfileHandler {
+	return &ProfileHandler{profile: profile, validator: validator, logger: logger}
 }
 
 // GetMe возвращает профиль текущего пользователя
@@ -47,7 +50,7 @@ func (h *ProfileHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	profile, err := h.identity.GetMe(r.Context(), userID)
+	profile, err := h.profile.GetMyProfile(r.Context(), userID)
 	if err != nil {
 		handleError(r.Context(), h.logger, w, "get my profile", err)
 		return
@@ -74,7 +77,7 @@ func (h *ProfileHandler) GetPublicProfile(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	profile, err := h.identity.GetPublicProfile(r.Context(), username)
+	profile, err := h.profile.GetPublicProfile(r.Context(), username)
 	if err != nil {
 		handleError(r.Context(), h.logger, w, "get public profile", err)
 		return
@@ -115,7 +118,12 @@ func (h *ProfileHandler) UpdateMyProfile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	profile, err := h.identity.UpdateMyProfile(r.Context(), userID, req)
+	if err := req.Validate(h.validator); err != nil {
+		handleError(r.Context(), h.logger, w, "update my profile", err)
+		return
+	}
+
+	profile, err := h.profile.UpdateMyProfile(r.Context(), userID, req)
 	if err != nil {
 		handleError(r.Context(), h.logger, w, "update my profile", err)
 		return
@@ -156,7 +164,12 @@ func (h *ProfileHandler) BecomeAuthor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	profile, err := h.identity.BecomeAuthor(r.Context(), userID, req)
+	if err := req.Validate(h.validator); err != nil {
+		handleError(r.Context(), h.logger, w, "become author", err)
+		return
+	}
+
+	profile, err := h.profile.BecomeAuthor(r.Context(), userID, req)
 	if err != nil {
 		handleError(r.Context(), h.logger, w, "become author", err)
 		return
@@ -214,14 +227,19 @@ func (h *ProfileHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		file := &readErrorRecorder{reader: part}
-		avatarURL, err := h.identity.UploadAvatar(r.Context(), userID, file, part.Header.Get("Content-Type"))
+		data, err := io.ReadAll(io.LimitReader(part, maxAvatarSize+1))
 		_ = part.Close()
 		if err != nil {
-			if file.err != nil {
-				h.avatarReadError(r, w, file.err)
-				return
-			}
+			h.avatarReadError(r, w, err)
+			return
+		}
+		if len(data) > maxAvatarSize {
+			response.ErrorPayloadTooLarge(w)
+			return
+		}
+
+		avatarURL, err := h.profile.UploadAvatar(r.Context(), userID, bytes.NewReader(data), int64(len(data)))
+		if err != nil {
 			handleError(r.Context(), h.logger, w, "upload avatar", err)
 			return
 		}
@@ -253,7 +271,7 @@ func (h *ProfileHandler) DeleteAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.identity.DeleteAvatar(r.Context(), userID); err != nil {
+	if err := h.profile.DeleteAvatar(r.Context(), userID); err != nil {
 		handleError(r.Context(), h.logger, w, "delete avatar", err)
 		return
 	}
@@ -280,18 +298,4 @@ func userIDFromContext(r *http.Request) (uuid.UUID, bool) {
 	}
 
 	return user.UserID, true
-}
-
-type readErrorRecorder struct {
-	reader io.Reader
-	err    error
-}
-
-func (r *readErrorRecorder) Read(p []byte) (int, error) {
-	n, err := r.reader.Read(p)
-	if err != nil && !errors.Is(err, io.EOF) {
-		r.err = err
-	}
-
-	return n, err
 }

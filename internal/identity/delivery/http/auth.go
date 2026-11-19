@@ -4,17 +4,19 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/gateway/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 )
 
 type AuthHandler struct {
-	identity Identity
-	logger   *slog.Logger
+	auth      AuthUsecase
+	validator *validator.Validator
+	logger    *slog.Logger
 }
 
-func NewAuthHandler(identity Identity, logger *slog.Logger) *AuthHandler {
-	return &AuthHandler{identity: identity, logger: logger}
+func NewAuthHandler(auth AuthUsecase, validator *validator.Validator, logger *slog.Logger) *AuthHandler {
+	return &AuthHandler{auth: auth, validator: validator, logger: logger}
 }
 
 // Register регистрирует нового пользователя
@@ -42,15 +44,20 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.identity.Register(r.Context(), req)
+	if err := req.Validate(h.validator); err != nil {
+		handleError(r.Context(), h.logger, w, "register", err)
+		return
+	}
+
+	user, token, err := h.auth.Register(r.Context(), req)
 	if err != nil {
 		handleError(r.Context(), h.logger, w, "register", err)
 		return
 	}
 
-	setAuthCookie(w, result.Token, result.ExpiresIn)
+	setAuthCookie(w, token, h.auth.TokenTTL())
 	deleteCSRFCookie(w)
-	response.WriteJSON(w, http.StatusOK, result.User)
+	response.WriteJSON(w, http.StatusOK, user)
 }
 
 // Login аутентифицирует пользователя
@@ -78,15 +85,20 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.identity.Login(r.Context(), req)
+	if err := req.Validate(); err != nil {
+		handleError(r.Context(), h.logger, w, "login", err)
+		return
+	}
+
+	user, token, err := h.auth.Login(r.Context(), req)
 	if err != nil {
 		handleError(r.Context(), h.logger, w, "login", err)
 		return
 	}
 
-	setAuthCookie(w, result.Token, result.ExpiresIn)
+	setAuthCookie(w, token, h.auth.TokenTTL())
 	deleteCSRFCookie(w)
-	response.WriteJSON(w, http.StatusOK, result.User)
+	response.WriteJSON(w, http.StatusOK, user)
 }
 
 // Logout удаляет авторизационную cookie

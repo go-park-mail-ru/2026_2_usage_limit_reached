@@ -4,11 +4,14 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/gateway/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 )
+
+type CSRFTokenResponse struct {
+	CSRFToken string `json:"csrf_token" example:"q3VtX2Jhc2U2NHVybF9zYWx0X2FuZF9obWFjX3NpZ25hdHVyZV9leGFtcGxlXzAx"`
+}
 
 type CSRFHandler struct {
 	csrf   *csrf.Manager
@@ -24,7 +27,7 @@ func NewCSRFHandler(csrfManager *csrf.Manager, logger *slog.Logger) *CSRFHandler
 // @Description Возвращает токен для заголовка X-CSRF-Token. Доступен до и после входа
 // @Tags auth
 // @Produce json
-// @Success 200 {object} dto.CSRFTokenResponse "Токен выдан"
+// @Success 200 {object} handlers.CSRFTokenResponse "Токен выдан"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Header 200 {string} Set-Cookie "__Host-csrf=CSRF_CONTEXT; Path=/; Secure; HttpOnly; SameSite=Lax"
 // @Router /csrf [get]
@@ -52,5 +55,5 @@ func (h *CSRFHandler) GetToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Cache-Control", "no-store")
-	response.WriteJSON(w, http.StatusOK, dto.CSRFTokenResponse{CSRFToken: token})
+	response.WriteJSON(w, http.StatusOK, CSRFTokenResponse{CSRFToken: token})
 }

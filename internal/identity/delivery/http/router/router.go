@@ -25,13 +25,13 @@ type CSRFHandler interface {
 	GetToken(w http.ResponseWriter, r *http.Request)
 }
 
-type Tools struct {
+type Handlers struct {
 	Auth    AuthHandler
 	Profile ProfileHandler
 	CSRF    CSRFHandler
 }
 
-func RegisterRoutes(public *mux.Router, private *mux.Router, deps Tools) {
+func RegisterRoutes(public *mux.Router, private *mux.Router, deps Handlers) {
 	public.HandleFunc("/signup", deps.Auth.Register).Methods(http.MethodPost, http.MethodOptions)
 	public.HandleFunc("/login", deps.Auth.Login).Methods(http.MethodPost, http.MethodOptions)
 	public.HandleFunc("/csrf", deps.CSRF.GetToken).Methods(http.MethodGet, http.MethodOptions)

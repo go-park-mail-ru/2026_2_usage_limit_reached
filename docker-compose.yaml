@@ -51,6 +51,8 @@ services:
       context: .
       dockerfile: deployments/identity/Dockerfile
     command: ["--config-file", "/etc/app/config.yaml"]
+    ports:
+      - "127.0.0.1:8081:8081"
     env_file:
       - .env
     depends_on:
@@ -67,6 +69,8 @@ services:
       context: .
       dockerfile: Dockerfile
     command: ["--config-file", "/etc/app/config.yaml"]
+    ports:
+      - "127.0.0.1:8080:8081"
     env_file:
       - .env
     depends_on:
@@ -76,36 +80,6 @@ services:
         condition: service_healthy
     volumes:
       - ./configs/prod.yaml:/etc/app/config.yaml:ro
-    restart: unless-stopped
-
-  gateway:
-    build:
-      context: .
-      dockerfile: deployments/gateway/Dockerfile
-    command: ["--config-file", "/etc/app/config.yaml"]
-    environment:
-      HTTP_PORT: "8080"
-      GATEWAY_IDENTITY_ADDRESS: "identity:50051"
-    env_file:
-      - .env
-    depends_on:
-      identity:
-        condition: service_started
-    volumes:
-      - ./configs/prod.yaml:/etc/app/config.yaml:ro
-    restart: unless-stopped
-
-  nginx:
-    image: nginx:1.27-alpine
-    ports:
-      - "${NGINX_PORT:-8080}:80"
-    volumes:
-      - ./deployments/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      app:
-        condition: service_started
-      gateway:
-        condition: service_started
     restart: unless-stopped
 
 volumes:

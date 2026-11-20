@@ -16,6 +16,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/profile/dto"
 	profileuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/profile/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/authn"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
@@ -34,8 +35,8 @@ type staticVerifier struct {
 	userID uuid.UUID
 }
 
-func (v staticVerifier) VerifyToken(context.Context, string) (*jwt.UserPayload, error) {
-	return &jwt.UserPayload{UserID: v.userID}, nil
+func (v staticVerifier) VerifyToken(context.Context, string) (*authn.User, error) {
+	return &authn.User{ID: v.userID}, nil
 }
 
 func newRouter(t *testing.T, uc handlers.ProfileUsecase, userID uuid.UUID) *mux.Router {

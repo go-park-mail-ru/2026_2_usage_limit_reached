@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/authn"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/google/uuid"
@@ -14,10 +15,10 @@ import (
 )
 
 type MockTokenVerifier struct {
-	VerifyFunc func(ctx context.Context, token string) (*jwt.UserPayload, error)
+	VerifyFunc func(ctx context.Context, token string) (*authn.User, error)
 }
 
-func (m *MockTokenVerifier) VerifyToken(ctx context.Context, token string) (*jwt.UserPayload, error) {
+func (m *MockTokenVerifier) VerifyToken(ctx context.Context, token string) (*authn.User, error) {
 	if m.VerifyFunc != nil {
 		return m.VerifyFunc(ctx, token)
 	}
@@ -27,20 +28,20 @@ func (m *MockTokenVerifier) VerifyToken(ctx context.Context, token string) (*jwt
 
 func TestAuthMiddleware(t *testing.T) {
 	userID := uuid.New()
-	validPayload := &jwt.UserPayload{UserID: userID, Role: "user"}
+	validUser := &authn.User{ID: userID, Role: "user"}
 
 	tests := []struct {
 		name           string
 		cookie         *http.Cookie
-		mockVerify     func(ctx context.Context, token string) (*jwt.UserPayload, error)
+		mockVerify     func(ctx context.Context, token string) (*authn.User, error)
 		expectedStatus int
 		expectNextCall bool
 	}{
 		{
 			name:   "valid token",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "valid-jwt-token"},
-			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
-				return validPayload, nil
+			mockVerify: func(context.Context, string) (*authn.User, error) {
+				return validUser, nil
 			},
 			expectedStatus: http.StatusOK,
 			expectNextCall: true,
@@ -54,15 +55,15 @@ func TestAuthMiddleware(t *testing.T) {
 		{
 			name:   "invalid token",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "bad-token"},
-			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
-				return nil, errors.New("invalid token")
+			mockVerify: func(context.Context, string) (*authn.User, error) {
+				return nil, authn.ErrInvalidToken
 			},
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name:   "empty payload",
+			name:   "empty user",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "empty-token"},
-			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
+			mockVerify: func(context.Context, string) (*authn.User, error) {
 				return nil, nil
 			},
 			expectedStatus: http.StatusUnauthorized,
@@ -70,8 +71,8 @@ func TestAuthMiddleware(t *testing.T) {
 		{
 			name:   "auth service unavailable",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "valid-jwt-token"},
-			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
-				return nil, middleware.ErrAuthUnavailable
+			mockVerify: func(context.Context, string) (*authn.User, error) {
+				return nil, authn.ErrUnavailable
 			},
 			expectedStatus: http.StatusServiceUnavailable,
 		},
@@ -85,9 +86,9 @@ func TestAuthMiddleware(t *testing.T) {
 			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				nextCalled = true
 
-				payload, ok := middleware.UserInfoFromContext(r.Context())
+				user, ok := middleware.UserInfoFromContext(r.Context())
 				require.True(t, ok)
-				require.Equal(t, userID, payload.UserID)
+				require.Equal(t, userID, user.ID)
 
 				w.WriteHeader(http.StatusOK)
 			})
@@ -108,27 +109,27 @@ func TestAuthMiddleware(t *testing.T) {
 
 func TestOptionalAuthMiddleware(t *testing.T) {
 	userID := uuid.New()
-	validPayload := &jwt.UserPayload{UserID: userID, Role: "user"}
+	validUser := &authn.User{ID: userID, Role: "user"}
 
 	tests := []struct {
 		name       string
 		cookie     *http.Cookie
-		mockVerify func(ctx context.Context, token string) (*jwt.UserPayload, error)
+		mockVerify func(ctx context.Context, token string) (*authn.User, error)
 		expectUser bool
 	}{
 		{
 			name:   "valid token",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "valid-jwt-token"},
-			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
-				return validPayload, nil
+			mockVerify: func(context.Context, string) (*authn.User, error) {
+				return validUser, nil
 			},
 			expectUser: true,
 		},
 		{
 			name:   "invalid token",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "bad-token"},
-			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
-				return nil, errors.New("invalid token")
+			mockVerify: func(context.Context, string) (*authn.User, error) {
+				return nil, authn.ErrInvalidToken
 			},
 		},
 		{
@@ -139,8 +140,8 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 		{
 			name:   "auth service unavailable",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "valid-jwt-token"},
-			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
-				return nil, middleware.ErrAuthUnavailable
+			mockVerify: func(context.Context, string) (*authn.User, error) {
+				return nil, authn.ErrUnavailable
 			},
 		},
 	}
@@ -151,7 +152,7 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 
 			var (
 				nextCalled bool
-				gotUser    *jwt.UserPayload
+				gotUser    *authn.User
 			)
 			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				nextCalled = true
@@ -172,7 +173,7 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 
 			if tt.expectUser {
 				require.NotNil(t, gotUser)
-				require.Equal(t, userID, gotUser.UserID)
+				require.Equal(t, userID, gotUser.ID)
 				return
 			}
 
@@ -184,9 +185,9 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 func TestUserFromContext_NotFound(t *testing.T) {
 	user, ok := middleware.UserInfoFromContext(context.Background())
 
-	var nilPayload *jwt.UserPayload
+	var nilUser *authn.User
 	require.False(t, ok)
-	require.Equal(t, nilPayload, user, "expected nil, got %v", user)
+	require.Equal(t, nilUser, user, "expected nil, got %v", user)
 }
 
 func TestCORSMiddleware(t *testing.T) {

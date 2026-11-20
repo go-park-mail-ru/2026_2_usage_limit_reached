@@ -11,12 +11,13 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/dto"
 	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/dto"
 	userusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/authn"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
-func (uc *Usecase) VerifyToken(ctx context.Context, token string) (*jwt.UserPayload, error) {
+func (uc *Usecase) VerifyToken(ctx context.Context, token string) (*authn.User, error) {
 	if strings.TrimSpace(token) == "" {
 		return nil, ErrInvalidToken
 	}
@@ -31,7 +32,7 @@ func (uc *Usecase) VerifyToken(ctx context.Context, token string) (*jwt.UserPayl
 		return nil, fmt.Errorf("verify token: %w", ErrInvalidToken)
 	}
 
-	return &payload, nil
+	return &authn.User{ID: payload.UserID, Role: payload.Role}, nil
 }
 
 func (uc *Usecase) Register(ctx context.Context, regInput dto.RegistrationRequest) (*dto.UserResponse, string, error) {

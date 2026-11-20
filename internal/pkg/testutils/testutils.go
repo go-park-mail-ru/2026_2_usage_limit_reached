@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/authn"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/google/uuid"
@@ -34,11 +35,11 @@ func SetupLogger() *slog.Logger {
 }
 
 type staticVerifier struct {
-	payload *jwt.UserPayload
+	user *authn.User
 }
 
-func (v staticVerifier) VerifyToken(context.Context, string) (*jwt.UserPayload, error) {
-	return v.payload, nil
+func (v staticVerifier) VerifyToken(context.Context, string) (*authn.User, error) {
+	return v.user, nil
 }
 
 func WithUser(r *http.Request, userID uuid.UUID) *http.Request {
@@ -46,7 +47,7 @@ func WithUser(r *http.Request, userID uuid.UUID) *http.Request {
 
 	var authorized *http.Request
 	capture := http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) { authorized = req })
-	middleware.AuthMiddleware(staticVerifier{payload: &jwt.UserPayload{UserID: userID}})(capture).ServeHTTP(httptest.NewRecorder(), r)
+	middleware.AuthMiddleware(staticVerifier{user: &authn.User{ID: userID}})(capture).ServeHTTP(httptest.NewRecorder(), r)
 	return authorized
 }
 

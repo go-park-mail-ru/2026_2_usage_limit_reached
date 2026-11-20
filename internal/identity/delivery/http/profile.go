@@ -293,9 +293,9 @@ func (h *ProfileHandler) avatarReadError(r *http.Request, w http.ResponseWriter,
 
 func userIDFromContext(r *http.Request) (uuid.UUID, bool) {
 	user, ok := middleware.UserInfoFromContext(r.Context())
-	if !ok || user == nil || user.UserID == uuid.Nil {
+	if !ok || user == nil || user.ID == uuid.Nil {
 		return uuid.Nil, false
 	}
 
-	return user.UserID, true
+	return user.ID, true
 }

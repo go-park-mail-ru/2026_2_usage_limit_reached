@@ -3,29 +3,30 @@ dir: "{{ .InterfaceDir }}/mock_{{ .InterfaceDir | dir | base }}_{{ .InterfaceDir
 pkgname: "mock_{{ .InterfaceDir | dir | base }}_{{ .InterfaceDir | base }}"
 filename: "mock_{{ .InterfaceName | snakecase }}.go"
 packages:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/usecase:
     interfaces:
       UserUsecase:
       TokenManager:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery:
-    interfaces:
-      UseCase:
-      CSRFManager:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/profile/usecase:
     interfaces:
       UserUsecase:
       AuthorUsecase:
       ProfileRepository:
       AvatarStorage:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/author/usecase:
     interfaces:
+      Repository:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/usecase:
+    interfaces:
+      Repository:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/http:
+    interfaces:
+      AuthUsecase:
       ProfileUsecase:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/usecase:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc:
     interfaces:
-      Repository:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase:
-    interfaces:
-      Repository:
+      UserUsecase:
+      AuthorUsecase:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase:
     interfaces:
       PaymentRepo:

@@ -54,6 +54,10 @@ func ErrorUnsupportedMediaType(w http.ResponseWriter) {
 	write(w, http.StatusUnsupportedMediaType, ErrorResponse{Error: "unsupported media type"})
 }
 
+func ErrorServiceUnavailable(w http.ResponseWriter) {
+	write(w, http.StatusServiceUnavailable, ErrorResponse{Error: "service unavailable"})
+}
+
 func write(w http.ResponseWriter, code int, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {

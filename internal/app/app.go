@@ -1,12 +1,12 @@
 package app
 
 import (
+	"context"
 	"fmt"
+	"os/signal"
+	"syscall"
 
-	AuthHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/delivery"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/auth/usecase"
-	AuthorRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/repository"
-	AuthorUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/author/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
 	DonationHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/delivery"
 	DonationRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/repository"
@@ -18,20 +18,15 @@ import (
 	PostHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery"
 	PostRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/repository"
 	PostUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/usecase"
-	ProfileHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/delivery"
-	ProfileRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/repository/profile"
-	ProfileUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/profile/usecase"
-	UserRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/repository/user"
-	UserUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/user/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/s3"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
 	"github.com/gorilla/mux"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func Run(configPath string) error {
@@ -41,10 +36,14 @@ func Run(configPath string) error {
 	}
 
 	appLogger := logger.New(cfg.Log)
-	tokens, err := jwt.NewJWTManager(cfg.JWT)
+
+	identityConn, err := grpc.NewClient(cfg.Identity.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return fmt.Errorf("token manager initialization error: %w", err)
+		return fmt.Errorf("identity client initialization error: %w", err)
 	}
+	defer identityConn.Close()
+
+	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout)
 
 	postgresClient, err := postgres.NewClient(cfg.Postgres)
 	if err != nil {
@@ -52,34 +51,18 @@ func Run(configPath string) error {
 	}
 	defer postgresClient.Close()
 
-	s3Client, err := s3.NewClient(cfg.S3)
-	if err != nil {
-		return fmt.Errorf("s3 client initialization error: %w", err)
-	}
-
-	userRepo := UserRepo.NewUserRepository(postgresClient, appLogger)
-	authorRepo := AuthorRepo.NewAuthorRepository(postgresClient, appLogger)
-	profileRepo := ProfileRepo.NewProfileRepository(postgresClient, appLogger)
 	postRepo := PostRepo.NewPostRepository(postgresClient, appLogger)
 	paymentRepo := PaymentsRepo.NewPaymentRepository(postgresClient, appLogger)
 	donationRepo := DonationRepo.NewDonationRepository(postgresClient, appLogger)
 
-	userUc := UserUsecase.NewUsecase(userRepo, cfg.S3.PublicPath)
-	uc := usecase.NewUsecase(userUc, tokens)
 	valid, err := validator.NewValidator(cfg.Validation)
 	if err != nil {
 		return fmt.Errorf("validator initialization error: %w", err)
 	}
-	authHandler := AuthHandlers.NewHandler(uc, valid, appLogger)
 	csrfManager := csrf.NewManager(cfg.CSRF)
-	csrfHandler := AuthHandlers.NewCSRFHandler(csrfManager, appLogger)
-	authMiddleware := middleware.AuthMiddleware(tokens)
-	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(tokens)
+	authMiddleware := middleware.AuthMiddleware(identityClient)
+	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(identityClient)
 	csrfMiddleware := middleware.CSRFMiddleware(csrfManager)
-
-	authorUc := AuthorUsecase.NewUsecase(authorRepo)
-	profileUc := ProfileUsecase.NewProfileUsecase(userUc, authorUc, profileRepo, s3Client, cfg.S3.PublicPath, appLogger)
-	profileHandler := ProfileHandlers.NewProfileHandler(profileUc, valid, appLogger)
 
 	postSanitizer, err := sanitizer.NewSanitizer(cfg.Sanitizer)
 	if err != nil {
@@ -108,9 +91,6 @@ func Run(configPath string) error {
 	private := r.NewRoute().Subrouter()
 	private.Use(authMiddleware, csrfMiddleware)
 
-	authHandler.RegisterRoutes(public, private)
-	csrfHandler.RegisterRoutes(public)
-	profileHandler.RegisterRoutes(public, private)
 	postHandler.RegisterRoutes(public, private)
 	donationHandler.RegisterRoutes(private)
 
@@ -118,9 +98,9 @@ func Run(configPath string) error {
 	if err != nil {
 		return fmt.Errorf("http server initialization error: %w", err)
 	}
-	if err := srv.Run(r); err != nil {
-		return fmt.Errorf("server error: %w", err)
-	}
 
-	return nil
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	return srv.Run(ctx, r)
 }

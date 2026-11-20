@@ -2,13 +2,13 @@
 // github.com/vektra/mockery
 // template: testify
 
-package mock_posts_delivery
+package mock_delivery_http
 
 import (
 	"context"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/dto"
 	"github.com/google/uuid"
 	mock "github.com/stretchr/testify/mock"
 )

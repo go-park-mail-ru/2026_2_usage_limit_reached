@@ -1,0 +1,101 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"os/signal"
+	"syscall"
+
+	identityclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
+	contentconfig "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/config"
+	posthandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http"
+	httprouter "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http/router"
+	postrepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/repository"
+	postuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
+	"github.com/gorilla/mux"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+func Run(configPath string) error {
+	cfg, err := contentconfig.Load(configPath)
+	if err != nil {
+		return fmt.Errorf("config load error: %w", err)
+	}
+
+	appLogger := logger.New(cfg.Log)
+
+	tokens, err := jwt.NewJWTManager(cfg.JWT)
+	if err != nil {
+		return fmt.Errorf("token manager initialization error: %w", err)
+	}
+
+	valid, err := validator.NewValidator(cfg.Validation)
+	if err != nil {
+		return fmt.Errorf("validator initialization error: %w", err)
+	}
+
+	postgresClient, err := postgres.NewClient(cfg.Postgres)
+	if err != nil {
+		return fmt.Errorf("database pool initialization error: %w", err)
+	}
+	defer postgresClient.Close()
+
+	postRepo := postrepo.NewPostRepository(postgresClient, appLogger)
+	postSanitizer, err := sanitizer.NewSanitizer(cfg.Sanitizer)
+	if err != nil {
+		return fmt.Errorf("sanitizer initialization error: %w", err)
+	}
+
+	identityConn, err := grpc.NewClient(cfg.Identity.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("identity client initialization error: %w", err)
+	}
+	defer identityConn.Close()
+
+	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout)
+	postUc := postuc.NewPostUsecase(postRepo, identityClient, postSanitizer, valid, cfg.S3.PublicPath)
+
+	csrfManager := csrf.NewManager(cfg.CSRF)
+
+	router := mux.NewRouter()
+	router.Use(
+		middleware.RecoverMiddleware(appLogger),
+		middleware.AccessLogMiddleware(appLogger),
+		middleware.CORSMiddleware(cfg.CORS),
+	)
+
+	public := router.NewRoute().Subrouter()
+	public.Use(middleware.OptionalAuthMiddleware(tokens), middleware.CSRFMiddleware(csrfManager))
+
+	private := router.NewRoute().Subrouter()
+	private.Use(middleware.AuthMiddleware(tokens), middleware.CSRFMiddleware(csrfManager))
+
+	httprouter.RegisterRoutes(public, private, httprouter.Handlers{
+		Post: posthandlers.NewPostHandler(postUc, valid, appLogger),
+	})
+
+	httpSrv, err := httpserver.New(cfg.Content.HTTP, appLogger)
+	if err != nil {
+		return fmt.Errorf("http content server initialization error: %w", err)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		return httpSrv.Run(gctx, router)
+	})
+
+	return g.Wait()
+}

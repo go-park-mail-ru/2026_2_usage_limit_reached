@@ -8,8 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/models"
+	identitycontracts "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/contracts/identity"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
 )
 
@@ -49,14 +50,19 @@ type PostRepository interface {
 	GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
 	GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
 	GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
-	GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
-	GetUserOldPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
-	GetUserPopularPosts(ctx context.Context, userID *uuid.UUID, username string, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
+	GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
+	GetUserOldPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
+	GetUserPopularPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
 	UpdatePost(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) error
 	DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error
 
 	LikePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error)
 	DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error)
+}
+
+type IdentityClient interface {
+	GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]identitycontracts.UserInfo, error)
+	GetUserByUsername(ctx context.Context, username string) (identitycontracts.UserInfo, error)
 }
 
 // Проверка тела поста после санитайзинга. Интерфейс определен здесь, чтобы usecase не зависел от пакета validator целиком
@@ -66,11 +72,12 @@ type SanitizedBodyValidator interface {
 
 type PostUsecase struct {
 	repo           PostRepository
+	identity       IdentityClient
 	sanitizer      *sanitizer.Sanitizer
 	bodyCheck      SanitizedBodyValidator
 	avatarBasePath string
 }
 
-func NewPostUsecase(r PostRepository, s *sanitizer.Sanitizer, v SanitizedBodyValidator, avatarBasePath string) *PostUsecase {
-	return &PostUsecase{repo: r, sanitizer: s, bodyCheck: v, avatarBasePath: avatarBasePath}
+func NewPostUsecase(r PostRepository, ic IdentityClient, s *sanitizer.Sanitizer, v SanitizedBodyValidator, abp string) *PostUsecase {
+	return &PostUsecase{repo: r, identity: ic, sanitizer: s, bodyCheck: v, avatarBasePath: abp}
 }

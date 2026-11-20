@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	identitycontracts "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/contracts/identity"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	identitypb "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/identity/v1"
@@ -16,6 +17,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var ErrUnavailable = errors.New("identity service unavailable")
 
 type Config struct {
 	Address string        `mapstructure:"address"`
@@ -76,4 +79,145 @@ func (c *Client) Verify(ctx context.Context, token string) (json.RawMessage, err
 	}
 
 	return raw, nil
+}
+
+func (c *Client) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]identitycontracts.UserInfo, error) {
+	requestIDs, err := toProtoIDs(ids)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uuid.UUID]identitycontracts.UserInfo, len(requestIDs))
+	if len(requestIDs) == 0 {
+		return result, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	resp, err := c.client.GetUsers(ctx, &identitypb.GetUsersRequest{Ids: requestIDs})
+	if err != nil {
+		return nil, c.wrapRPCError("get users", err)
+	}
+	if resp == nil {
+		return nil, errors.New("identity returned empty get users response")
+	}
+
+	for _, user := range resp.GetUsers() {
+		if user == nil {
+			return nil, errors.New("identity returned nil user")
+		}
+
+		id, err := uuid.Parse(user.GetId())
+		if err != nil {
+			return nil, fmt.Errorf("parse user id: %w", err)
+		}
+
+		var createdAt *time.Time
+		if timestamp := user.GetCreatedAt(); timestamp != nil {
+			if err := timestamp.CheckValid(); err != nil {
+				return nil, fmt.Errorf("invalid user created_at: %w", err)
+			}
+
+			t := timestamp.AsTime()
+			createdAt = &t
+		}
+
+		result[id] = identitycontracts.UserInfo{
+			ID:        id,
+			Username:  user.GetUsername(),
+			Nickname:  user.GetNickname(),
+			AvatarURL: user.GetAvatarUrl(),
+			CreatedAt: createdAt,
+			Status:    user.GetStatus(),
+		}
+	}
+
+	return result, nil
+}
+
+func (c *Client) GetAuthors(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]identitycontracts.AuthorInfo, error) {
+	requestIDs, err := toProtoIDs(ids)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uuid.UUID]identitycontracts.AuthorInfo, len(requestIDs))
+	if len(requestIDs) == 0 {
+		return result, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	resp, err := c.client.GetAuthors(ctx, &identitypb.GetAuthorsRequest{Ids: requestIDs})
+	if err != nil {
+		return nil, c.wrapRPCError("get authors", err)
+	}
+	if resp == nil {
+		return nil, errors.New("identity returned empty get authors response")
+	}
+
+	for _, author := range resp.GetAuthors() {
+		if author == nil {
+			return nil, errors.New("identity returned nil author")
+		}
+
+		id, err := uuid.Parse(author.GetId())
+		if err != nil {
+			return nil, fmt.Errorf("parse author id: %w", err)
+		}
+
+		var category *string
+		if author.Category != nil {
+			value := author.GetCategory()
+			category = &value
+		}
+
+		result[id] = identitycontracts.AuthorInfo{
+			ID:       id,
+			Bio:      author.GetBio(),
+			Category: category,
+		}
+	}
+
+	return result, nil
+}
+
+func (c *Client) GetUserByUsername(ctx context.Context, username string) (identitycontracts.UserInfo, error) {
+	return identitycontracts.UserInfo{}, nil
+}
+
+func toProtoIDs(ids []uuid.UUID) ([]string, error) {
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	result := make([]string, 0, len(ids))
+
+	for _, id := range ids {
+		if id == uuid.Nil {
+			return nil, errors.New("identity client: empty UUID in request")
+		}
+
+		if _, exists := seen[id]; exists {
+			continue
+		}
+
+		seen[id] = struct{}{}
+		result = append(result, id.String())
+	}
+
+	return result, nil
+}
+
+func (c *Client) wrapRPCError(operation string, err error) error {
+	switch status.Code(err) {
+	case codes.Unavailable, codes.DeadlineExceeded:
+		return fmt.Errorf(
+			"%w: %s: %v",
+			ErrUnavailable,
+			operation,
+			err,
+		)
+	default:
+		return fmt.Errorf("identity %s: %w", operation, err)
+	}
 }

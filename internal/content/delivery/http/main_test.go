@@ -1,4 +1,4 @@
-package posthandlers_test
+package handlers_test
 
 import (
 	"fmt"
@@ -8,22 +8,25 @@ import (
 	"testing"
 	"time"
 
+	handlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http/mock_delivery_http"
+	httprouter "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http/router"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
-	posthandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery/mock_posts_delivery"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 )
 
-func newRouter(t *testing.T) (*mux.Router, *mock_posts_delivery.MockPostUsecase) {
+func newRouter(t *testing.T) (*mux.Router, *mock_delivery_http.MockPostUsecase) {
 	t.Helper()
 
-	uc := mock_posts_delivery.NewMockPostUsecase(t)
-	h := posthandlers.NewHandler(uc, testutils.SetupValidator(), testutils.SetupLogger())
+	uc := mock_delivery_http.NewMockPostUsecase(t)
+	postHandler := handlers.NewPostHandler(uc, testutils.SetupValidator(), testutils.SetupLogger())
 	router := mux.NewRouter()
-	h.RegisterRoutes(router, router)
+	httprouter.RegisterRoutes(router, router, httprouter.Handlers{
+		Post: postHandler,
+	})
 	return router, uc
 }
 
@@ -84,9 +87,9 @@ func encodeCursor(t *testing.T, cur any) string {
 	)
 	switch c := cur.(type) {
 	case *dto.TimedPostsCursor:
-		raw, err = posthandlers.TimedPostsCursor.Encode(c)
+		raw, err = handlers.TimedPostsCursor.Encode(c)
 	case *dto.PopularPostsCursor:
-		raw, err = posthandlers.PopularPostsCursor.Encode(c)
+		raw, err = handlers.PopularPostsCursor.Encode(c)
 	}
 	require.NoError(t, err)
 	require.NotNil(t, raw)
@@ -120,11 +123,11 @@ func pageOf(kind cursorKind, items []*dto.PostPreview, next any) any {
 }
 
 func timed(raw string) *dto.TimedPostsCursor {
-	c, _ := posthandlers.TimedPostsCursor.Decode(raw)
+	c, _ := handlers.TimedPostsCursor.Decode(raw)
 	return c
 }
 
 func popular(raw string) *dto.PopularPostsCursor {
-	c, _ := posthandlers.PopularPostsCursor.Decode(raw)
+	c, _ := handlers.PopularPostsCursor.Decode(raw)
 	return c
 }

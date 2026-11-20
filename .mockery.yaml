@@ -33,10 +33,11 @@ packages:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider:
     interfaces:
       Provider:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/usecase:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/usecase:
     interfaces:
       PostRepository:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/delivery:
+      IdentityClient:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http:
     interfaces:
       PostUsecase:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/usecase:

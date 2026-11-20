@@ -1,4 +1,4 @@
-package posthandlers
+package handlers
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
@@ -32,6 +32,16 @@ type (
 	getUserTimedPostsFunc   func(ctx context.Context, userID *uuid.UUID, username string, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
 	getUserPopularPostsFunc func(ctx context.Context, userID *uuid.UUID, username string, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)
 )
+
+type PostHandler struct {
+	uc        PostUsecase
+	validator *validator.Validator
+	logger    *slog.Logger
+}
+
+func NewPostHandler(uc PostUsecase, v *validator.Validator, logger *slog.Logger) *PostHandler {
+	return &PostHandler{uc: uc, validator: v, logger: logger}
+}
 
 // Feed возвращает ленту опубликованных постов
 // @Summary Лента постов
@@ -67,7 +77,7 @@ func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 		err = validator.ErrValidation
 	}
 	if err != nil {
-		h.handleError(ctx, w, "feed", "get feed", err)
+		handleError(ctx, h.logger, w, "get feed", err)
 		return
 	}
 	response.WriteJSON(w, http.StatusOK, resp)
@@ -90,7 +100,7 @@ func (h *PostHandler) UserPosts(w http.ResponseWriter, r *http.Request) {
 
 	username := mux.Vars(r)["username"]
 	if username == "" {
-		h.handleError(ctx, w, "user posts", "username is required", validator.ErrValidation)
+		handleError(ctx, h.logger, w, "get user posts", fmt.Errorf("username is required: %w", validator.ErrValidation))
 		return
 	}
 
@@ -115,7 +125,7 @@ func (h *PostHandler) UserPosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		h.handleError(ctx, w, "user posts", "get user posts", err)
+		handleError(ctx, h.logger, w, "get user posts", err)
 		return
 	}
 
@@ -210,7 +220,7 @@ func (h *PostHandler) MyPosts(w http.ResponseWriter, r *http.Request) {
 		err = validator.ErrValidation
 	}
 	if err != nil {
-		h.handleError(ctx, w, "my posts", "get my posts", err)
+		handleError(ctx, h.logger, w, "get my posts", err)
 		return
 	}
 	response.WriteJSON(w, http.StatusOK, resp)
@@ -249,7 +259,7 @@ func (h *PostHandler) MyDrafts(w http.ResponseWriter, r *http.Request) {
 		err = fmt.Errorf("invalid sort field: %w", validator.ErrValidation)
 	}
 	if err != nil {
-		h.handleError(ctx, w, "my drafts", "get my drafts", err)
+		handleError(ctx, h.logger, w, "get my drafts", err)
 		return
 	}
 	response.WriteJSON(w, http.StatusOK, resp)
@@ -311,14 +321,14 @@ func (h *PostHandler) ViewPost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	postID, err := getPostID(r)
 	if err != nil {
-		h.handleError(ctx, w, "view post", "post ID invalid", fmt.Errorf("invalid post id: %w: %w", validator.ErrValidation, err))
+		handleError(ctx, h.logger, w, "view post", fmt.Errorf("invalid post id: %w: %w", validator.ErrValidation, err))
 		return
 	}
 
 	userID := h.getUserIDFromContext(ctx)
 	post, err := h.uc.GetPost(ctx, userID, postID)
 	if err != nil {
-		h.handleError(ctx, w, "view post", "get post error", err)
+		handleError(ctx, h.logger, w, "get post", err)
 		return
 	}
 	response.WriteJSON(w, http.StatusOK, post)
@@ -344,18 +354,18 @@ func (h *PostHandler) NewPost(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var postReq dto.PostRequest
 	if err := response.DecodeJSON(w, r, &postReq); err != nil {
-		h.handleError(ctx, w, "new post", "request body decode error", fmt.Errorf("invalid request body: %w: %w", validator.ErrValidation, err))
+		handleError(ctx, h.logger, w, "create new post", fmt.Errorf("invalid request body: %w: %w", validator.ErrValidation, err))
 		return
 	}
 	if err := postReq.Validate(h.validator); err != nil {
-		h.handleError(ctx, w, "new post", "validation error", err)
+		handleError(ctx, h.logger, w, "create new post", err)
 		return
 	}
 
 	userID := h.getUserIDFromContext(ctx)
 	postID, err := h.uc.CreatePost(ctx, userID, postReq)
 	if err != nil {
-		h.handleError(ctx, w, "new post", "create post error", err)
+		handleError(ctx, h.logger, w, "create new post", err)
 		return
 	}
 	h.logger.InfoContext(ctx, "new post created",
@@ -387,27 +397,27 @@ func (h *PostHandler) EditPost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	postID, err := getPostID(r)
 	if err != nil {
-		h.handleError(ctx, w, "edit post", "post ID invalid", fmt.Errorf("invalid post id: %w: %w", validator.ErrValidation, err))
+		handleError(ctx, h.logger, w, "edit post", fmt.Errorf("invalid post id: %w: %w", validator.ErrValidation, err))
 		return
 	}
 	defer r.Body.Close()
 	var postReq dto.PostRequest
 	if err := response.DecodeJSON(w, r, &postReq); err != nil {
-		h.handleError(ctx, w, "edit post", "request body decode error", fmt.Errorf("invalid request body: %w: %w", validator.ErrValidation, err))
+		handleError(ctx, h.logger, w, "edit post", fmt.Errorf("invalid request body: %w: %w", validator.ErrValidation, err))
 		return
 	}
 	if err := postReq.Validate(h.validator); err != nil {
-		h.handleError(ctx, w, "edit post", "validation error", err)
+		handleError(ctx, h.logger, w, "edit post", err)
 		return
 	}
 	if postReq.LastUpdatedAt == nil {
-		h.handleError(ctx, w, "edit post", "invalid last_updated_at", validator.ErrValidation)
+		handleError(ctx, h.logger, w, "edit post", fmt.Errorf("%w: invalid last_updated_at", validator.ErrValidation))
 		return
 	}
 
 	userID := h.getUserIDFromContext(ctx)
 	if err := h.uc.UpdatePost(ctx, userID, postID, postReq, *postReq.LastUpdatedAt); err != nil {
-		h.handleError(ctx, w, "edit post", "update post error", err)
+		handleError(ctx, h.logger, w, "edit post", err)
 		return
 	}
 	h.logger.InfoContext(ctx, "post edited",
@@ -436,13 +446,13 @@ func (h *PostHandler) DeletePost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	postID, err := getPostID(r)
 	if err != nil {
-		h.handleError(ctx, w, "delete post", "post ID invalid", fmt.Errorf("invalid post id: %w: %w", validator.ErrValidation, err))
+		handleError(ctx, h.logger, w, "delete post", fmt.Errorf("invalid post id: %w: %w", validator.ErrValidation, err))
 		return
 	}
 
 	userID := h.getUserIDFromContext(ctx)
 	if err := h.uc.DeletePost(ctx, userID, postID); err != nil {
-		h.handleError(ctx, w, "delete post", "delete post error", err)
+		handleError(ctx, h.logger, w, "delete post", err)
 		return
 	}
 	h.logger.InfoContext(ctx, "post deleted",
@@ -471,14 +481,14 @@ func (h *PostHandler) LikePost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	postID, err := getPostID(r)
 	if err != nil {
-		h.handleError(ctx, w, "like post", "post ID invalid", fmt.Errorf("invalid post id: %w: %w", validator.ErrValidation, err))
+		handleError(ctx, h.logger, w, "like post", fmt.Errorf("invalid post id: %w: %w", validator.ErrValidation, err))
 		return
 	}
 
 	userID := h.getUserIDFromContext(ctx)
 	likesCount, err := h.uc.LikePost(ctx, userID, postID)
 	if err != nil {
-		h.handleError(ctx, w, "like post", "like post error", err)
+		handleError(ctx, h.logger, w, "like post", err)
 		return
 	}
 	response.WriteJSON(w, http.StatusOK, dto.PostLikeResponse{LikesCount: likesCount, LikedByUser: true})
@@ -503,14 +513,14 @@ func (h *PostHandler) UnlikePost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	postID, err := getPostID(r)
 	if err != nil {
-		h.handleError(ctx, w, "unlike post", "post ID invalid", fmt.Errorf("invalid post id: %w: %w", validator.ErrValidation, err))
+		handleError(ctx, h.logger, w, "unlike post", fmt.Errorf("invalid post id: %w: %w", validator.ErrValidation, err))
 		return
 	}
 
 	userID := h.getUserIDFromContext(ctx)
 	likesCount, err := h.uc.DeletePostLike(ctx, userID, postID)
 	if err != nil {
-		h.handleError(ctx, w, "unlike post", "like post error", err)
+		handleError(ctx, h.logger, w, "unlike post", err)
 		return
 	}
 	response.WriteJSON(w, http.StatusOK, dto.PostLikeResponse{LikesCount: likesCount, LikedByUser: false})

@@ -1,6 +1,7 @@
 package testutils
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -32,10 +33,12 @@ func SetupLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-type staticVerifier json.RawMessage
+type staticVerifier struct {
+	payload json.RawMessage
+}
 
-func (v staticVerifier) Verify(string) (json.RawMessage, error) {
-	return json.RawMessage(v), nil
+func (v staticVerifier) Verify(context.Context, string) (json.RawMessage, error) {
+	return v.payload, nil
 }
 
 func WithUser(r *http.Request, userID uuid.UUID) *http.Request {
@@ -47,7 +50,7 @@ func WithUser(r *http.Request, userID uuid.UUID) *http.Request {
 
 	var authorized *http.Request
 	capture := http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) { authorized = req })
-	middleware.AuthMiddleware(staticVerifier(payload))(capture).ServeHTTP(httptest.NewRecorder(), r)
+	middleware.AuthMiddleware(staticVerifier{payload: payload})(capture).ServeHTTP(httptest.NewRecorder(), r)
 	return authorized
 }
 

@@ -3,7 +3,7 @@ package middleware_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,84 +15,88 @@ import (
 )
 
 type MockTokenVerifier struct {
-	VerifyFunc func(tokenString string) (json.RawMessage, error)
+	VerifyFunc func(ctx context.Context, token string) (json.RawMessage, error)
 }
 
-func (m *MockTokenVerifier) Verify(tokenString string) (json.RawMessage, error) {
+func (m *MockTokenVerifier) Verify(ctx context.Context, token string) (json.RawMessage, error) {
 	if m.VerifyFunc != nil {
-		return m.VerifyFunc(tokenString)
+		return m.VerifyFunc(ctx, token)
 	}
-	return nil, nil
+
+	return nil, middleware.ErrInvalidToken
 }
 
 func TestAuthMiddleware(t *testing.T) {
-	expectedUserPayload := jwt.UserPayload{UserID: uuid.New(), Username: "user", Email: "email@example.com", Role: "user"}
-	validPayload, _ := json.Marshal(expectedUserPayload)
+	userID := uuid.New()
+	validPayload := json.RawMessage(fmt.Sprintf(`{"user_id":%q,"role":"user"}`, userID.String()))
 
 	tests := []struct {
 		name           string
 		cookie         *http.Cookie
-		mockVerify     func(tokenString string) (json.RawMessage, error)
+		mockVerify     func(ctx context.Context, token string) (json.RawMessage, error)
 		expectedStatus int
 		expectNextCall bool
 	}{
 		{
-			name: "Success - valid token and payload",
-			cookie: &http.Cookie{
-				Name:  jwt.CookieName,
-				Value: "valid-jwt-token",
-			},
-			mockVerify: func(tokenString string) (json.RawMessage, error) {
-				return json.RawMessage(validPayload), nil
+			name:   "valid token",
+			cookie: &http.Cookie{Name: jwt.CookieName, Value: "valid-jwt-token"},
+			mockVerify: func(context.Context, string) (json.RawMessage, error) {
+				return validPayload, nil
 			},
 			expectedStatus: http.StatusOK,
 			expectNextCall: true,
 		},
 		{
-			name:           "No Cookie in request",
+			name:           "no cookie",
 			cookie:         nil,
 			mockVerify:     nil,
 			expectedStatus: http.StatusUnauthorized,
-			expectNextCall: false,
 		},
 		{
-			name: "Verifier returns error (invalid/expired token)",
-			cookie: &http.Cookie{
-				Name:  jwt.CookieName,
-				Value: "bad-token",
-			},
-			mockVerify: func(tokenString string) (json.RawMessage, error) {
-				return nil, errors.New("token verification failed")
+			name:   "invalid token",
+			cookie: &http.Cookie{Name: jwt.CookieName, Value: "bad-token"},
+			mockVerify: func(context.Context, string) (json.RawMessage, error) {
+				return nil, middleware.ErrInvalidToken
 			},
 			expectedStatus: http.StatusUnauthorized,
-			expectNextCall: false,
 		},
 		{
-			name: "Corrupted/Invalid JSON payload",
-			cookie: &http.Cookie{
-				Name:  jwt.CookieName,
-				Value: "token-with-bad-payload",
-			},
-			mockVerify: func(tokenString string) (json.RawMessage, error) {
-				return json.RawMessage(`{not-a-valid-json`), nil
+			name:   "empty payload",
+			cookie: &http.Cookie{Name: jwt.CookieName, Value: "empty-token"},
+			mockVerify: func(context.Context, string) (json.RawMessage, error) {
+				return nil, nil
 			},
 			expectedStatus: http.StatusUnauthorized,
-			expectNextCall: false,
+		},
+		{
+			name:   "payload without user id",
+			cookie: &http.Cookie{Name: jwt.CookieName, Value: "no-id-token"},
+			mockVerify: func(context.Context, string) (json.RawMessage, error) {
+				return json.RawMessage(`{"role":"user"}`), nil
+			},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:   "auth service unavailable",
+			cookie: &http.Cookie{Name: jwt.CookieName, Value: "valid-jwt-token"},
+			mockVerify: func(context.Context, string) (json.RawMessage, error) {
+				return nil, middleware.ErrAuthUnavailable
+			},
+			expectedStatus: http.StatusServiceUnavailable,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			verifier := &MockTokenVerifier{VerifyFunc: tt.mockVerify}
-			mw := middleware.AuthMiddleware(verifier)
+			mw := middleware.AuthMiddleware(&MockTokenVerifier{VerifyFunc: tt.mockVerify})
 
 			nextCalled := false
 			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				nextCalled = true
 
-				extractedUserPayload, ok := middleware.UserInfoFromContext(r.Context())
+				payload, ok := middleware.UserInfoFromContext(r.Context())
 				require.True(t, ok)
-				require.Equal(t, expectedUserPayload, *extractedUserPayload, "expected user payload %v, got %v", expectedUserPayload, *extractedUserPayload)
+				require.Equal(t, userID, payload.UserID)
 
 				w.WriteHeader(http.StatusOK)
 			})
@@ -101,19 +105,94 @@ func TestAuthMiddleware(t *testing.T) {
 			if tt.cookie != nil {
 				req.AddCookie(tt.cookie)
 			}
-			w := httptest.NewRecorder()
+			recorder := httptest.NewRecorder()
 
-			mw(nextHandler).ServeHTTP(w, req)
+			mw(nextHandler).ServeHTTP(recorder, req)
 
-			require.Equal(t, tt.expectedStatus, w.Code)
+			require.Equal(t, tt.expectedStatus, recorder.Code)
 			require.Equal(t, tt.expectNextCall, nextCalled)
 		})
 	}
 }
 
+func TestOptionalAuthMiddleware(t *testing.T) {
+	userID := uuid.New()
+	validPayload := json.RawMessage(fmt.Sprintf(`{"user_id":%q,"role":"user"}`, userID.String()))
+
+	tests := []struct {
+		name       string
+		cookie     *http.Cookie
+		mockVerify func(ctx context.Context, token string) (json.RawMessage, error)
+		expectUser bool
+	}{
+		{
+			name:   "valid token",
+			cookie: &http.Cookie{Name: jwt.CookieName, Value: "valid-jwt-token"},
+			mockVerify: func(context.Context, string) (json.RawMessage, error) {
+				return validPayload, nil
+			},
+			expectUser: true,
+		},
+		{
+			name:   "invalid token",
+			cookie: &http.Cookie{Name: jwt.CookieName, Value: "bad-token"},
+			mockVerify: func(context.Context, string) (json.RawMessage, error) {
+				return nil, middleware.ErrInvalidToken
+			},
+		},
+		{
+			name:       "no cookie",
+			cookie:     nil,
+			mockVerify: nil,
+		},
+		{
+			name:   "auth service unavailable",
+			cookie: &http.Cookie{Name: jwt.CookieName, Value: "valid-jwt-token"},
+			mockVerify: func(context.Context, string) (json.RawMessage, error) {
+				return nil, middleware.ErrAuthUnavailable
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mw := middleware.OptionalAuthMiddleware(&MockTokenVerifier{VerifyFunc: tt.mockVerify})
+
+			var (
+				nextCalled bool
+				gotUser    *jwt.UserPayload
+			)
+			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextCalled = true
+				gotUser, _ = middleware.UserInfoFromContext(r.Context())
+				w.WriteHeader(http.StatusOK)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/public", nil)
+			if tt.cookie != nil {
+				req.AddCookie(tt.cookie)
+			}
+			recorder := httptest.NewRecorder()
+
+			mw(nextHandler).ServeHTTP(recorder, req)
+
+			require.Equal(t, http.StatusOK, recorder.Code)
+			require.True(t, nextCalled)
+
+			if tt.expectUser {
+				require.NotNil(t, gotUser)
+				require.Equal(t, userID, gotUser.UserID)
+				return
+			}
+
+			require.Nil(t, gotUser)
+		})
+	}
+}
+
 func TestUserFromContext_NotFound(t *testing.T) {
-	ctx := context.Background()
-	user, ok := middleware.UserInfoFromContext(ctx)
+	user, ok := middleware.UserInfoFromContext(context.Background())
+
 	var nilPayload *jwt.UserPayload
 	require.False(t, ok)
 	require.Equal(t, nilPayload, user, "expected nil, got %v", user)

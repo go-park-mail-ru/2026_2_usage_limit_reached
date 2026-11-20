@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/grpcserver"
@@ -29,6 +30,7 @@ type Config struct {
 	JWT        jwt.JWTConfig              `mapstructure:"jwt"`
 	CSRF       csrf.CSRFConfig            `mapstructure:"csrf"`
 	CORS       middleware.CORSConfig      `mapstructure:"cors"`
+	Identity   identityclient.Config      `mapstructure:"identity"`
 	Validation validator.ValidationConfig `mapstructure:"validation"`
 	Sanitizer  sanitizer.SanitizerConfig  `mapstructure:"sanitizer"`
 }
@@ -48,6 +50,7 @@ func Load(path string) (*Config, error) {
 		cfg.JWT.Validate(),
 		cfg.CSRF.Validate(),
 		cfg.CORS.Validate(),
+		cfg.Identity.Validate(),
 		cfg.Validation.Validate(),
 		cfg.Sanitizer.Validate(),
 	); err != nil {
@@ -76,6 +79,7 @@ func load(path string) (*Config, error) {
 		JWT:        jwt.DefaultConfig(),
 		CSRF:       csrf.DefaultConfig(),
 		CORS:       middleware.DefaultCORSConfig(),
+		Identity:   identityclient.DefaultConfig(),
 		Validation: validator.DefaultConfig(),
 		Sanitizer:  sanitizer.DefaultConfig(),
 	}

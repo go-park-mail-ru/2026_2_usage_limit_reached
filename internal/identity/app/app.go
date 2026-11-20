@@ -71,7 +71,7 @@ func Run(configPath string) error {
 		return fmt.Errorf("validator initialization error: %w", err)
 	}
 
-	identityHandler := identitygrpc.NewHandler(userUc, authorUc, appLogger)
+	identityHandler := identitygrpc.NewHandler(userUc, authorUc, tokens, appLogger)
 	grpcApp := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			interceptors.UnaryRecovery(appLogger),

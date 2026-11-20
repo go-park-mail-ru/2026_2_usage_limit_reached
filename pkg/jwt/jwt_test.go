@@ -1,6 +1,7 @@
 package jwt_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -148,7 +149,7 @@ func TestJWTManager_GenerateVerify_RoundTrip(t *testing.T) {
 	token, err := manager.Generate(testUserID, payload)
 	require.NoError(t, err)
 
-	got, err := manager.Verify(token)
+	got, err := manager.Verify(context.Background(), token)
 	require.NoError(t, err)
 	require.JSONEq(t, `{"user_id":"00000000-0000-4000-8000-000000000001","email":"email@example.com","username":"user","role":"user"}`, string(got))
 }
@@ -156,7 +157,7 @@ func TestJWTManager_GenerateVerify_RoundTrip(t *testing.T) {
 func TestJWTManager_Verify_Success(t *testing.T) {
 	t.Parallel()
 	token := signedToken(t, 4102444800)
-	got, err := newTestManager(t, testSecret).Verify(token)
+	got, err := newTestManager(t, testSecret).Verify(context.Background(), token)
 	require.NoError(t, err)
 	require.JSONEq(t, `{"user_id":"00000000-0000-4000-8000-000000000001","email":"email@example.com","username":"user","role":"user"}`, string(got))
 }
@@ -185,7 +186,7 @@ func TestJWTManager_Verify_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := newTestManager(t, tt.secret).Verify(tt.token)
+			got, err := newTestManager(t, tt.secret).Verify(context.Background(), tt.token)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
 		})

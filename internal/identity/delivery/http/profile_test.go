@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -34,7 +35,7 @@ type staticVerifier struct {
 	userID uuid.UUID
 }
 
-func (v staticVerifier) Verify(string) (json.RawMessage, error) {
+func (v staticVerifier) Verify(context.Context, string) (json.RawMessage, error) {
 	return json.Marshal(jwt.UserPayload{UserID: v.userID})
 }
 

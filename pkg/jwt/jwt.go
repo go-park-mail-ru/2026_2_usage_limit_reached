@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -129,7 +130,7 @@ func (m *JWTManager) Generate(ID uuid.UUID, payload any) (string, error) {
 	return signingInput + "." + base64.RawURLEncoding.EncodeToString(sign), nil
 }
 
-func (m *JWTManager) Verify(tokenStr string) (json.RawMessage, error) {
+func (m *JWTManager) Verify(_ context.Context, tokenStr string) (json.RawMessage, error) {
 	segments := strings.Split(tokenStr, ".")
 	if len(segments) != 3 {
 		return nil, ErrInvalidToken

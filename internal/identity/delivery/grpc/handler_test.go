@@ -3,12 +3,15 @@ package grpc_test
 import (
 	"context"
 	"net"
+	"strings"
 	"testing"
+	"time"
 
 	authordto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/author/dto"
 	identitygrpc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc"
 	mockgrpc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc/mock_delivery_grpc"
 	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	identitypb "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/identity/v1"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
@@ -19,12 +22,17 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
-func newTestClient(t *testing.T, users identitygrpc.UserUsecase, authors identitygrpc.AuthorUsecase) identitypb.IdentityServiceClient {
+func newTestClient(
+	t *testing.T,
+	users identitygrpc.UserUsecase,
+	authors identitygrpc.AuthorUsecase,
+	tokens identitygrpc.TokenVerifier,
+) identitypb.IdentityServiceClient {
 	t.Helper()
 
 	listener := bufconn.Listen(1024 * 1024)
 	server := grpc.NewServer()
-	identitypb.RegisterIdentityServiceServer(server, identitygrpc.NewHandler(users, authors, nil))
+	identitypb.RegisterIdentityServiceServer(server, identitygrpc.NewHandler(users, authors, tokens, nil))
 
 	go func() {
 		_ = server.Serve(listener)
@@ -57,7 +65,7 @@ func TestGetUsers(t *testing.T) {
 			Status:   "active",
 		}}, nil)
 
-	client := newTestClient(t, users, mockgrpc.NewMockAuthorUsecase(t))
+	client := newTestClient(t, users, mockgrpc.NewMockAuthorUsecase(t), nil)
 
 	resp, err := client.GetUsers(context.Background(), &identitypb.GetUsersRequest{Ids: []string{userID.String()}})
 	if err != nil {
@@ -87,7 +95,7 @@ func TestGetAuthors(t *testing.T) {
 			Category: &category,
 		}}, nil)
 
-	client := newTestClient(t, mockgrpc.NewMockUserUsecase(t), authors)
+	client := newTestClient(t, mockgrpc.NewMockUserUsecase(t), authors, nil)
 
 	resp, err := client.GetAuthors(context.Background(), &identitypb.GetAuthorsRequest{Ids: []string{authorID.String()}})
 	if err != nil {
@@ -103,10 +111,49 @@ func TestGetAuthors(t *testing.T) {
 }
 
 func TestGetUsersInvalidID(t *testing.T) {
-	client := newTestClient(t, mockgrpc.NewMockUserUsecase(t), mockgrpc.NewMockAuthorUsecase(t))
+	client := newTestClient(t, mockgrpc.NewMockUserUsecase(t), mockgrpc.NewMockAuthorUsecase(t), nil)
 
 	_, err := client.GetUsers(context.Background(), &identitypb.GetUsersRequest{Ids: []string{"not-a-uuid"}})
 	if status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("code = %v", status.Code(err))
+	}
+}
+
+func TestVerifyToken(t *testing.T) {
+	manager, err := jwt.NewJWTManager(jwt.JWTConfig{
+		Secret:   strings.Repeat("a", 32),
+		TokenTTL: time.Hour,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	userID := uuid.New()
+	token, err := manager.Generate(userID, jwt.UserPayload{UserID: userID, Role: "user"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client := newTestClient(t, nil, nil, manager)
+
+	resp, err := client.VerifyToken(context.Background(), &identitypb.VerifyTokenRequest{Token: token})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetUserId() != userID.String() {
+		t.Fatalf("user id = %q", resp.GetUserId())
+	}
+	if resp.GetRole() != "user" {
+		t.Fatalf("role = %q", resp.GetRole())
+	}
+
+	_, err = client.VerifyToken(context.Background(), &identitypb.VerifyTokenRequest{Token: "not-a-token"})
+	if status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("invalid token code = %v", status.Code(err))
+	}
+
+	_, err = client.VerifyToken(context.Background(), &identitypb.VerifyTokenRequest{})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("empty token code = %v", status.Code(err))
 	}
 }

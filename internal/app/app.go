@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
 	DonationHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/delivery"
 	DonationRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/repository"
@@ -19,12 +20,13 @@ import (
 	PostUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
 	"github.com/gorilla/mux"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func Run(configPath string) error {
@@ -34,10 +36,14 @@ func Run(configPath string) error {
 	}
 
 	appLogger := logger.New(cfg.Log)
-	tokens, err := jwt.NewJWTManager(cfg.JWT)
+
+	identityConn, err := grpc.NewClient(cfg.Identity.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return fmt.Errorf("token manager initialization error: %w", err)
+		return fmt.Errorf("identity client initialization error: %w", err)
 	}
+	defer identityConn.Close()
+
+	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout)
 
 	postgresClient, err := postgres.NewClient(cfg.Postgres)
 	if err != nil {
@@ -54,8 +60,8 @@ func Run(configPath string) error {
 		return fmt.Errorf("validator initialization error: %w", err)
 	}
 	csrfManager := csrf.NewManager(cfg.CSRF)
-	authMiddleware := middleware.AuthMiddleware(tokens)
-	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(tokens)
+	authMiddleware := middleware.AuthMiddleware(identityClient)
+	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(identityClient)
 	csrfMiddleware := middleware.CSRFMiddleware(csrfManager)
 
 	postSanitizer, err := sanitizer.NewSanitizer(cfg.Sanitizer)

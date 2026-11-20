@@ -2,16 +2,37 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/dto"
 	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/dto"
 	userusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
+
+func (uc *Usecase) VerifyToken(ctx context.Context, token string) (*jwt.UserPayload, error) {
+	if strings.TrimSpace(token) == "" {
+		return nil, ErrInvalidToken
+	}
+
+	raw, err := uc.tokenGenerator.Verify(token)
+	if err != nil {
+		return nil, fmt.Errorf("verify token: %w: %w", ErrInvalidToken, err)
+	}
+
+	var payload jwt.UserPayload
+	if err := json.Unmarshal(raw, &payload); err != nil || payload.UserID == uuid.Nil {
+		return nil, fmt.Errorf("verify token: %w", ErrInvalidToken)
+	}
+
+	return &payload, nil
+}
 
 func (uc *Usecase) Register(ctx context.Context, regInput dto.RegistrationRequest) (*dto.UserResponse, string, error) {
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(regInput.Password), bcrypt.DefaultCost)

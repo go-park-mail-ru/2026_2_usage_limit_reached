@@ -3,7 +3,6 @@ package handlers_test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -35,8 +34,8 @@ type staticVerifier struct {
 	userID uuid.UUID
 }
 
-func (v staticVerifier) Verify(context.Context, string) (json.RawMessage, error) {
-	return json.Marshal(jwt.UserPayload{UserID: v.userID})
+func (v staticVerifier) VerifyToken(context.Context, string) (*jwt.UserPayload, error) {
+	return &jwt.UserPayload{UserID: v.userID}, nil
 }
 
 func newRouter(t *testing.T, uc handlers.ProfileUsecase, userID uuid.UUID) *mux.Router {

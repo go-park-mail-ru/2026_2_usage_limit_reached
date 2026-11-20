@@ -34,23 +34,19 @@ func SetupLogger() *slog.Logger {
 }
 
 type staticVerifier struct {
-	payload json.RawMessage
+	payload *jwt.UserPayload
 }
 
-func (v staticVerifier) Verify(context.Context, string) (json.RawMessage, error) {
+func (v staticVerifier) VerifyToken(context.Context, string) (*jwt.UserPayload, error) {
 	return v.payload, nil
 }
 
 func WithUser(r *http.Request, userID uuid.UUID) *http.Request {
-	payload, err := json.Marshal(jwt.UserPayload{UserID: userID})
-	if err != nil {
-		panic(err)
-	}
 	r.AddCookie(&http.Cookie{Name: jwt.CookieName, Value: "test-token"})
 
 	var authorized *http.Request
 	capture := http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) { authorized = req })
-	middleware.AuthMiddleware(staticVerifier{payload: payload})(capture).ServeHTTP(httptest.NewRecorder(), r)
+	middleware.AuthMiddleware(staticVerifier{payload: &jwt.UserPayload{UserID: userID}})(capture).ServeHTTP(httptest.NewRecorder(), r)
 	return authorized
 }
 

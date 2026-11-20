@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	authuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/usecase"
 	authordto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/author/dto"
 	identitygrpc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc"
 	mockgrpc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc/mock_delivery_grpc"
@@ -26,13 +27,13 @@ func newTestClient(
 	t *testing.T,
 	users identitygrpc.UserUsecase,
 	authors identitygrpc.AuthorUsecase,
-	tokens identitygrpc.TokenVerifier,
+	auth identitygrpc.AuthUsecase,
 ) identitypb.IdentityServiceClient {
 	t.Helper()
 
 	listener := bufconn.Listen(1024 * 1024)
 	server := grpc.NewServer()
-	identitypb.RegisterIdentityServiceServer(server, identitygrpc.NewHandler(users, authors, tokens, nil))
+	identitypb.RegisterIdentityServiceServer(server, identitygrpc.NewHandler(users, authors, auth, nil))
 
 	go func() {
 		_ = server.Serve(listener)
@@ -134,7 +135,7 @@ func TestVerifyToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	client := newTestClient(t, nil, nil, manager)
+	client := newTestClient(t, nil, nil, authuc.NewUsecase(nil, manager))
 
 	resp, err := client.VerifyToken(context.Background(), &identitypb.VerifyTokenRequest{Token: token})
 	if err != nil {

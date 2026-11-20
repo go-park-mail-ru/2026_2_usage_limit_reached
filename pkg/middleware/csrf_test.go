@@ -150,13 +150,12 @@ func TestCSRFMiddleware(t *testing.T) {
 }
 
 func TestCSRFMiddleware_BindingInput(t *testing.T) {
-	payload, err := json.Marshal(jwt.UserPayload{UserID: uuid.New(), Role: "user"})
-	require.NoError(t, err)
+	payload := &jwt.UserPayload{UserID: uuid.New(), Role: "user"}
 
-	validVerifier := &MockTokenVerifier{VerifyFunc: func(context.Context, string) (json.RawMessage, error) {
+	validVerifier := &MockTokenVerifier{VerifyFunc: func(context.Context, string) (*jwt.UserPayload, error) {
 		return payload, nil
 	}}
-	invalidVerifier := &MockTokenVerifier{VerifyFunc: func(context.Context, string) (json.RawMessage, error) {
+	invalidVerifier := &MockTokenVerifier{VerifyFunc: func(context.Context, string) (*jwt.UserPayload, error) {
 		return nil, errors.New("token verification failed")
 	}}
 

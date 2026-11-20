@@ -2,7 +2,6 @@ package identityclient
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -51,7 +50,7 @@ func New(conn grpc.ClientConnInterface, timeout time.Duration) *Client {
 	return &Client{client: identitypb.NewIdentityServiceClient(conn), timeout: timeout}
 }
 
-func (c *Client) Verify(ctx context.Context, token string) (json.RawMessage, error) {
+func (c *Client) VerifyToken(ctx context.Context, token string) (*jwt.UserPayload, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
@@ -59,7 +58,7 @@ func (c *Client) Verify(ctx context.Context, token string) (json.RawMessage, err
 	if err != nil {
 		switch status.Code(err) {
 		case codes.Unauthenticated, codes.InvalidArgument:
-			return nil, middleware.ErrInvalidToken
+			return nil, fmt.Errorf("identity client: invalid token: %w", err)
 		default:
 			return nil, fmt.Errorf("%w: %w", middleware.ErrAuthUnavailable, err)
 		}
@@ -70,10 +69,5 @@ func (c *Client) Verify(ctx context.Context, token string) (json.RawMessage, err
 		return nil, fmt.Errorf("%w: invalid user id: %w", middleware.ErrAuthUnavailable, err)
 	}
 
-	raw, err := json.Marshal(jwt.UserPayload{UserID: userID, Role: resp.GetRole()})
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", middleware.ErrAuthUnavailable, err)
-	}
-
-	return raw, nil
+	return &jwt.UserPayload{UserID: userID, Role: resp.GetRole()}, nil
 }

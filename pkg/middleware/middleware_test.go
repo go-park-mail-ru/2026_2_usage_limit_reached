@@ -2,8 +2,7 @@ package middleware_test
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,32 +14,32 @@ import (
 )
 
 type MockTokenVerifier struct {
-	VerifyFunc func(ctx context.Context, token string) (json.RawMessage, error)
+	VerifyFunc func(ctx context.Context, token string) (*jwt.UserPayload, error)
 }
 
-func (m *MockTokenVerifier) Verify(ctx context.Context, token string) (json.RawMessage, error) {
+func (m *MockTokenVerifier) VerifyToken(ctx context.Context, token string) (*jwt.UserPayload, error) {
 	if m.VerifyFunc != nil {
 		return m.VerifyFunc(ctx, token)
 	}
 
-	return nil, middleware.ErrInvalidToken
+	return nil, errors.New("invalid token")
 }
 
 func TestAuthMiddleware(t *testing.T) {
 	userID := uuid.New()
-	validPayload := json.RawMessage(fmt.Sprintf(`{"user_id":%q,"role":"user"}`, userID.String()))
+	validPayload := &jwt.UserPayload{UserID: userID, Role: "user"}
 
 	tests := []struct {
 		name           string
 		cookie         *http.Cookie
-		mockVerify     func(ctx context.Context, token string) (json.RawMessage, error)
+		mockVerify     func(ctx context.Context, token string) (*jwt.UserPayload, error)
 		expectedStatus int
 		expectNextCall bool
 	}{
 		{
 			name:   "valid token",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "valid-jwt-token"},
-			mockVerify: func(context.Context, string) (json.RawMessage, error) {
+			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
 				return validPayload, nil
 			},
 			expectedStatus: http.StatusOK,
@@ -55,31 +54,23 @@ func TestAuthMiddleware(t *testing.T) {
 		{
 			name:   "invalid token",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "bad-token"},
-			mockVerify: func(context.Context, string) (json.RawMessage, error) {
-				return nil, middleware.ErrInvalidToken
+			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
+				return nil, errors.New("invalid token")
 			},
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
 			name:   "empty payload",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "empty-token"},
-			mockVerify: func(context.Context, string) (json.RawMessage, error) {
+			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
 				return nil, nil
-			},
-			expectedStatus: http.StatusUnauthorized,
-		},
-		{
-			name:   "payload without user id",
-			cookie: &http.Cookie{Name: jwt.CookieName, Value: "no-id-token"},
-			mockVerify: func(context.Context, string) (json.RawMessage, error) {
-				return json.RawMessage(`{"role":"user"}`), nil
 			},
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
 			name:   "auth service unavailable",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "valid-jwt-token"},
-			mockVerify: func(context.Context, string) (json.RawMessage, error) {
+			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
 				return nil, middleware.ErrAuthUnavailable
 			},
 			expectedStatus: http.StatusServiceUnavailable,
@@ -117,18 +108,18 @@ func TestAuthMiddleware(t *testing.T) {
 
 func TestOptionalAuthMiddleware(t *testing.T) {
 	userID := uuid.New()
-	validPayload := json.RawMessage(fmt.Sprintf(`{"user_id":%q,"role":"user"}`, userID.String()))
+	validPayload := &jwt.UserPayload{UserID: userID, Role: "user"}
 
 	tests := []struct {
 		name       string
 		cookie     *http.Cookie
-		mockVerify func(ctx context.Context, token string) (json.RawMessage, error)
+		mockVerify func(ctx context.Context, token string) (*jwt.UserPayload, error)
 		expectUser bool
 	}{
 		{
 			name:   "valid token",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "valid-jwt-token"},
-			mockVerify: func(context.Context, string) (json.RawMessage, error) {
+			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
 				return validPayload, nil
 			},
 			expectUser: true,
@@ -136,8 +127,8 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 		{
 			name:   "invalid token",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "bad-token"},
-			mockVerify: func(context.Context, string) (json.RawMessage, error) {
-				return nil, middleware.ErrInvalidToken
+			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
+				return nil, errors.New("invalid token")
 			},
 		},
 		{
@@ -148,7 +139,7 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 		{
 			name:   "auth service unavailable",
 			cookie: &http.Cookie{Name: jwt.CookieName, Value: "valid-jwt-token"},
-			mockVerify: func(context.Context, string) (json.RawMessage, error) {
+			mockVerify: func(context.Context, string) (*jwt.UserPayload, error) {
 				return nil, middleware.ErrAuthUnavailable
 			},
 		},

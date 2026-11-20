@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 var (
 	ErrRegistrationFailed = errors.New("registration failed")
 	ErrLoginFailed        = errors.New("login failed")
+	ErrInvalidToken       = errors.New("invalid token")
 )
 
 type UserUsecase interface {
@@ -21,6 +23,7 @@ type UserUsecase interface {
 
 type TokenManager interface {
 	Generate(ID uuid.UUID, payload any) (string, error)
+	Verify(token string) (json.RawMessage, error)
 	TTL() time.Duration
 }
 

@@ -2,7 +2,6 @@ package grpc
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 
 	authordto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/author/dto"
@@ -22,8 +21,8 @@ type AuthorUsecase interface {
 	FindAuthorsByIDs(ctx context.Context, ids []uuid.UUID) ([]*authordto.AuthorInfo, error)
 }
 
-type TokenVerifier interface {
-	Verify(ctx context.Context, token string) (json.RawMessage, error)
+type AuthUsecase interface {
+	VerifyToken(ctx context.Context, token string) (*jwt.UserPayload, error)
 }
 
 type Handler struct {
@@ -31,12 +30,12 @@ type Handler struct {
 
 	users   UserUsecase
 	authors AuthorUsecase
-	tokens  TokenVerifier
+	auth    AuthUsecase
 	logger  *slog.Logger
 }
 
-func NewHandler(users UserUsecase, authors AuthorUsecase, tokens TokenVerifier, logger *slog.Logger) *Handler {
-	return &Handler{users: users, authors: authors, tokens: tokens, logger: logger}
+func NewHandler(users UserUsecase, authors AuthorUsecase, auth AuthUsecase, logger *slog.Logger) *Handler {
+	return &Handler{users: users, authors: authors, auth: auth, logger: logger}
 }
 
 func (h *Handler) GetUsers(ctx context.Context, req *identitypb.GetUsersRequest) (*identitypb.GetUsersResponse, error) {
@@ -86,13 +85,8 @@ func (h *Handler) VerifyToken(ctx context.Context, req *identitypb.VerifyTokenRe
 		return nil, status.Error(codes.InvalidArgument, "token is required")
 	}
 
-	raw, err := h.tokens.Verify(ctx, req.GetToken())
-	if err != nil {
-		return nil, status.Error(codes.Unauthenticated, "invalid token")
-	}
-
-	var payload jwt.UserPayload
-	if err := json.Unmarshal(raw, &payload); err != nil || payload.UserID == uuid.Nil {
+	payload, err := h.auth.VerifyToken(ctx, req.GetToken())
+	if err != nil || payload == nil || payload.UserID == uuid.Nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
 

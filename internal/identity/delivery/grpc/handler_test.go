@@ -7,10 +7,12 @@ import (
 	"testing"
 	"time"
 
+	authuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/usecase"
 	authordto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/author/dto"
 	identitygrpc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc"
 	mockgrpc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc/mock_delivery_grpc"
 	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/dto"
+	userusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	identitypb "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/identity/v1"
 	"github.com/google/uuid"
@@ -26,13 +28,13 @@ func newTestClient(
 	t *testing.T,
 	users identitygrpc.UserUsecase,
 	authors identitygrpc.AuthorUsecase,
-	tokens identitygrpc.TokenVerifier,
+	auth identitygrpc.AuthUsecase,
 ) identitypb.IdentityServiceClient {
 	t.Helper()
 
 	listener := bufconn.Listen(1024 * 1024)
 	server := grpc.NewServer()
-	identitypb.RegisterIdentityServiceServer(server, identitygrpc.NewHandler(users, authors, tokens, nil))
+	identitypb.RegisterIdentityServiceServer(server, identitygrpc.NewHandler(users, authors, auth, nil))
 
 	go func() {
 		_ = server.Serve(listener)
@@ -119,6 +121,60 @@ func TestGetUsersInvalidID(t *testing.T) {
 	}
 }
 
+func TestGetUserByUsername(t *testing.T) {
+	userID := uuid.New()
+
+	users := mockgrpc.NewMockUserUsecase(t)
+	users.On("FindUserByUsername", mock.Anything, "user").
+		Return(&userdto.UserInfo{
+			ID:       userID,
+			Username: "user",
+			Nickname: "nick",
+			Status:   "active",
+		}, nil)
+
+	client := newTestClient(t, users, mockgrpc.NewMockAuthorUsecase(t), nil)
+
+	resp, err := client.GetUserByUsername(context.Background(), &identitypb.GetUserByUsernameRequest{Username: "user"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetId() != userID.String() {
+		t.Fatalf("user id = %q", resp.GetId())
+	}
+	if resp.GetUsername() != "user" {
+		t.Fatalf("username = %q", resp.GetUsername())
+	}
+	if resp.GetNickname() != "nick" {
+		t.Fatalf("nickname = %q", resp.GetNickname())
+	}
+	if resp.GetStatus() != "active" {
+		t.Fatalf("status = %q", resp.GetStatus())
+	}
+}
+
+func TestGetUserByUsernameNotFound(t *testing.T) {
+	users := mockgrpc.NewMockUserUsecase(t)
+	users.On("FindUserByUsername", mock.Anything, "ghost").
+		Return(nil, userusecase.ErrUserNotFound)
+
+	client := newTestClient(t, users, mockgrpc.NewMockAuthorUsecase(t), nil)
+
+	_, err := client.GetUserByUsername(context.Background(), &identitypb.GetUserByUsernameRequest{Username: "ghost"})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("code = %v", status.Code(err))
+	}
+}
+
+func TestGetUserByUsernameEmpty(t *testing.T) {
+	client := newTestClient(t, mockgrpc.NewMockUserUsecase(t), mockgrpc.NewMockAuthorUsecase(t), nil)
+
+	_, err := client.GetUserByUsername(context.Background(), &identitypb.GetUserByUsernameRequest{})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("code = %v", status.Code(err))
+	}
+}
+
 func TestVerifyToken(t *testing.T) {
 	manager, err := jwt.NewJWTManager(jwt.JWTConfig{
 		Secret:   strings.Repeat("a", 32),
@@ -134,7 +190,7 @@ func TestVerifyToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	client := newTestClient(t, nil, nil, manager)
+	client := newTestClient(t, nil, nil, authuc.NewUsecase(nil, manager))
 
 	resp, err := client.VerifyToken(context.Background(), &identitypb.VerifyTokenRequest{Token: token})
 	if err != nil {

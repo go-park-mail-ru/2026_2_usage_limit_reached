@@ -71,7 +71,7 @@ func Run(configPath string) error {
 		return fmt.Errorf("validator initialization error: %w", err)
 	}
 
-	identityHandler := identitygrpc.NewHandler(userUc, authorUc, tokens, appLogger)
+	identityHandler := identitygrpc.NewHandler(userUc, authorUc, authUc, appLogger)
 	grpcApp := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			interceptors.UnaryRecovery(appLogger),
@@ -95,10 +95,10 @@ func Run(configPath string) error {
 	)
 
 	public := router.NewRoute().Subrouter()
-	public.Use(middleware.OptionalAuthMiddleware(tokens), middleware.CSRFMiddleware(csrfManager))
+	public.Use(middleware.OptionalAuthMiddleware(authUc), middleware.CSRFMiddleware(csrfManager))
 
 	private := router.NewRoute().Subrouter()
-	private.Use(middleware.AuthMiddleware(tokens), middleware.CSRFMiddleware(csrfManager))
+	private.Use(middleware.AuthMiddleware(authUc), middleware.CSRFMiddleware(csrfManager))
 
 	httprouter.RegisterRoutes(public, private, httprouter.Handlers{
 		Auth:    identityhttp.NewAuthHandler(authUc, valid, appLogger),

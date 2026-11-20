@@ -2,22 +2,16 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/authn"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
-	"github.com/google/uuid"
-)
-
-var (
-	ErrAuthUnavailable = errors.New("auth service unavailable")
-	ErrInvalidToken    = errors.New("invalid token")
 )
 
 type TokenVerifier interface {
-	Verify(ctx context.Context, token string) (json.RawMessage, error)
+	VerifyToken(ctx context.Context, token string) (*authn.User, error)
 }
 
 type ctxKey struct{}
@@ -31,9 +25,9 @@ func AuthMiddleware(verifier TokenVerifier) func(http.Handler) http.Handler {
 				return
 			}
 
-			raw, err := verifier.Verify(r.Context(), cookie.Value)
+			user, err := verifier.VerifyToken(r.Context(), cookie.Value)
 			if err != nil {
-				if errors.Is(err, ErrAuthUnavailable) {
+				if errors.Is(err, authn.ErrUnavailable) {
 					response.ErrorServiceUnavailable(w)
 					return
 				}
@@ -42,13 +36,12 @@ func AuthMiddleware(verifier TokenVerifier) func(http.Handler) http.Handler {
 				return
 			}
 
-			var payload jwt.UserPayload
-			if err := json.Unmarshal(raw, &payload); err != nil || payload.UserID == uuid.Nil {
+			if user == nil {
 				response.ErrorUnauthorized(w)
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), ctxKey{}, &payload)
+			ctx := context.WithValue(r.Context(), ctxKey{}, user)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -63,25 +56,19 @@ func OptionalAuthMiddleware(verifier TokenVerifier) func(http.Handler) http.Hand
 				return
 			}
 
-			raw, err := verifier.Verify(r.Context(), cookie.Value)
-			if err != nil {
+			user, err := verifier.VerifyToken(r.Context(), cookie.Value)
+			if err != nil || user == nil {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			var payload jwt.UserPayload
-			if err := json.Unmarshal(raw, &payload); err != nil || payload.UserID == uuid.Nil {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			ctx := context.WithValue(r.Context(), ctxKey{}, &payload)
+			ctx := context.WithValue(r.Context(), ctxKey{}, user)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
-func UserInfoFromContext(ctx context.Context) (*jwt.UserPayload, bool) {
-	user, ok := ctx.Value(ctxKey{}).(*jwt.UserPayload)
+func UserInfoFromContext(ctx context.Context) (*authn.User, bool) {
+	user, ok := ctx.Value(ctxKey{}).(*authn.User)
 	return user, ok
 }

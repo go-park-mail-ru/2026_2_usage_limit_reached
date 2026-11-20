@@ -5,6 +5,7 @@
 package mock_auth_usecase
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -153,6 +154,68 @@ func (_c *MockTokenManager_TTL_Call) Return(duration time.Duration) *MockTokenMa
 }
 
 func (_c *MockTokenManager_TTL_Call) RunAndReturn(run func() time.Duration) *MockTokenManager_TTL_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Verify provides a mock function for the type MockTokenManager
+func (_mock *MockTokenManager) Verify(token string) (json.RawMessage, error) {
+	ret := _mock.Called(token)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Verify")
+	}
+
+	var r0 json.RawMessage
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(string) (json.RawMessage, error)); ok {
+		return returnFunc(token)
+	}
+	if returnFunc, ok := ret.Get(0).(func(string) json.RawMessage); ok {
+		r0 = returnFunc(token)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(json.RawMessage)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
+		r1 = returnFunc(token)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockTokenManager_Verify_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Verify'
+type MockTokenManager_Verify_Call struct {
+	*mock.Call
+}
+
+// Verify is a helper method to define mock.On call
+//   - token string
+func (_e *MockTokenManager_Expecter) Verify(token any) *MockTokenManager_Verify_Call {
+	return &MockTokenManager_Verify_Call{Call: _e.mock.On("Verify", token)}
+}
+
+func (_c *MockTokenManager_Verify_Call) Run(run func(token string)) *MockTokenManager_Verify_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MockTokenManager_Verify_Call) Return(rawMessage json.RawMessage, err error) *MockTokenManager_Verify_Call {
+	_c.Call.Return(rawMessage, err)
+	return _c
+}
+
+func (_c *MockTokenManager_Verify_Call) RunAndReturn(run func(token string) (json.RawMessage, error)) *MockTokenManager_Verify_Call {
 	_c.Call.Return(run)
 	return _c
 }

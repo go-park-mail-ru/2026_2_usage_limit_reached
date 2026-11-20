@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	IdentityService_GetUsers_FullMethodName    = "/identity.v1.IdentityService/GetUsers"
-	IdentityService_GetAuthors_FullMethodName  = "/identity.v1.IdentityService/GetAuthors"
-	IdentityService_VerifyToken_FullMethodName = "/identity.v1.IdentityService/VerifyToken"
+	IdentityService_GetUsers_FullMethodName          = "/identity.v1.IdentityService/GetUsers"
+	IdentityService_GetAuthors_FullMethodName        = "/identity.v1.IdentityService/GetAuthors"
+	IdentityService_GetUserByUsername_FullMethodName = "/identity.v1.IdentityService/GetUserByUsername"
+	IdentityService_VerifyToken_FullMethodName       = "/identity.v1.IdentityService/VerifyToken"
 )
 
 // IdentityServiceClient is the client API for IdentityService service.
@@ -30,6 +31,7 @@ const (
 type IdentityServiceClient interface {
 	GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (*GetUsersResponse, error)
 	GetAuthors(ctx context.Context, in *GetAuthorsRequest, opts ...grpc.CallOption) (*GetAuthorsResponse, error)
+	GetUserByUsername(ctx context.Context, in *GetUserByUsernameRequest, opts ...grpc.CallOption) (*UserInfo, error)
 	VerifyToken(ctx context.Context, in *VerifyTokenRequest, opts ...grpc.CallOption) (*VerifyTokenResponse, error)
 }
 
@@ -61,6 +63,16 @@ func (c *identityServiceClient) GetAuthors(ctx context.Context, in *GetAuthorsRe
 	return out, nil
 }
 
+func (c *identityServiceClient) GetUserByUsername(ctx context.Context, in *GetUserByUsernameRequest, opts ...grpc.CallOption) (*UserInfo, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UserInfo)
+	err := c.cc.Invoke(ctx, IdentityService_GetUserByUsername_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *identityServiceClient) VerifyToken(ctx context.Context, in *VerifyTokenRequest, opts ...grpc.CallOption) (*VerifyTokenResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(VerifyTokenResponse)
@@ -77,6 +89,7 @@ func (c *identityServiceClient) VerifyToken(ctx context.Context, in *VerifyToken
 type IdentityServiceServer interface {
 	GetUsers(context.Context, *GetUsersRequest) (*GetUsersResponse, error)
 	GetAuthors(context.Context, *GetAuthorsRequest) (*GetAuthorsResponse, error)
+	GetUserByUsername(context.Context, *GetUserByUsernameRequest) (*UserInfo, error)
 	VerifyToken(context.Context, *VerifyTokenRequest) (*VerifyTokenResponse, error)
 	mustEmbedUnimplementedIdentityServiceServer()
 }
@@ -93,6 +106,9 @@ func (UnimplementedIdentityServiceServer) GetUsers(context.Context, *GetUsersReq
 }
 func (UnimplementedIdentityServiceServer) GetAuthors(context.Context, *GetAuthorsRequest) (*GetAuthorsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAuthors not implemented")
+}
+func (UnimplementedIdentityServiceServer) GetUserByUsername(context.Context, *GetUserByUsernameRequest) (*UserInfo, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetUserByUsername not implemented")
 }
 func (UnimplementedIdentityServiceServer) VerifyToken(context.Context, *VerifyTokenRequest) (*VerifyTokenResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method VerifyToken not implemented")
@@ -154,6 +170,24 @@ func _IdentityService_GetAuthors_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IdentityService_GetUserByUsername_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserByUsernameRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IdentityServiceServer).GetUserByUsername(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IdentityService_GetUserByUsername_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IdentityServiceServer).GetUserByUsername(ctx, req.(*GetUserByUsernameRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _IdentityService_VerifyToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(VerifyTokenRequest)
 	if err := dec(in); err != nil {
@@ -186,6 +220,10 @@ var IdentityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAuthors",
 			Handler:    _IdentityService_GetAuthors_Handler,
+		},
+		{
+			MethodName: "GetUserByUsername",
+			Handler:    _IdentityService_GetUserByUsername_Handler,
 		},
 		{
 			MethodName: "VerifyToken",

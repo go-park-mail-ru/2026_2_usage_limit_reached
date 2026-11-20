@@ -2,15 +2,13 @@ package identityclient
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	identitycontracts "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/contracts/identity"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/authn"
 	identitypb "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/identity/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -18,7 +16,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var ErrUnavailable = errors.New("identity service unavailable")
+var (
+	ErrUnavailable  = errors.New("identity service unavailable")
+	ErrUserNotFound = errors.New("user not found")
+)
 
 type Config struct {
 	Address string        `mapstructure:"address"`
@@ -54,7 +55,7 @@ func New(conn grpc.ClientConnInterface, timeout time.Duration) *Client {
 	return &Client{client: identitypb.NewIdentityServiceClient(conn), timeout: timeout}
 }
 
-func (c *Client) Verify(ctx context.Context, token string) (json.RawMessage, error) {
+func (c *Client) VerifyToken(ctx context.Context, token string) (*authn.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
@@ -62,32 +63,63 @@ func (c *Client) Verify(ctx context.Context, token string) (json.RawMessage, err
 	if err != nil {
 		switch status.Code(err) {
 		case codes.Unauthenticated, codes.InvalidArgument:
-			return nil, middleware.ErrInvalidToken
+			return nil, fmt.Errorf("%w: %w", authn.ErrInvalidToken, err)
 		default:
-			return nil, fmt.Errorf("%w: %w", middleware.ErrAuthUnavailable, err)
+			return nil, fmt.Errorf("%w: %w", authn.ErrUnavailable, err)
 		}
 	}
 
 	userID, err := uuid.Parse(resp.GetUserId())
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid user id: %w", middleware.ErrAuthUnavailable, err)
+		return nil, fmt.Errorf("%w: invalid user id: %w", authn.ErrUnavailable, err)
 	}
 
-	raw, err := json.Marshal(jwt.UserPayload{UserID: userID, Role: resp.GetRole()})
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", middleware.ErrAuthUnavailable, err)
-	}
-
-	return raw, nil
+	return &authn.User{ID: userID, Role: resp.GetRole()}, nil
 }
 
-func (c *Client) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]identitycontracts.UserInfo, error) {
+func (c *Client) GetUserByUsername(ctx context.Context, username string) (*identitycontracts.UserInfo, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	resp, err := c.client.GetUserByUsername(ctx, &identitypb.GetUserByUsernameRequest{Username: username})
+	if err != nil {
+		switch status.Code(err) {
+		case codes.NotFound:
+			return nil, ErrUserNotFound
+		case codes.InvalidArgument:
+			return nil, fmt.Errorf("identity client: invalid username: %w", err)
+		default:
+			return nil, fmt.Errorf("%w: %w", authn.ErrUnavailable, err)
+		}
+	}
+
+	userID, err := uuid.Parse(resp.GetId())
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid user id: %w", authn.ErrUnavailable, err)
+	}
+
+	info := &identitycontracts.UserInfo{
+		ID:        userID,
+		Username:  resp.GetUsername(),
+		Nickname:  resp.GetNickname(),
+		AvatarURL: resp.GetAvatarUrl(),
+		Status:    resp.GetStatus(),
+	}
+	if created := resp.GetCreatedAt(); created != nil {
+		c := created.AsTime()
+		info.CreatedAt = &c
+	}
+
+	return info, nil
+}
+
+func (c *Client) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*identitycontracts.UserInfo, error) {
 	requestIDs, err := toProtoIDs(ids)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[uuid.UUID]identitycontracts.UserInfo, len(requestIDs))
+	result := make(map[uuid.UUID]*identitycontracts.UserInfo, len(requestIDs))
 	if len(requestIDs) == 0 {
 		return result, nil
 	}
@@ -123,7 +155,7 @@ func (c *Client) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]i
 			createdAt = &t
 		}
 
-		result[id] = identitycontracts.UserInfo{
+		result[id] = &identitycontracts.UserInfo{
 			ID:        id,
 			Username:  user.GetUsername(),
 			Nickname:  user.GetNickname(),
@@ -136,13 +168,13 @@ func (c *Client) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]i
 	return result, nil
 }
 
-func (c *Client) GetAuthors(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]identitycontracts.AuthorInfo, error) {
+func (c *Client) GetAuthors(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*identitycontracts.AuthorInfo, error) {
 	requestIDs, err := toProtoIDs(ids)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[uuid.UUID]identitycontracts.AuthorInfo, len(requestIDs))
+	result := make(map[uuid.UUID]*identitycontracts.AuthorInfo, len(requestIDs))
 	if len(requestIDs) == 0 {
 		return result, nil
 	}
@@ -174,7 +206,7 @@ func (c *Client) GetAuthors(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID
 			category = &value
 		}
 
-		result[id] = identitycontracts.AuthorInfo{
+		result[id] = &identitycontracts.AuthorInfo{
 			ID:       id,
 			Bio:      author.GetBio(),
 			Category: category,
@@ -182,10 +214,6 @@ func (c *Client) GetAuthors(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID
 	}
 
 	return result, nil
-}
-
-func (c *Client) GetUserByUsername(ctx context.Context, username string) (identitycontracts.UserInfo, error) {
-	return identitycontracts.UserInfo{}, nil
 }
 
 func toProtoIDs(ids []uuid.UUID) ([]string, error) {

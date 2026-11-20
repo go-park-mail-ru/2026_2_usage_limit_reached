@@ -353,7 +353,7 @@ func TestPostUsecase_GetPost(t *testing.T) {
 			if tt.repoErr == nil {
 				identity.EXPECT().
 					GetUsers(mock.Anything, []uuid.UUID{postAuthorID}).
-					Return(map[uuid.UUID]identitycontracts.UserInfo{
+					Return(map[uuid.UUID]*identitycontracts.UserInfo{
 						postAuthorID: identityUser(postAuthorID),
 					}, nil).
 					Once()
@@ -396,7 +396,7 @@ func TestPostUsecase_GetUserPosts_UnknownUsername(t *testing.T) {
 
 			identity.EXPECT().
 				GetUserByUsername(mock.Anything, authorUsername).
-				Return(identitycontracts.UserInfo{}, identitycontracts.ErrUserNotFound).
+				Return(&identitycontracts.UserInfo{}, identitycontracts.ErrUserNotFound).
 				Once()
 
 			uc := newTestUsecase(repo, identity)

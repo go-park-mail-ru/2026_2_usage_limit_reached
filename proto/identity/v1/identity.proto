@@ -9,6 +9,7 @@ option go_package = "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/p
 service IdentityService {
   rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
   rpc GetAuthors(GetAuthorsRequest) returns (GetAuthorsResponse);
+  rpc GetUserByUsername(GetUserByUsernameRequest) returns (UserInfo);
   rpc VerifyToken(VerifyTokenRequest) returns (VerifyTokenResponse);
 }
 
@@ -26,6 +27,10 @@ message GetAuthorsRequest {
 
 message GetAuthorsResponse {
   repeated Author authors = 1;
+}
+
+message GetUserByUsernameRequest {
+  string username = 1;
 }
 
 message VerifyTokenRequest {

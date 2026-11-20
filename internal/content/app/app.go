@@ -15,7 +15,6 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
@@ -33,11 +32,6 @@ func Run(configPath string) error {
 	}
 
 	appLogger := logger.New(cfg.Log)
-
-	tokens, err := jwt.NewJWTManager(cfg.JWT)
-	if err != nil {
-		return fmt.Errorf("token manager initialization error: %w", err)
-	}
 
 	valid, err := validator.NewValidator(cfg.Validation)
 	if err != nil {
@@ -75,10 +69,10 @@ func Run(configPath string) error {
 	)
 
 	public := router.NewRoute().Subrouter()
-	public.Use(middleware.OptionalAuthMiddleware(tokens), middleware.CSRFMiddleware(csrfManager))
+	public.Use(middleware.OptionalAuthMiddleware(identityClient), middleware.CSRFMiddleware(csrfManager))
 
 	private := router.NewRoute().Subrouter()
-	private.Use(middleware.AuthMiddleware(tokens), middleware.CSRFMiddleware(csrfManager))
+	private.Use(middleware.AuthMiddleware(identityClient), middleware.CSRFMiddleware(csrfManager))
 
 	httprouter.RegisterRoutes(public, private, httprouter.Handlers{
 		Post: posthandlers.NewPostHandler(postUc, valid, appLogger),

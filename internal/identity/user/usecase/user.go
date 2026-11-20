@@ -71,6 +71,19 @@ func (uc *Usecase) FindUserByID(ctx context.Context, userID uuid.UUID) (*dto.Use
 	return dto.ToUserInfo(user, mediaurl.PublicPtr(uc.avatarBasePath, user.AvatarKey)), nil
 }
 
+func (uc *Usecase) FindUserByUsername(ctx context.Context, username string) (*dto.UserInfo, error) {
+	user, err := uc.repo.GetUserByUsername(ctx, normalizeLogin(username))
+	if err != nil {
+		if errors.Is(err, models.ErrUserNotFound) {
+			return nil, fmt.Errorf("find user by username: %w", ErrUserNotFound)
+		}
+
+		return nil, fmt.Errorf("find user by username: %w", err)
+	}
+
+	return dto.ToUserInfo(user, mediaurl.PublicPtr(uc.avatarBasePath, user.AvatarKey)), nil
+}
+
 func (uc *Usecase) FindUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]*dto.UserInfo, error) {
 	if len(ids) == 0 {
 		return []*dto.UserInfo{}, nil

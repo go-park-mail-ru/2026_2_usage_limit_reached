@@ -60,8 +60,8 @@ func popularNext(p *dto.PostPreview) any {
 	return &dto.PopularPostsCursor{Likes: p.LikesCount, PublishedAt: *p.PublishedOrUpdatedAt, PostID: p.ID}
 }
 
-func identityUser(id uuid.UUID) identitycontracts.UserInfo {
-	return identitycontracts.UserInfo{
+func identityUser(id uuid.UUID) *identitycontracts.UserInfo {
+	return &identitycontracts.UserInfo{
 		ID:       id,
 		Username: authorUsername,
 		Nickname: "Иван",
@@ -81,7 +81,7 @@ func expectGetUsers(identity *mock_posts_usecase.MockIdentityClient, items []*dt
 	}
 
 	ids := make([]uuid.UUID, 0, len(items))
-	users := make(map[uuid.UUID]identitycontracts.UserInfo, len(items))
+	users := make(map[uuid.UUID]*identitycontracts.UserInfo, len(items))
 	seen := make(map[uuid.UUID]struct{}, len(items))
 
 	for _, item := range items {

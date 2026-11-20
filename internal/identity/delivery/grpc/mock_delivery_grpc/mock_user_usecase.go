@@ -48,6 +48,74 @@ func (_m *MockUserUsecase) EXPECT() *MockUserUsecase_Expecter {
 	return &MockUserUsecase_Expecter{mock: &_m.Mock}
 }
 
+// FindUserByUsername provides a mock function for the type MockUserUsecase
+func (_mock *MockUserUsecase) FindUserByUsername(ctx context.Context, username string) (*dto.UserInfo, error) {
+	ret := _mock.Called(ctx, username)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindUserByUsername")
+	}
+
+	var r0 *dto.UserInfo
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (*dto.UserInfo, error)); ok {
+		return returnFunc(ctx, username)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) *dto.UserInfo); ok {
+		r0 = returnFunc(ctx, username)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dto.UserInfo)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = returnFunc(ctx, username)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockUserUsecase_FindUserByUsername_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindUserByUsername'
+type MockUserUsecase_FindUserByUsername_Call struct {
+	*mock.Call
+}
+
+// FindUserByUsername is a helper method to define mock.On call
+//   - ctx context.Context
+//   - username string
+func (_e *MockUserUsecase_Expecter) FindUserByUsername(ctx any, username any) *MockUserUsecase_FindUserByUsername_Call {
+	return &MockUserUsecase_FindUserByUsername_Call{Call: _e.mock.On("FindUserByUsername", ctx, username)}
+}
+
+func (_c *MockUserUsecase_FindUserByUsername_Call) Run(run func(ctx context.Context, username string)) *MockUserUsecase_FindUserByUsername_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockUserUsecase_FindUserByUsername_Call) Return(userInfo *dto.UserInfo, err error) *MockUserUsecase_FindUserByUsername_Call {
+	_c.Call.Return(userInfo, err)
+	return _c
+}
+
+func (_c *MockUserUsecase_FindUserByUsername_Call) RunAndReturn(run func(ctx context.Context, username string) (*dto.UserInfo, error)) *MockUserUsecase_FindUserByUsername_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindUsersByIDs provides a mock function for the type MockUserUsecase
 func (_mock *MockUserUsecase) FindUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]*dto.UserInfo, error) {
 	ret := _mock.Called(ctx, ids)

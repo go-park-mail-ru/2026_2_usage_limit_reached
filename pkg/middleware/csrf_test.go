@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/authn"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
@@ -150,13 +151,12 @@ func TestCSRFMiddleware(t *testing.T) {
 }
 
 func TestCSRFMiddleware_BindingInput(t *testing.T) {
-	payload, err := json.Marshal(jwt.UserPayload{UserID: uuid.New(), Role: "user"})
-	require.NoError(t, err)
+	payload := &authn.User{ID: uuid.New(), Role: "user"}
 
-	validVerifier := &MockTokenVerifier{VerifyFunc: func(context.Context, string) (json.RawMessage, error) {
+	validVerifier := &MockTokenVerifier{VerifyFunc: func(context.Context, string) (*authn.User, error) {
 		return payload, nil
 	}}
-	invalidVerifier := &MockTokenVerifier{VerifyFunc: func(context.Context, string) (json.RawMessage, error) {
+	invalidVerifier := &MockTokenVerifier{VerifyFunc: func(context.Context, string) (*authn.User, error) {
 		return nil, errors.New("token verification failed")
 	}}
 

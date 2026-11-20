@@ -61,8 +61,8 @@ type PostRepository interface {
 }
 
 type IdentityClient interface {
-	GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]identitycontracts.UserInfo, error)
-	GetUserByUsername(ctx context.Context, username string) (identitycontracts.UserInfo, error)
+	GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*identitycontracts.UserInfo, error)
+	GetUserByUsername(ctx context.Context, username string) (*identitycontracts.UserInfo, error)
 }
 
 // Проверка тела поста после санитайзинга. Интерфейс определен здесь, чтобы usecase не зависел от пакета validator целиком

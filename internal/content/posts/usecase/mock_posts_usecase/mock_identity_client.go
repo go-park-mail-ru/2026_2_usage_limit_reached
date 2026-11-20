@@ -49,22 +49,24 @@ func (_m *MockIdentityClient) EXPECT() *MockIdentityClient_Expecter {
 }
 
 // GetUserByUsername provides a mock function for the type MockIdentityClient
-func (_mock *MockIdentityClient) GetUserByUsername(ctx context.Context, username string) (identity.UserInfo, error) {
+func (_mock *MockIdentityClient) GetUserByUsername(ctx context.Context, username string) (*identity.UserInfo, error) {
 	ret := _mock.Called(ctx, username)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetUserByUsername")
 	}
 
-	var r0 identity.UserInfo
+	var r0 *identity.UserInfo
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (identity.UserInfo, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (*identity.UserInfo, error)); ok {
 		return returnFunc(ctx, username)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) identity.UserInfo); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) *identity.UserInfo); ok {
 		r0 = returnFunc(ctx, username)
 	} else {
-		r0 = ret.Get(0).(identity.UserInfo)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*identity.UserInfo)
+		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
 		r1 = returnFunc(ctx, username)
@@ -104,34 +106,34 @@ func (_c *MockIdentityClient_GetUserByUsername_Call) Run(run func(ctx context.Co
 	return _c
 }
 
-func (_c *MockIdentityClient_GetUserByUsername_Call) Return(userInfo identity.UserInfo, err error) *MockIdentityClient_GetUserByUsername_Call {
+func (_c *MockIdentityClient_GetUserByUsername_Call) Return(userInfo *identity.UserInfo, err error) *MockIdentityClient_GetUserByUsername_Call {
 	_c.Call.Return(userInfo, err)
 	return _c
 }
 
-func (_c *MockIdentityClient_GetUserByUsername_Call) RunAndReturn(run func(ctx context.Context, username string) (identity.UserInfo, error)) *MockIdentityClient_GetUserByUsername_Call {
+func (_c *MockIdentityClient_GetUserByUsername_Call) RunAndReturn(run func(ctx context.Context, username string) (*identity.UserInfo, error)) *MockIdentityClient_GetUserByUsername_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetUsers provides a mock function for the type MockIdentityClient
-func (_mock *MockIdentityClient) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]identity.UserInfo, error) {
+func (_mock *MockIdentityClient) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*identity.UserInfo, error) {
 	ret := _mock.Called(ctx, ids)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetUsers")
 	}
 
-	var r0 map[uuid.UUID]identity.UserInfo
+	var r0 map[uuid.UUID]*identity.UserInfo
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) (map[uuid.UUID]identity.UserInfo, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) (map[uuid.UUID]*identity.UserInfo, error)); ok {
 		return returnFunc(ctx, ids)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) map[uuid.UUID]identity.UserInfo); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) map[uuid.UUID]*identity.UserInfo); ok {
 		r0 = returnFunc(ctx, ids)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(map[uuid.UUID]identity.UserInfo)
+			r0 = ret.Get(0).(map[uuid.UUID]*identity.UserInfo)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, []uuid.UUID) error); ok {
@@ -172,12 +174,12 @@ func (_c *MockIdentityClient_GetUsers_Call) Run(run func(ctx context.Context, id
 	return _c
 }
 
-func (_c *MockIdentityClient_GetUsers_Call) Return(uUIDToUserInfo map[uuid.UUID]identity.UserInfo, err error) *MockIdentityClient_GetUsers_Call {
+func (_c *MockIdentityClient_GetUsers_Call) Return(uUIDToUserInfo map[uuid.UUID]*identity.UserInfo, err error) *MockIdentityClient_GetUsers_Call {
 	_c.Call.Return(uUIDToUserInfo, err)
 	return _c
 }
 
-func (_c *MockIdentityClient_GetUsers_Call) RunAndReturn(run func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]identity.UserInfo, error)) *MockIdentityClient_GetUsers_Call {
+func (_c *MockIdentityClient_GetUsers_Call) RunAndReturn(run func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*identity.UserInfo, error)) *MockIdentityClient_GetUsers_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 )
 
@@ -72,47 +73,42 @@ func (s *Server) Run(ctx context.Context) error {
 		return fmt.Errorf("grpcserver: listen %s: %w", addr, err)
 	}
 
-	serveErr := make(chan error, 1)
-	go func() {
+	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
 		s.logger.Info("server starting", slog.String("addr", listener.Addr().String()))
 		if err := s.grpc.Serve(listener); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			s.logger.Error("server fatal error", slog.String("error", err.Error()))
-			serveErr <- err
-			return
+			return err
 		}
-		serveErr <- nil
-	}()
 
-	select {
-	case err := <-serveErr:
-		return err
-	case <-ctx.Done():
-	}
+		return nil
+	})
 
-	s.logger.Info("shutting down server gracefully")
+	g.Go(func() error {
+		<-ctx.Done()
+		s.logger.Info("shutting down server gracefully")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
-	defer cancel()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
+		defer cancel()
 
-	stopped := make(chan struct{})
-	go func() {
-		s.grpc.GracefulStop()
-		close(stopped)
-	}()
+		stopped := make(chan struct{})
+		go func() {
+			s.grpc.GracefulStop()
+			close(stopped)
+		}()
 
-	select {
-	case <-stopped:
-	case <-shutdownCtx.Done():
-		s.grpc.Stop()
-		s.logger.Error("server forced to shutdown", slog.String("error", shutdownCtx.Err().Error()))
-		return shutdownCtx.Err()
-	}
+		select {
+		case <-stopped:
+			s.logger.Info("server stopped gracefully")
+			return nil
+		case <-shutdownCtx.Done():
+			s.grpc.Stop()
+			s.logger.Error("server forced to shutdown", slog.String("error", shutdownCtx.Err().Error()))
 
-	if err := <-serveErr; err != nil {
-		s.logger.Error("server fatal error", slog.String("error", err.Error()))
-		return err
-	}
+			return fmt.Errorf("grpcserver: graceful shutdown timeout %s exceeded: %w", s.shutdownTimeout, shutdownCtx.Err())
+		}
+	})
 
-	s.logger.Info("server stopped gracefully")
-	return nil
+	return g.Wait()
 }

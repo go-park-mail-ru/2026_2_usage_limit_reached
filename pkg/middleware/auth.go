@@ -2,15 +2,16 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"net/http"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/authn"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 )
 
 type TokenVerifier interface {
-	Verify(tokenString string) (json.RawMessage, error)
+	VerifyToken(ctx context.Context, token string) (*authn.User, error)
 }
 
 type ctxKey struct{}
@@ -24,19 +25,23 @@ func AuthMiddleware(verifier TokenVerifier) func(http.Handler) http.Handler {
 				return
 			}
 
-			rawPayload, err := verifier.Verify(cookie.Value)
+			user, err := verifier.VerifyToken(r.Context(), cookie.Value)
 			if err != nil {
+				if errors.Is(err, authn.ErrUnavailable) {
+					response.ErrorServiceUnavailable(w)
+					return
+				}
+
 				response.ErrorUnauthorized(w)
 				return
 			}
 
-			var payload jwt.UserPayload
-			if err := json.Unmarshal(rawPayload, &payload); err != nil {
+			if user == nil {
 				response.ErrorUnauthorized(w)
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), ctxKey{}, &payload)
+			ctx := context.WithValue(r.Context(), ctxKey{}, user)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -45,20 +50,25 @@ func AuthMiddleware(verifier TokenVerifier) func(http.Handler) http.Handler {
 func OptionalAuthMiddleware(verifier TokenVerifier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if cookie, err := r.Cookie(jwt.CookieName); err == nil {
-				if rawPayload, err := verifier.Verify(cookie.Value); err == nil {
-					var payload jwt.UserPayload
-					if err := json.Unmarshal(rawPayload, &payload); err == nil {
-						r = r.WithContext(context.WithValue(r.Context(), ctxKey{}, &payload))
-					}
-				}
+			cookie, err := r.Cookie(jwt.CookieName)
+			if err != nil {
+				next.ServeHTTP(w, r)
+				return
 			}
-			next.ServeHTTP(w, r)
+
+			user, err := verifier.VerifyToken(r.Context(), cookie.Value)
+			if err != nil || user == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			ctx := context.WithValue(r.Context(), ctxKey{}, user)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
-func UserInfoFromContext(ctx context.Context) (*jwt.UserPayload, bool) {
-	user, ok := ctx.Value(ctxKey{}).(*jwt.UserPayload)
+func UserInfoFromContext(ctx context.Context) (*authn.User, bool) {
+	user, ok := ctx.Value(ctxKey{}).(*authn.User)
 	return user, ok
 }

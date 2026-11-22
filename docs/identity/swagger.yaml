@@ -1,0 +1,549 @@
+components:
+  schemas:
+    dto.AvatarResponse:
+      properties:
+        avatar_url:
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          type: string
+      type: object
+    dto.LoginRequest:
+      properties:
+        login:
+          example: username123
+          type: string
+        password:
+          example: secret_password_123
+          type: string
+      type: object
+    dto.ProfileResponse:
+      properties:
+        user:
+          $ref: '#/components/schemas/dto.ProfileUserResponse'
+      type: object
+    dto.ProfileUserResponse:
+      properties:
+        avatar_url:
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          type: string
+        created_at:
+          example: "2026-08-01T12:00:00Z"
+          type: string
+        email:
+          example: user@example.com
+          type: string
+        id:
+          example: 00000000-0000-4000-8000-000000000001
+          type: string
+        nickname:
+          example: nickname_123
+          type: string
+        username:
+          example: username123
+          type: string
+      type: object
+    dto.PublicProfileResponse:
+      properties:
+        user:
+          $ref: '#/components/schemas/dto.PublicProfileUserResponse'
+      type: object
+    dto.PublicProfileUserResponse:
+      properties:
+        avatar_url:
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          type: string
+        created_at:
+          example: "2026-08-01T12:00:00Z"
+          type: string
+        id:
+          example: 00000000-0000-4000-8000-000000000001
+          type: string
+        nickname:
+          example: nickname_123
+          type: string
+        username:
+          example: username123
+          type: string
+      type: object
+    dto.RegistrationRequest:
+      properties:
+        email:
+          example: user@example.com
+          type: string
+        nickname:
+          example: nickname_123
+          type: string
+        password:
+          example: secret_password_123
+          type: string
+        username:
+          example: username123
+          type: string
+      type: object
+    dto.UpdateProfileRequest:
+      properties:
+        nickname:
+          example: nickname_123
+          type: string
+      type: object
+    dto.UserResponse:
+      properties:
+        avatar_url:
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          type: string
+        nickname:
+          example: nickname_123
+          type: string
+        username:
+          example: username123
+          type: string
+      type: object
+    handlers.CSRFTokenResponse:
+      properties:
+        csrf_token:
+          example: q3VtX2Jhc2U2NHVybF9zYWx0X2FuZF9obWFjX3NpZ25hdHVyZV9leGFtcGxlXzAx
+          type: string
+      type: object
+    response.ErrorResponse:
+      properties:
+        error:
+          type: string
+      type: object
+  securitySchemes:
+    CookieAuth:
+      in: cookie
+      name: __Host-token
+      type: apiKey
+externalDocs:
+  description: ""
+  url: ""
+info:
+  description: Аутентификация, профили и данные пользователей.
+  title: Patreon Clone Identity API
+  version: "1.0"
+openapi: 3.1.0
+paths:
+  /csrf:
+    get:
+      description: Возвращает токен для заголовка X-CSRF-Token. Доступен до и после
+        входа
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.CSRFTokenResponse'
+          description: Токен выдан
+          headers:
+            Set-Cookie:
+              description: __Host-csrf=CSRF_CONTEXT; Path=/; Secure; HttpOnly; SameSite=Lax
+              schema:
+                type: string
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Получение CSRF-токена
+      tags:
+      - auth
+  /login:
+    post:
+      description: Принимает учетные данные и выпускает JWT
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.LoginRequest'
+              description: Учетные данные пользователя
+              summary: request
+        description: Учетные данные пользователя
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.UserResponse'
+          description: Успешная аутентификация
+          headers:
+            Set-Cookie:
+              description: __Host-token=JWT_TOKEN; Path=/; Secure; HttpOnly; SameSite=Lax
+              schema:
+                type: string
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный логин или пароль
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный CSRF-токен или его отсутствие
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Аутентификация пользователя
+      tags:
+      - auth
+  /logout:
+    post:
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Успешный выход из системы
+          headers:
+            Set-Cookie:
+              description: __Host-token=; Path=/; Secure; Max-Age=-1
+              schema:
+                type: string
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный CSRF-токен или его отсутствие
+      security:
+      - CookieAuth: []
+      summary: Деавторизация пользователя
+      tags:
+      - auth
+  /profile/me:
+    get:
+      description: Возвращает данные пользователя. Блок author есть только у автора
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.ProfileResponse'
+          description: Профиль пользователя
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь заблокирован или удалён
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Получение профиля текущего пользователя
+      tags:
+      - profile
+    put:
+      description: Сохраняет nickname и, если передан блок author, bio и category
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.UpdateProfileRequest'
+              description: Новые данные профиля
+              summary: request
+        description: Новые данные профиля
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.ProfileResponse'
+          description: Профиль изменен
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Недостаточно прав или неверный CSRF-токен
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Изменение профиля текущего пользователя
+      tags:
+      - profile
+  /profile/me/avatar:
+    delete:
+      description: Удаляет текущий аватар. Если аватара нет, тоже возвращает 204
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Аватар удален
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный CSRF-токен или его отсутствие
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Удаление аватара текущего пользователя
+      tags:
+      - profile
+    put:
+      description: Принимает изображение jpeg, png или webp до 5 МБ в поле avatar
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                avatar:
+                  description: Изображение аватара
+                  format: binary
+                  type: string
+              required:
+              - avatar
+              type: object
+        description: Изображение аватара
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.AvatarResponse'
+          description: Аватар загружен
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Запрос не multipart/form-data или в нем нет файла
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный CSRF-токен или его отсутствие
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Файл больше 5 МБ
+        "415":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неподдерживаемый формат изображения
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Загрузка аватара текущего пользователя
+      tags:
+      - profile
+  /signup:
+    post:
+      description: Принимает регистрационные данные и создает новый аккаунт
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.RegistrationRequest'
+              description: Данные нового пользователя
+              summary: request
+        description: Данные нового пользователя
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.UserResponse'
+          description: Пользователь успешно зарегистрирован
+          headers:
+            Set-Cookie:
+              description: __Host-token=JWT_TOKEN; Path=/; Secure; HttpOnly; SameSite=Lax
+              schema:
+                type: string
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный CSRF-токен или его отсутствие
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь уже существует
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Регистрация пользователя
+      tags:
+      - auth
+  /users/{username}:
+    get:
+      description: Возвращает публичные данные пользователя без email
+      parameters:
+      - description: Username пользователя
+        in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.PublicProfileResponse'
+          description: Публичный профиль пользователя
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Получение публичного профиля пользователя
+      tags:
+      - profile

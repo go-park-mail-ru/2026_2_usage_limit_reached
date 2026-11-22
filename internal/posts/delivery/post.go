@@ -524,7 +524,7 @@ func (h *PostHandler) getUserIDFromContext(ctx context.Context) *uuid.UUID {
 	if user == nil {
 		return nil
 	}
-	id := user.UserID
+	id := user.ID
 	return &id
 }
 

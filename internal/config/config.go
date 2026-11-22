@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
@@ -27,11 +28,36 @@ type Config struct {
 	JWT        jwt.JWTConfig              `mapstructure:"jwt"`
 	CSRF       csrf.CSRFConfig            `mapstructure:"csrf"`
 	CORS       middleware.CORSConfig      `mapstructure:"cors"`
+	Identity   identityclient.Config      `mapstructure:"identity"`
 	Validation validator.ValidationConfig `mapstructure:"validation"`
 	Sanitizer  sanitizer.SanitizerConfig  `mapstructure:"sanitizer"`
 }
 
 func Load(path string) (*Config, error) {
+	cfg, err := load(path)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := errors.Join(
+		cfg.Postgres.Validate(),
+		cfg.S3.Validate(),
+		cfg.Log.Validate(),
+		cfg.HTTP.Validate(),
+		cfg.JWT.Validate(),
+		cfg.CSRF.Validate(),
+		cfg.CORS.Validate(),
+		cfg.Identity.Validate(),
+		cfg.Validation.Validate(),
+		cfg.Sanitizer.Validate(),
+	); err != nil {
+		return nil, fmt.Errorf("validate config: %w", err)
+	}
+
+	return cfg, nil
+}
+
+func load(path string) (*Config, error) {
 	v := viper.NewWithOptions(viper.ExperimentalBindStruct())
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
@@ -49,25 +75,12 @@ func Load(path string) (*Config, error) {
 		JWT:        jwt.DefaultConfig(),
 		CSRF:       csrf.DefaultConfig(),
 		CORS:       middleware.DefaultCORSConfig(),
+		Identity:   identityclient.DefaultConfig(),
 		Validation: validator.DefaultConfig(),
 		Sanitizer:  sanitizer.DefaultConfig(),
 	}
 	if err := v.UnmarshalExact(&cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
-	}
-
-	if err := errors.Join(
-		cfg.Postgres.Validate(),
-		cfg.S3.Validate(),
-		cfg.Log.Validate(),
-		cfg.HTTP.Validate(),
-		cfg.JWT.Validate(),
-		cfg.CSRF.Validate(),
-		cfg.CORS.Validate(),
-		cfg.Validation.Validate(),
-		cfg.Sanitizer.Validate(),
-	); err != nil {
-		return nil, fmt.Errorf("validate config: %w", err)
 	}
 
 	return &cfg, nil

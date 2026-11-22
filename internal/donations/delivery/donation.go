@@ -67,7 +67,7 @@ func (h *DonationHandler) SendDonation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	donation, err := h.uc.Donate(ctx, user.UserID, donationReq)
+	donation, err := h.uc.Donate(ctx, user.ID, donationReq)
 	if err != nil {
 		h.handleError(ctx, w, "send donation", "donate error", err)
 		return
@@ -98,7 +98,7 @@ func (h *DonationHandler) GetMySentDonations(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	resp, err := h.getMyDonations(ctx, query, user.UserID, h.uc.GetSentDonations)
+	resp, err := h.getMyDonations(ctx, query, user.ID, h.uc.GetSentDonations)
 	if err != nil {
 		h.handleError(ctx, w, "get my sent donations", "", err)
 		return
@@ -129,7 +129,7 @@ func (h *DonationHandler) GetMyReceivedDonations(w http.ResponseWriter, r *http.
 		return
 	}
 
-	resp, err := h.getMyDonations(ctx, query, user.UserID, h.uc.GetReceivedDonations)
+	resp, err := h.getMyDonations(ctx, query, user.ID, h.uc.GetReceivedDonations)
 	if err != nil {
 		h.handleError(ctx, w, "get my received donations", "", err)
 		return

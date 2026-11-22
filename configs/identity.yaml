@@ -1,0 +1,41 @@
+identity:
+  http:
+    port: "8081"
+    read_header_timeout: 5s
+    shutdown_timeout: 5s
+  grpc:
+    port: "50051"
+    shutdown_timeout: 5s
+
+postgres:
+  host: 127.0.0.1
+  port: 5432
+  user: patreon
+  password: database_password
+  db: patreon
+  sslmode: disable
+  min_conns: 0
+  max_conns: 10
+  max_conn_lifetime: 1h
+  max_conn_idle_time: 30m
+
+s3:
+  endpoint: http://127.0.0.1:8333
+  access_key: s3_access_key
+  secret_key: s3_secret_key
+  bucket: media
+  public_path: /media
+
+log:
+  level: debug
+  format: text
+
+jwt:
+  secret: dev-secret-string-with-at-least-32-symbols
+
+csrf:
+  secret: dev-csrf-secret-string-with-at-least-32-symbols
+
+cors:
+  allowed_origins:
+    - http://localhost:3000

@@ -9,7 +9,6 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/grpcserver"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
@@ -33,8 +32,6 @@ type ServiceConfig struct {
 }
 
 func DefaultConfig() Config {
-	httpCfg := httpserver.DefaultConfig()
-	httpCfg.Port = "8083"
 
 	return Config{
 		Payment:    ServiceConfig{GRPC: grpcserver.DefaultConfig()},

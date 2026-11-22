@@ -7,8 +7,12 @@ payment:
     port: "50052"
     shutdown_timeout: 5s
 
+identity:
+  address: identity:50051
+  timeout: 1s
+
 postgres:
-  host: 127.0.0.1
+  host: db
   port: 5432
   user: patreon
   password: database_password

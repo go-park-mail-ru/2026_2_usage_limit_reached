@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/dto"
 	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
@@ -18,6 +19,8 @@ const (
 	reasonDuplicatePayment = "duplicate_payment"
 	reasonOrderCanceled    = "order_canceled"
 	reasonAmountMismatch   = "amount_mismatch"
+
+	defaultPaymentProvider = "mock"
 )
 
 type PaymentRepository struct {
@@ -29,12 +32,250 @@ func NewPaymentRepository(db *postgres.DBClient, logger *slog.Logger) *PaymentRe
 	return &PaymentRepository{pool: db.Pool, logger: logger}
 }
 
+func (r *PaymentRepository) CreateOrGetOrderWithAttempt(ctx context.Context, req dto.CreatePayment) (uuid.UUID, uuid.UUID, error) {
+	r.logger.DebugContext(ctx, "executing transaction",
+		slog.String("op", "create or get payment order"),
+		slog.String("payerID", req.PayerID.String()),
+		slog.String("requestKey", req.RequestKey),
+		slog.String("purpose", req.Purpose),
+	)
+
+	var (
+		orderID   uuid.UUID
+		attemptID uuid.UUID
+	)
+
+	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
+		const insertOrder = `
+			INSERT INTO payment.payment_order (
+				payer_id,
+				request_key,
+				purpose,
+				origin,
+				expected_amount_minor,
+				currency,
+				status,
+				expires_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)
+			ON CONFLICT (request_key) DO NOTHING
+			RETURNING id
+		`
+
+		err := tx.QueryRow(
+			ctx,
+			insertOrder,
+			req.PayerID,
+			req.RequestKey,
+			req.Purpose,
+			req.Origin,
+			req.AmountMinor,
+			req.Currency,
+			req.ExpiresAt,
+		).Scan(&orderID)
+
+		switch {
+		case err == nil:
+			attemptID, err = createInitialAttempt(ctx, tx, orderID)
+			return err
+		case errors.Is(err, pgx.ErrNoRows):
+			orderID, attemptID, err = getExistingOrderWithAttempt(ctx, tx, req)
+			return err
+		default:
+			parsedErr := postgres.ParseError(err)
+			if errors.Is(parsedErr, postgres.ErrFKViolation) ||
+				errors.Is(parsedErr, postgres.ErrCheckViolation) ||
+				errors.Is(parsedErr, postgres.ErrUniqViolation) {
+				return models.ErrPaymentOrderValidation
+			}
+
+			return fmt.Errorf("insert payment order: %w", err)
+		}
+	})
+
+	if err != nil {
+		parsedErr := postgres.ParseError(err)
+		if errors.Is(parsedErr, postgres.ErrFKViolation) ||
+			errors.Is(parsedErr, postgres.ErrCheckViolation) ||
+			errors.Is(parsedErr, postgres.ErrUniqViolation) {
+			return uuid.Nil, uuid.Nil, models.ErrPaymentOrderValidation
+		}
+
+		return uuid.Nil, uuid.Nil, fmt.Errorf("create payment transaction: %w", err)
+	}
+
+	return orderID, attemptID, nil
+}
+
+func createInitialAttempt(ctx context.Context, tx pgx.Tx, orderID uuid.UUID) (uuid.UUID, error) {
+	const query = `
+		INSERT INTO payment.payment_attempt (payment_order_id, provider, status)
+		VALUES ($1, $2, 'created')
+		RETURNING id
+	`
+
+	var attemptID uuid.UUID
+	err := tx.QueryRow(ctx, query, orderID, defaultPaymentProvider).Scan(&attemptID)
+	if err != nil {
+		parsedErr := postgres.ParseError(err)
+		if errors.Is(parsedErr, postgres.ErrFKViolation) ||
+			errors.Is(parsedErr, postgres.ErrCheckViolation) ||
+			errors.Is(parsedErr, postgres.ErrUniqViolation) {
+			return uuid.Nil, models.ErrPaymentAttemptValidation
+		}
+
+		return uuid.Nil, fmt.Errorf("create initial payment attempt: %w", err)
+	}
+
+	return attemptID, nil
+}
+
+func getExistingOrderWithAttempt(ctx context.Context, tx pgx.Tx, req dto.CreatePayment) (uuid.UUID, uuid.UUID, error) {
+	const getOrder = `
+		SELECT
+			id,
+			payer_id,
+			purpose,
+			origin,
+			expected_amount_minor,
+			currency,
+			expires_at
+		FROM payment.payment_order
+		WHERE request_key = $1
+		FOR UPDATE
+	`
+
+	existing := &models.PaymentOrder{}
+	err := tx.QueryRow(ctx, getOrder, req.RequestKey).Scan(
+		&existing.ID,
+		&existing.PayerID,
+		&existing.Purpose,
+		&existing.Origin,
+		&existing.ExpectedAmountMinor,
+		&existing.Currency,
+		&existing.ExpiresAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, uuid.Nil, models.ErrPaymentOrderNotFound
+		}
+		return uuid.Nil, uuid.Nil, fmt.Errorf("get existing payment order: %w", err)
+	}
+
+	if existing.PayerID != req.PayerID ||
+		string(existing.Purpose) != req.Purpose ||
+		string(existing.Origin) != req.Origin ||
+		existing.ExpectedAmountMinor != req.AmountMinor ||
+		existing.Currency != req.Currency ||
+		!equalOptionalTime(existing.ExpiresAt, req.ExpiresAt) {
+		return uuid.Nil, uuid.Nil, models.ErrPaymentOrderValidation
+	}
+
+	const getLatestAttempt = `
+		SELECT id
+		FROM payment.payment_attempt
+		WHERE payment_order_id = $1
+		ORDER BY created_at DESC, id DESC
+		LIMIT 1
+	`
+
+	var attemptID uuid.UUID
+	err = tx.QueryRow(ctx, getLatestAttempt, existing.ID).Scan(&attemptID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, uuid.Nil, models.ErrPaymentAttemptNotFound
+		}
+		return uuid.Nil, uuid.Nil, fmt.Errorf("get latest payment attempt: %w", err)
+	}
+
+	return existing.ID, attemptID, nil
+}
+
+func (r *PaymentRepository) GetOrdersByIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*models.PaymentOrder, error) {
+	orderIDs = uniqueUUIDs(orderIDs)
+
+	if len(orderIDs) == 0 {
+		return map[uuid.UUID]*models.PaymentOrder{}, nil
+	}
+
+	r.logger.DebugContext(ctx, "executing query",
+		slog.String("op", "get orders"),
+		slog.Int("count", len(orderIDs)),
+	)
+
+	const query = `
+		SELECT
+			id,
+			payer_id,
+			request_key,
+			purpose,
+			origin,
+			expected_amount_minor,
+			currency,
+			status,
+			credited_attempt_id,
+			expires_at,
+			paid_at,
+			canceled_at,
+			created_at,
+			updated_at
+		FROM payment.payment_order
+		WHERE id = ANY($1::uuid[])
+	`
+
+	orders := make(map[uuid.UUID]*models.PaymentOrder, len(orderIDs))
+
+	rows, err := r.pool.Query(ctx, query, orderIDs)
+	if err != nil {
+		return nil, fmt.Errorf("get payment orders: %w", err)
+	}
+
+	for rows.Next() {
+		order := &models.PaymentOrder{}
+
+		err := rows.Scan(
+			&order.ID,
+			&order.PayerID,
+			&order.RequestKey,
+			&order.Purpose,
+			&order.Origin,
+			&order.ExpectedAmountMinor,
+			&order.Currency,
+			&order.Status,
+			&order.CreditedAttemptID,
+			&order.ExpiresAt,
+			&order.PaidAt,
+			&order.CanceledAt,
+			&order.CreatedAt,
+			&order.UpdatedAt,
+		)
+		if err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("scan payment order: %w", err)
+		}
+
+		orders[order.ID] = order
+	}
+
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, fmt.Errorf("iterate payment orders: %w", err)
+	}
+	rows.Close()
+
+	if len(orders) != len(orderIDs) {
+		return nil, models.ErrPaymentOrderNotFound
+	}
+
+	return orders, nil
+}
+
 func (r *PaymentRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.PaymentOrder, error) {
 	const query = `
 		SELECT
 			id, payer_id, request_key, purpose, origin, expected_amount_minor, currency, status, 
 			credited_attempt_id, expires_at, paid_at, canceled_at, created_at, updated_at
-		FROM payment_order WHERE id = $1
+		FROM payment.payment_order WHERE id = $1
 	`
 
 	r.logger.DebugContext(ctx, "executing query",
@@ -73,13 +314,13 @@ func (r *PaymentRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*mo
 func (r *PaymentRepository) CompleteSuccessfulAttempt(ctx context.Context, attempt dto.AttemptToComplete) (bool, error) {
 	const lockOrder = `
 		SELECT status, expected_amount_minor, currency, credited_attempt_id
-		FROM payment_order
+		FROM payment.payment_order
 		WHERE id = $1
 		FOR UPDATE
 	`
 	const lockAttempt = `
 		SELECT payment_order_id, status, external_transaction_id, charged_amount_minor, charged_currency
-		FROM payment_attempt
+		FROM payment.payment_attempt
 		WHERE id = $1
 		FOR UPDATE
 	`
@@ -202,7 +443,7 @@ func (r *PaymentRepository) CompleteSuccessfulAttempt(ctx context.Context, attem
 
 func saveSuccessfulAttempt(ctx context.Context, tx pgx.Tx, attempt dto.AttemptToComplete) error {
 	const updateAttempt = `
-		UPDATE payment_attempt
+		UPDATE payment.payment_attempt
 		SET external_transaction_id = $3,
 			status = 'succeeded',
 			charged_amount_minor = $4,
@@ -237,7 +478,7 @@ func saveSuccessfulAttempt(ctx context.Context, tx pgx.Tx, attempt dto.AttemptTo
 
 func markOrderPaid(ctx context.Context, tx pgx.Tx, attempt dto.AttemptToComplete) error {
 	const markAsPaid = `
-		UPDATE payment_order
+		UPDATE payment.payment_order
 		SET status = 'paid', paid_at = now(), credited_attempt_id = $2
 		WHERE id = $1
 			AND status IN ('pending', 'processing', 'failed')
@@ -268,7 +509,7 @@ func markOrderPaid(ctx context.Context, tx pgx.Tx, attempt dto.AttemptToComplete
 
 func (r *PaymentRepository) makeRefund(ctx context.Context, tx pgx.Tx, attemptID uuid.UUID, amount int64, reason string) error {
 	const query = `
-		INSERT INTO refund (payment_attempt_id, amount_minor, kind, reason)
+		INSERT INTO payment.refund (payment_attempt_id, amount_minor, kind, reason)
 		VALUES ($1, $2, 'excess_charge', $3)
 		ON CONFLICT (payment_attempt_id) DO NOTHING
 	`
@@ -287,10 +528,10 @@ func (r *PaymentRepository) makeRefund(ctx context.Context, tx pgx.Tx, attemptID
 }
 
 func (r *PaymentRepository) FailAttempt(ctx context.Context, orderID, attemptID uuid.UUID, reason string) error {
-	const lockOrder = `SELECT status FROM payment_order WHERE id = $1 FOR UPDATE`
+	const lockOrder = `SELECT status FROM payment.payment_order WHERE id = $1 FOR UPDATE`
 	const hasActiveQuery = `
 		SELECT EXISTS (
-			SELECT 1 FROM payment_attempt
+			SELECT 1 FROM payment.payment_attempt
 			WHERE payment_order_id = $1 AND status IN ('created', 'processing')
 		)
 	`
@@ -329,7 +570,7 @@ func (r *PaymentRepository) FailAttempt(ctx context.Context, orderID, attemptID 
 }
 
 func failOrder(ctx context.Context, tx pgx.Tx, orderID uuid.UUID) error {
-	const query = `UPDATE payment_order SET status = 'failed' WHERE id = $1 AND status IN ('pending', 'processing')`
+	const query = `UPDATE payment.payment_order SET status = 'failed' WHERE id = $1 AND status IN ('pending', 'processing')`
 	if _, err := tx.Exec(ctx, query, orderID); err != nil {
 		parsed := postgres.ParseError(err)
 		if errors.Is(parsed, postgres.ErrCheckViolation) || errors.Is(parsed, postgres.ErrFKViolation) {
@@ -358,7 +599,7 @@ func changeAttemptStatus(ctx context.Context, tx pgx.Tx, orderID, attemptID uuid
 	switch targetStatus { // на будущее, пока только failed
 	case models.AttemptStatusFailed:
 		query = `
-			UPDATE payment_attempt
+			UPDATE payment.payment_attempt
 			SET status = 'failed', failure_reason = $3
 			WHERE id = $1 AND payment_order_id = $2 AND status IN ('created', 'processing')
 		`
@@ -378,7 +619,7 @@ func changeAttemptStatus(ctx context.Context, tx pgx.Tx, orderID, attemptID uuid
 			currentReason *string
 		)
 
-		err = tx.QueryRow(ctx, `SELECT status, failure_reason FROM payment_attempt WHERE id = $1 AND payment_order_id = $2`, attemptID, orderID).Scan(
+		err = tx.QueryRow(ctx, `SELECT status, failure_reason FROM payment.payment_attempt WHERE id = $1 AND payment_order_id = $2`, attemptID, orderID).Scan(
 			&currentStatus,
 			&currentReason,
 		)
@@ -406,4 +647,29 @@ func changeAttemptStatus(ctx context.Context, tx pgx.Tx, orderID, attemptID uuid
 	}
 
 	return nil
+}
+
+func equalOptionalTime(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+
+	// PostgreSQL timestamptz хранит микросекундную точность.
+	return a.Truncate(time.Microsecond).Equal(b.Truncate(time.Microsecond))
+}
+
+func uniqueUUIDs(ids []uuid.UUID) []uuid.UUID {
+	result := make([]uuid.UUID, 0, len(ids))
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+
+	for _, id := range ids {
+		if _, exists := seen[id]; exists {
+			continue
+		}
+
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+
+	return result
 }

@@ -37,7 +37,7 @@ func order(status models.PaymentOrderStatus) *models.PaymentOrder {
 }
 
 func attempt(orderID uuid.UUID) *models.PaymentAttempt {
-	return &models.PaymentAttempt{ID: attemptID, PaymentOrderID: orderID}
+	return &models.PaymentAttempt{ID: attemptID, PaymentOrderID: orderID, Status: models.AttemptStatusCreated}
 }
 
 func chargeRequest() paymentprovider.ChargeRequest {

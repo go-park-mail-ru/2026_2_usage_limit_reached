@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package payment.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/payment/v1;paymentv1";
+
+service PaymentService {
+  rpc CreatePayment(CreatePaymentRequest) returns (PaymentOrder);
+  rpc GetPayments(GetPaymentsRequest) returns (GetPaymentsResponse);
+}
+
+message CreatePaymentRequest {
+  string payer_id = 1;
+  string request_key = 2;
+  string purpose = 3;
+  string origin = 4;
+  int64 amount_minor = 5;
+  string currency = 6;
+  google.protobuf.Timestamp expires_at = 7;
+}
+
+message GetPaymentsRequest {
+  repeated string payment_order_ids = 1;
+}
+
+message GetPaymentsResponse {
+  repeated PaymentOrder orders = 1;
+}
+
+message PaymentOrder {
+  string id = 1;
+  string payer_id = 2;
+  string purpose = 3;
+  string origin = 4;
+  int64 expected_amount_minor = 5;
+  string currency = 6;
+  string status = 7;
+  optional string credited_attempt_id = 8;
+  google.protobuf.Timestamp paid_at = 9;
+  google.protobuf.Timestamp canceled_at = 10;
+}
+
+message PaymentAttempt {
+  string id = 1;
+  string provider = 2;
+  string status = 3;
+  optional string external_transaction_id = 4;
+  optional int64 charged_amount_minor = 5;
+  optional string charged_currency = 6;
+  optional string failure_reason = 7;
+  google.protobuf.Timestamp completed_at = 8;
+}

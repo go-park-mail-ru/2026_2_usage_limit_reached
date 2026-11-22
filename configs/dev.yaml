@@ -16,7 +16,11 @@ grpc:
   shutdown_timeout: 5s
 
 identity:
-  address: localhost:50051
+  address: identity:50051
+  timeout: 1s
+
+payment:
+  address: payment:50052
   timeout: 1s
 
 s3:

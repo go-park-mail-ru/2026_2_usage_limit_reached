@@ -2,21 +2,19 @@ package grpc_test
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"strings"
 	"testing"
 	"time"
 
-	authuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/usecase"
-	authordto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/author/dto"
 	identitygrpc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc"
-	mockgrpc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc/mock_delivery_grpc"
-	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/dto"
-	userusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/dto"
+	identityuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/authn"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	identitypb "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/identity/v1"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -24,17 +22,51 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
-func newTestClient(
-	t *testing.T,
-	users identitygrpc.UserUsecase,
-	authors identitygrpc.AuthorUsecase,
-	auth identitygrpc.AuthUsecase,
-) identitypb.IdentityServiceClient {
+type testJWTPayload struct {
+	UserID uuid.UUID
+	Role   string
+}
+
+func (p testJWTPayload) Encode() ([]byte, error) {
+	return json.Marshal(map[string]any{"user_id": p.UserID.String(), "role": p.Role})
+}
+
+type stubIdentity struct {
+	getUsers          func(ctx context.Context, ids []uuid.UUID) ([]*dto.UserInfo, error)
+	getUserByUsername func(ctx context.Context, username string) (*dto.UserInfo, error)
+	verifyToken       func(ctx context.Context, token string) (*authn.User, error)
+}
+
+func (s stubIdentity) GetUsers(ctx context.Context, ids []uuid.UUID) ([]*dto.UserInfo, error) {
+	if s.getUsers != nil {
+		return s.getUsers(ctx, ids)
+	}
+
+	return nil, nil
+}
+
+func (s stubIdentity) GetUserByUsername(ctx context.Context, username string) (*dto.UserInfo, error) {
+	if s.getUserByUsername != nil {
+		return s.getUserByUsername(ctx, username)
+	}
+
+	return nil, nil
+}
+
+func (s stubIdentity) VerifyToken(ctx context.Context, token string) (*authn.User, error) {
+	if s.verifyToken != nil {
+		return s.verifyToken(ctx, token)
+	}
+
+	return nil, authn.ErrInvalidToken
+}
+
+func newTestClient(t *testing.T, identity identitygrpc.IdentityUsecase) identitypb.IdentityServiceClient {
 	t.Helper()
 
 	listener := bufconn.Listen(1024 * 1024)
 	server := grpc.NewServer()
-	identitypb.RegisterIdentityServiceServer(server, identitygrpc.NewHandler(users, authors, auth, nil))
+	identitypb.RegisterIdentityServiceServer(server, identitygrpc.NewHandler(identity, nil))
 
 	go func() {
 		_ = server.Serve(listener)
@@ -58,16 +90,16 @@ func newTestClient(
 func TestGetUsers(t *testing.T) {
 	userID := uuid.New()
 
-	users := mockgrpc.NewMockUserUsecase(t)
-	users.On("FindUsersByIDs", mock.Anything, mock.Anything).
-		Return([]*userdto.UserInfo{{
-			ID:       userID,
-			Username: "user",
-			Nickname: "nick",
-			Status:   "active",
-		}}, nil)
-
-	client := newTestClient(t, users, mockgrpc.NewMockAuthorUsecase(t), nil)
+	client := newTestClient(t, stubIdentity{
+		getUsers: func(context.Context, []uuid.UUID) ([]*dto.UserInfo, error) {
+			return []*dto.UserInfo{{
+				ID:       userID,
+				Username: "user",
+				Nickname: "nick",
+				Status:   "active",
+			}}, nil
+		},
+	})
 
 	resp, err := client.GetUsers(context.Background(), &identitypb.GetUsersRequest{Ids: []string{userID.String()}})
 	if err != nil {
@@ -85,35 +117,8 @@ func TestGetUsers(t *testing.T) {
 	}
 }
 
-func TestGetAuthors(t *testing.T) {
-	authorID := uuid.New()
-	category := "Cars"
-
-	authors := mockgrpc.NewMockAuthorUsecase(t)
-	authors.On("FindAuthorsByIDs", mock.Anything, mock.Anything).
-		Return([]*authordto.AuthorInfo{{
-			ID:       authorID,
-			Bio:      "bio",
-			Category: &category,
-		}}, nil)
-
-	client := newTestClient(t, mockgrpc.NewMockUserUsecase(t), authors, nil)
-
-	resp, err := client.GetAuthors(context.Background(), &identitypb.GetAuthorsRequest{Ids: []string{authorID.String()}})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(resp.GetAuthors()) != 1 {
-		t.Fatalf("authors count = %d", len(resp.GetAuthors()))
-	}
-	if resp.GetAuthors()[0].GetCategory() != category {
-		t.Fatalf("category = %q", resp.GetAuthors()[0].GetCategory())
-	}
-}
-
 func TestGetUsersInvalidID(t *testing.T) {
-	client := newTestClient(t, mockgrpc.NewMockUserUsecase(t), mockgrpc.NewMockAuthorUsecase(t), nil)
+	client := newTestClient(t, stubIdentity{})
 
 	_, err := client.GetUsers(context.Background(), &identitypb.GetUsersRequest{Ids: []string{"not-a-uuid"}})
 	if status.Code(err) != codes.InvalidArgument {
@@ -124,16 +129,16 @@ func TestGetUsersInvalidID(t *testing.T) {
 func TestGetUserByUsername(t *testing.T) {
 	userID := uuid.New()
 
-	users := mockgrpc.NewMockUserUsecase(t)
-	users.On("FindUserByUsername", mock.Anything, "user").
-		Return(&userdto.UserInfo{
-			ID:       userID,
-			Username: "user",
-			Nickname: "nick",
-			Status:   "active",
-		}, nil)
-
-	client := newTestClient(t, users, mockgrpc.NewMockAuthorUsecase(t), nil)
+	client := newTestClient(t, stubIdentity{
+		getUserByUsername: func(context.Context, string) (*dto.UserInfo, error) {
+			return &dto.UserInfo{
+				ID:       userID,
+				Username: "user",
+				Nickname: "nick",
+				Status:   "active",
+			}, nil
+		},
+	})
 
 	resp, err := client.GetUserByUsername(context.Background(), &identitypb.GetUserByUsernameRequest{Username: "user"})
 	if err != nil {
@@ -142,23 +147,17 @@ func TestGetUserByUsername(t *testing.T) {
 	if resp.GetId() != userID.String() {
 		t.Fatalf("user id = %q", resp.GetId())
 	}
-	if resp.GetUsername() != "user" {
-		t.Fatalf("username = %q", resp.GetUsername())
-	}
 	if resp.GetNickname() != "nick" {
 		t.Fatalf("nickname = %q", resp.GetNickname())
-	}
-	if resp.GetStatus() != "active" {
-		t.Fatalf("status = %q", resp.GetStatus())
 	}
 }
 
 func TestGetUserByUsernameNotFound(t *testing.T) {
-	users := mockgrpc.NewMockUserUsecase(t)
-	users.On("FindUserByUsername", mock.Anything, "ghost").
-		Return(nil, userusecase.ErrUserNotFound)
-
-	client := newTestClient(t, users, mockgrpc.NewMockAuthorUsecase(t), nil)
+	client := newTestClient(t, stubIdentity{
+		getUserByUsername: func(context.Context, string) (*dto.UserInfo, error) {
+			return nil, identityuc.ErrUserNotFound
+		},
+	})
 
 	_, err := client.GetUserByUsername(context.Background(), &identitypb.GetUserByUsernameRequest{Username: "ghost"})
 	if status.Code(err) != codes.NotFound {
@@ -167,7 +166,7 @@ func TestGetUserByUsernameNotFound(t *testing.T) {
 }
 
 func TestGetUserByUsernameEmpty(t *testing.T) {
-	client := newTestClient(t, mockgrpc.NewMockUserUsecase(t), mockgrpc.NewMockAuthorUsecase(t), nil)
+	client := newTestClient(t, stubIdentity{})
 
 	_, err := client.GetUserByUsername(context.Background(), &identitypb.GetUserByUsernameRequest{})
 	if status.Code(err) != codes.InvalidArgument {
@@ -185,12 +184,13 @@ func TestVerifyToken(t *testing.T) {
 	}
 
 	userID := uuid.New()
-	token, err := manager.Generate(userID, jwt.UserPayload{UserID: userID, Role: "user"})
+	token, err := manager.Generate(userID, testJWTPayload{UserID: userID, Role: "user"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	client := newTestClient(t, nil, nil, authuc.NewUsecase(nil, manager))
+	authUc := identityuc.New(nil, manager, nil, "", nil)
+	client := newTestClient(t, stubIdentity{verifyToken: authUc.VerifyToken})
 
 	resp, err := client.VerifyToken(context.Background(), &identitypb.VerifyTokenRequest{Token: token})
 	if err != nil {

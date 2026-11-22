@@ -8,26 +8,21 @@ import (
 	"net/http"
 	"time"
 
-	authdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/dto"
-	authuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/usecase"
-	profiledto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/profile/dto"
-	profileuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/profile/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/dto"
+	identityuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 	"github.com/google/uuid"
 )
 
-type AuthUsecase interface {
-	Register(ctx context.Context, req authdto.RegistrationRequest) (*authdto.UserResponse, string, error)
-	Login(ctx context.Context, req authdto.LoginRequest) (*authdto.UserResponse, string, error)
+type IdentityUsecase interface {
+	Register(ctx context.Context, req dto.RegistrationRequest) (*dto.UserResponse, string, error)
+	Login(ctx context.Context, req dto.LoginRequest) (*dto.UserResponse, string, error)
 	TokenTTL() time.Duration
-}
 
-type ProfileUsecase interface {
-	GetMyProfile(ctx context.Context, userID uuid.UUID) (*profiledto.ProfileResponse, error)
-	GetPublicProfile(ctx context.Context, username string) (*profiledto.PublicProfileResponse, error)
-	UpdateMyProfile(ctx context.Context, userID uuid.UUID, req profiledto.UpdateProfileRequest) (*profiledto.ProfileResponse, error)
-	BecomeAuthor(ctx context.Context, userID uuid.UUID, req profiledto.UpdateAuthorRequest) (*profiledto.ProfileResponse, error)
+	GetMyProfile(ctx context.Context, userID uuid.UUID) (*dto.ProfileResponse, error)
+	GetPublicProfile(ctx context.Context, username string) (*dto.PublicProfileResponse, error)
+	UpdateMyProfile(ctx context.Context, userID uuid.UUID, req dto.UpdateProfileRequest) (*dto.ProfileResponse, error)
 	UploadAvatar(ctx context.Context, userID uuid.UUID, file io.ReadSeeker, size int64) (string, error)
 	DeleteAvatar(ctx context.Context, userID uuid.UUID) error
 }
@@ -36,19 +31,19 @@ func handleError(ctx context.Context, logger *slog.Logger, w http.ResponseWriter
 	logError(ctx, logger, action, err)
 
 	switch {
-	case errors.Is(err, validator.ErrValidation):
+	case errors.Is(err, validator.ErrValidation), errors.Is(err, identityuc.ErrInvalidNickname):
 		response.ErrorBadRequest(w)
-	case errors.Is(err, authuc.ErrRegistrationFailed):
+	case errors.Is(err, identityuc.ErrRegistrationFailed):
 		response.ErrorConflict(w)
-	case errors.Is(err, authuc.ErrLoginFailed):
+	case errors.Is(err, identityuc.ErrLoginFailed):
 		response.ErrorUnauthorized(w)
-	case errors.Is(err, profileuc.ErrUserInactive), errors.Is(err, profileuc.ErrNotAuthor):
+	case errors.Is(err, identityuc.ErrUserInactive):
 		response.ErrorForbidden(w)
-	case errors.Is(err, profileuc.ErrProfileNotFound):
+	case errors.Is(err, identityuc.ErrProfileNotFound), errors.Is(err, identityuc.ErrUserNotFound):
 		response.ErrorNotFound(w)
-	case errors.Is(err, profileuc.ErrAvatarTooLarge):
+	case errors.Is(err, identityuc.ErrAvatarTooLarge):
 		response.ErrorPayloadTooLarge(w)
-	case errors.Is(err, profileuc.ErrUnsupportedAvatarType):
+	case errors.Is(err, identityuc.ErrUnsupportedAvatarType):
 		response.ErrorUnsupportedMediaType(w)
 	default:
 		response.ErrorInternal(w)

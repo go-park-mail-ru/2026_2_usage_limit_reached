@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/profile/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
@@ -22,12 +22,12 @@ const (
 )
 
 type ProfileHandler struct {
-	profile   ProfileUsecase
+	profile   IdentityUsecase
 	validator *validator.Validator
 	logger    *slog.Logger
 }
 
-func NewProfileHandler(profile ProfileUsecase, validator *validator.Validator, logger *slog.Logger) *ProfileHandler {
+func NewProfileHandler(profile IdentityUsecase, validator *validator.Validator, logger *slog.Logger) *ProfileHandler {
 	return &ProfileHandler{profile: profile, validator: validator, logger: logger}
 }
 
@@ -126,52 +126,6 @@ func (h *ProfileHandler) UpdateMyProfile(w http.ResponseWriter, r *http.Request)
 	profile, err := h.profile.UpdateMyProfile(r.Context(), userID, req)
 	if err != nil {
 		handleError(r.Context(), h.logger, w, "update my profile", err)
-		return
-	}
-
-	response.WriteJSON(w, http.StatusOK, profile)
-}
-
-// BecomeAuthor создает профиль автора текущего пользователя
-// @Summary Создание профиля автора
-// @Description Создает профиль автора. Если профиль уже есть, возвращает его без изменений
-// @Tags profile
-// @Accept json
-// @Produce json
-// @Security CookieAuth
-// @Param X-CSRF-Token header string true "CSRF-токен из GET /csrf"
-// @Param request body dto.UpdateAuthorRequest true "Данные профиля автора"
-// @Success 200 {object} dto.ProfileResponse "Профиль с блоком author"
-// @Failure 400 {object} response.ErrorResponse "Ошибка валидации"
-// @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
-// @Failure 403 {object} response.ErrorResponse "Пользователь заблокирован или удалён"
-// @Failure 404 {object} response.ErrorResponse "Пользователь не найден"
-// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
-// @Router /profile/me/author [post]
-func (h *ProfileHandler) BecomeAuthor(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromContext(r)
-	if !ok {
-		response.ErrorUnauthorized(w)
-		return
-	}
-
-	var req dto.UpdateAuthorRequest
-	defer r.Body.Close()
-
-	if err := response.DecodeJSON(w, r, &req); err != nil {
-		logError(r.Context(), h.logger, "become author", err)
-		response.ErrorBadRequest(w)
-		return
-	}
-
-	if err := req.Validate(h.validator); err != nil {
-		handleError(r.Context(), h.logger, w, "become author", err)
-		return
-	}
-
-	profile, err := h.profile.BecomeAuthor(r.Context(), userID, req)
-	if err != nil {
-		handleError(r.Context(), h.logger, w, "become author", err)
 		return
 	}
 

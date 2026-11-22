@@ -5,9 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	authordto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/author/dto"
-	userdto "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/dto"
-	userusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/dto"
+	identityuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/authn"
 	identitypb "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/identity/v1"
 	"github.com/google/uuid"
@@ -15,30 +14,21 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type UserUsecase interface {
-	FindUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]*userdto.UserInfo, error)
-	FindUserByUsername(ctx context.Context, username string) (*userdto.UserInfo, error)
-}
-
-type AuthorUsecase interface {
-	FindAuthorsByIDs(ctx context.Context, ids []uuid.UUID) ([]*authordto.AuthorInfo, error)
-}
-
-type AuthUsecase interface {
+type IdentityUsecase interface {
+	GetUsers(ctx context.Context, ids []uuid.UUID) ([]*dto.UserInfo, error)
+	GetUserByUsername(ctx context.Context, username string) (*dto.UserInfo, error)
 	VerifyToken(ctx context.Context, token string) (*authn.User, error)
 }
 
 type Handler struct {
 	identitypb.UnimplementedIdentityServiceServer
 
-	users   UserUsecase
-	authors AuthorUsecase
-	auth    AuthUsecase
-	logger  *slog.Logger
+	identity IdentityUsecase
+	logger   *slog.Logger
 }
 
-func NewHandler(users UserUsecase, authors AuthorUsecase, auth AuthUsecase, logger *slog.Logger) *Handler {
-	return &Handler{users: users, authors: authors, auth: auth, logger: logger}
+func NewHandler(identity IdentityUsecase, logger *slog.Logger) *Handler {
+	return &Handler{identity: identity, logger: logger}
 }
 
 func (h *Handler) GetUsers(ctx context.Context, req *identitypb.GetUsersRequest) (*identitypb.GetUsersResponse, error) {
@@ -47,7 +37,7 @@ func (h *Handler) GetUsers(ctx context.Context, req *identitypb.GetUsersRequest)
 		return nil, status.Error(codes.InvalidArgument, "invalid user id")
 	}
 
-	users, err := h.users.FindUsersByIDs(ctx, ids)
+	users, err := h.identity.GetUsers(ctx, ids)
 	if err != nil {
 		h.logError(ctx, "get users", err)
 		return nil, status.Error(codes.Internal, "internal error")
@@ -61,9 +51,9 @@ func (h *Handler) GetUserByUsername(ctx context.Context, req *identitypb.GetUser
 		return nil, status.Error(codes.InvalidArgument, "username is required")
 	}
 
-	user, err := h.users.FindUserByUsername(ctx, req.GetUsername())
+	user, err := h.identity.GetUserByUsername(ctx, req.GetUsername())
 	if err != nil {
-		if errors.Is(err, userusecase.ErrUserNotFound) {
+		if errors.Is(err, identityuc.ErrUserNotFound) {
 			return nil, status.Error(codes.NotFound, "user not found")
 		}
 
@@ -78,27 +68,12 @@ func (h *Handler) GetUserByUsername(ctx context.Context, req *identitypb.GetUser
 	return newUserInfo(user), nil
 }
 
-func (h *Handler) GetAuthors(ctx context.Context, req *identitypb.GetAuthorsRequest) (*identitypb.GetAuthorsResponse, error) {
-	ids, err := parseIDs(req.GetIds())
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid author id")
-	}
-
-	authors, err := h.authors.FindAuthorsByIDs(ctx, ids)
-	if err != nil {
-		h.logError(ctx, "get authors", err)
-		return nil, status.Error(codes.Internal, "internal error")
-	}
-
-	return newGetAuthorsResponse(authors), nil
-}
-
 func (h *Handler) VerifyToken(ctx context.Context, req *identitypb.VerifyTokenRequest) (*identitypb.VerifyTokenResponse, error) {
 	if req.GetToken() == "" {
 		return nil, status.Error(codes.InvalidArgument, "token is required")
 	}
 
-	user, err := h.auth.VerifyToken(ctx, req.GetToken())
+	user, err := h.identity.VerifyToken(ctx, req.GetToken())
 	if err != nil || user == nil || user.ID == uuid.Nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}

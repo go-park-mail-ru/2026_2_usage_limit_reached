@@ -110,94 +110,6 @@ func (x *GetUsersResponse) GetUsers() []*UserInfo {
 	return nil
 }
 
-type GetAuthorsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ids           []string               `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetAuthorsRequest) Reset() {
-	*x = GetAuthorsRequest{}
-	mi := &file_identity_v1_identity_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetAuthorsRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetAuthorsRequest) ProtoMessage() {}
-
-func (x *GetAuthorsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_identity_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetAuthorsRequest.ProtoReflect.Descriptor instead.
-func (*GetAuthorsRequest) Descriptor() ([]byte, []int) {
-	return file_identity_v1_identity_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *GetAuthorsRequest) GetIds() []string {
-	if x != nil {
-		return x.Ids
-	}
-	return nil
-}
-
-type GetAuthorsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Authors       []*Author              `protobuf:"bytes,1,rep,name=authors,proto3" json:"authors,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetAuthorsResponse) Reset() {
-	*x = GetAuthorsResponse{}
-	mi := &file_identity_v1_identity_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetAuthorsResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetAuthorsResponse) ProtoMessage() {}
-
-func (x *GetAuthorsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_identity_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetAuthorsResponse.ProtoReflect.Descriptor instead.
-func (*GetAuthorsResponse) Descriptor() ([]byte, []int) {
-	return file_identity_v1_identity_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *GetAuthorsResponse) GetAuthors() []*Author {
-	if x != nil {
-		return x.Authors
-	}
-	return nil
-}
-
 type GetUserByUsernameRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
@@ -207,7 +119,7 @@ type GetUserByUsernameRequest struct {
 
 func (x *GetUserByUsernameRequest) Reset() {
 	*x = GetUserByUsernameRequest{}
-	mi := &file_identity_v1_identity_proto_msgTypes[4]
+	mi := &file_identity_v1_identity_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -219,7 +131,7 @@ func (x *GetUserByUsernameRequest) String() string {
 func (*GetUserByUsernameRequest) ProtoMessage() {}
 
 func (x *GetUserByUsernameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_identity_proto_msgTypes[4]
+	mi := &file_identity_v1_identity_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -232,7 +144,7 @@ func (x *GetUserByUsernameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserByUsernameRequest.ProtoReflect.Descriptor instead.
 func (*GetUserByUsernameRequest) Descriptor() ([]byte, []int) {
-	return file_identity_v1_identity_proto_rawDescGZIP(), []int{4}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GetUserByUsernameRequest) GetUsername() string {
@@ -251,7 +163,7 @@ type VerifyTokenRequest struct {
 
 func (x *VerifyTokenRequest) Reset() {
 	*x = VerifyTokenRequest{}
-	mi := &file_identity_v1_identity_proto_msgTypes[5]
+	mi := &file_identity_v1_identity_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -263,7 +175,7 @@ func (x *VerifyTokenRequest) String() string {
 func (*VerifyTokenRequest) ProtoMessage() {}
 
 func (x *VerifyTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_identity_proto_msgTypes[5]
+	mi := &file_identity_v1_identity_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -276,7 +188,7 @@ func (x *VerifyTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifyTokenRequest.ProtoReflect.Descriptor instead.
 func (*VerifyTokenRequest) Descriptor() ([]byte, []int) {
-	return file_identity_v1_identity_proto_rawDescGZIP(), []int{5}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *VerifyTokenRequest) GetToken() string {
@@ -296,7 +208,7 @@ type VerifyTokenResponse struct {
 
 func (x *VerifyTokenResponse) Reset() {
 	*x = VerifyTokenResponse{}
-	mi := &file_identity_v1_identity_proto_msgTypes[6]
+	mi := &file_identity_v1_identity_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -308,7 +220,7 @@ func (x *VerifyTokenResponse) String() string {
 func (*VerifyTokenResponse) ProtoMessage() {}
 
 func (x *VerifyTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_identity_proto_msgTypes[6]
+	mi := &file_identity_v1_identity_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -321,7 +233,7 @@ func (x *VerifyTokenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifyTokenResponse.ProtoReflect.Descriptor instead.
 func (*VerifyTokenResponse) Descriptor() ([]byte, []int) {
-	return file_identity_v1_identity_proto_rawDescGZIP(), []int{6}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *VerifyTokenResponse) GetUserId() string {
@@ -352,7 +264,7 @@ type UserInfo struct {
 
 func (x *UserInfo) Reset() {
 	*x = UserInfo{}
-	mi := &file_identity_v1_identity_proto_msgTypes[7]
+	mi := &file_identity_v1_identity_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -364,7 +276,7 @@ func (x *UserInfo) String() string {
 func (*UserInfo) ProtoMessage() {}
 
 func (x *UserInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_identity_proto_msgTypes[7]
+	mi := &file_identity_v1_identity_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -377,7 +289,7 @@ func (x *UserInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserInfo.ProtoReflect.Descriptor instead.
 func (*UserInfo) Descriptor() ([]byte, []int) {
-	return file_identity_v1_identity_proto_rawDescGZIP(), []int{7}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *UserInfo) GetId() string {
@@ -422,66 +334,6 @@ func (x *UserInfo) GetStatus() string {
 	return ""
 }
 
-type Author struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Bio           string                 `protobuf:"bytes,2,opt,name=bio,proto3" json:"bio,omitempty"`
-	Category      *string                `protobuf:"bytes,3,opt,name=category,proto3,oneof" json:"category,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Author) Reset() {
-	*x = Author{}
-	mi := &file_identity_v1_identity_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Author) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Author) ProtoMessage() {}
-
-func (x *Author) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_identity_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Author.ProtoReflect.Descriptor instead.
-func (*Author) Descriptor() ([]byte, []int) {
-	return file_identity_v1_identity_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *Author) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *Author) GetBio() string {
-	if x != nil {
-		return x.Bio
-	}
-	return ""
-}
-
-func (x *Author) GetCategory() string {
-	if x != nil && x.Category != nil {
-		return *x.Category
-	}
-	return ""
-}
-
 var File_identity_v1_identity_proto protoreflect.FileDescriptor
 
 const file_identity_v1_identity_proto_rawDesc = "" +
@@ -490,11 +342,7 @@ const file_identity_v1_identity_proto_rawDesc = "" +
 	"\x0fGetUsersRequest\x12\x10\n" +
 	"\x03ids\x18\x01 \x03(\tR\x03ids\"?\n" +
 	"\x10GetUsersResponse\x12+\n" +
-	"\x05users\x18\x01 \x03(\v2\x15.identity.v1.UserInfoR\x05users\"%\n" +
-	"\x11GetAuthorsRequest\x12\x10\n" +
-	"\x03ids\x18\x01 \x03(\tR\x03ids\"C\n" +
-	"\x12GetAuthorsResponse\x12-\n" +
-	"\aauthors\x18\x01 \x03(\v2\x13.identity.v1.AuthorR\aauthors\"6\n" +
+	"\x05users\x18\x01 \x03(\v2\x15.identity.v1.UserInfoR\x05users\"6\n" +
 	"\x18GetUserByUsernameRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\"*\n" +
 	"\x12VerifyTokenRequest\x12\x14\n" +
@@ -510,16 +358,9 @@ const file_identity_v1_identity_proto_rawDesc = "" +
 	"avatar_url\x18\x04 \x01(\tR\tavatarUrl\x129\n" +
 	"\n" +
 	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x16\n" +
-	"\x06status\x18\x06 \x01(\tR\x06status\"X\n" +
-	"\x06Author\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
-	"\x03bio\x18\x02 \x01(\tR\x03bio\x12\x1f\n" +
-	"\bcategory\x18\x03 \x01(\tH\x00R\bcategory\x88\x01\x01B\v\n" +
-	"\t_category2\xce\x02\n" +
+	"\x06status\x18\x06 \x01(\tR\x06status2\xff\x01\n" +
 	"\x0fIdentityService\x12G\n" +
-	"\bGetUsers\x12\x1c.identity.v1.GetUsersRequest\x1a\x1d.identity.v1.GetUsersResponse\x12M\n" +
-	"\n" +
-	"GetAuthors\x12\x1e.identity.v1.GetAuthorsRequest\x1a\x1f.identity.v1.GetAuthorsResponse\x12Q\n" +
+	"\bGetUsers\x12\x1c.identity.v1.GetUsersRequest\x1a\x1d.identity.v1.GetUsersResponse\x12Q\n" +
 	"\x11GetUserByUsername\x12%.identity.v1.GetUserByUsernameRequest\x1a\x15.identity.v1.UserInfo\x12P\n" +
 	"\vVerifyToken\x12\x1f.identity.v1.VerifyTokenRequest\x1a .identity.v1.VerifyTokenResponseBXZVgithub.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/identity/v1;identityv1b\x06proto3"
 
@@ -535,36 +376,30 @@ func file_identity_v1_identity_proto_rawDescGZIP() []byte {
 	return file_identity_v1_identity_proto_rawDescData
 }
 
-var file_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_identity_v1_identity_proto_goTypes = []any{
 	(*GetUsersRequest)(nil),          // 0: identity.v1.GetUsersRequest
 	(*GetUsersResponse)(nil),         // 1: identity.v1.GetUsersResponse
-	(*GetAuthorsRequest)(nil),        // 2: identity.v1.GetAuthorsRequest
-	(*GetAuthorsResponse)(nil),       // 3: identity.v1.GetAuthorsResponse
-	(*GetUserByUsernameRequest)(nil), // 4: identity.v1.GetUserByUsernameRequest
-	(*VerifyTokenRequest)(nil),       // 5: identity.v1.VerifyTokenRequest
-	(*VerifyTokenResponse)(nil),      // 6: identity.v1.VerifyTokenResponse
-	(*UserInfo)(nil),                 // 7: identity.v1.UserInfo
-	(*Author)(nil),                   // 8: identity.v1.Author
-	(*timestamppb.Timestamp)(nil),    // 9: google.protobuf.Timestamp
+	(*GetUserByUsernameRequest)(nil), // 2: identity.v1.GetUserByUsernameRequest
+	(*VerifyTokenRequest)(nil),       // 3: identity.v1.VerifyTokenRequest
+	(*VerifyTokenResponse)(nil),      // 4: identity.v1.VerifyTokenResponse
+	(*UserInfo)(nil),                 // 5: identity.v1.UserInfo
+	(*timestamppb.Timestamp)(nil),    // 6: google.protobuf.Timestamp
 }
 var file_identity_v1_identity_proto_depIdxs = []int32{
-	7, // 0: identity.v1.GetUsersResponse.users:type_name -> identity.v1.UserInfo
-	8, // 1: identity.v1.GetAuthorsResponse.authors:type_name -> identity.v1.Author
-	9, // 2: identity.v1.UserInfo.created_at:type_name -> google.protobuf.Timestamp
-	0, // 3: identity.v1.IdentityService.GetUsers:input_type -> identity.v1.GetUsersRequest
-	2, // 4: identity.v1.IdentityService.GetAuthors:input_type -> identity.v1.GetAuthorsRequest
-	4, // 5: identity.v1.IdentityService.GetUserByUsername:input_type -> identity.v1.GetUserByUsernameRequest
-	5, // 6: identity.v1.IdentityService.VerifyToken:input_type -> identity.v1.VerifyTokenRequest
-	1, // 7: identity.v1.IdentityService.GetUsers:output_type -> identity.v1.GetUsersResponse
-	3, // 8: identity.v1.IdentityService.GetAuthors:output_type -> identity.v1.GetAuthorsResponse
-	7, // 9: identity.v1.IdentityService.GetUserByUsername:output_type -> identity.v1.UserInfo
-	6, // 10: identity.v1.IdentityService.VerifyToken:output_type -> identity.v1.VerifyTokenResponse
-	7, // [7:11] is the sub-list for method output_type
-	3, // [3:7] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	5, // 0: identity.v1.GetUsersResponse.users:type_name -> identity.v1.UserInfo
+	6, // 1: identity.v1.UserInfo.created_at:type_name -> google.protobuf.Timestamp
+	0, // 2: identity.v1.IdentityService.GetUsers:input_type -> identity.v1.GetUsersRequest
+	2, // 3: identity.v1.IdentityService.GetUserByUsername:input_type -> identity.v1.GetUserByUsernameRequest
+	3, // 4: identity.v1.IdentityService.VerifyToken:input_type -> identity.v1.VerifyTokenRequest
+	1, // 5: identity.v1.IdentityService.GetUsers:output_type -> identity.v1.GetUsersResponse
+	5, // 6: identity.v1.IdentityService.GetUserByUsername:output_type -> identity.v1.UserInfo
+	4, // 7: identity.v1.IdentityService.VerifyToken:output_type -> identity.v1.VerifyTokenResponse
+	5, // [5:8] is the sub-list for method output_type
+	2, // [2:5] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_identity_v1_identity_proto_init() }
@@ -572,14 +407,13 @@ func file_identity_v1_identity_proto_init() {
 	if File_identity_v1_identity_proto != nil {
 		return
 	}
-	file_identity_v1_identity_proto_msgTypes[8].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_identity_v1_identity_proto_rawDesc), len(file_identity_v1_identity_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

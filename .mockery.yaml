@@ -3,30 +3,14 @@ dir: "{{ .InterfaceDir }}/mock_{{ .InterfaceDir | dir | base }}_{{ .InterfaceDir
 pkgname: "mock_{{ .InterfaceDir | dir | base }}_{{ .InterfaceDir | base }}"
 filename: "mock_{{ .InterfaceName | snakecase }}.go"
 packages:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/usecase:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/usecase:
     interfaces:
-      UserUsecase:
+      Repository:
       TokenManager:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/profile/usecase:
-    interfaces:
-      UserUsecase:
-      AuthorUsecase:
-      ProfileRepository:
       AvatarStorage:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/author/usecase:
-    interfaces:
-      Repository:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/usecase:
-    interfaces:
-      Repository:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/http:
     interfaces:
-      AuthUsecase:
-      ProfileUsecase:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc:
-    interfaces:
-      UserUsecase:
-      AuthorUsecase:
+      IdentityUsecase:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase:
     interfaces:
       PaymentRepo:

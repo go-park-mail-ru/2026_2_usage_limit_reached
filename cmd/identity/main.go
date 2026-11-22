@@ -8,9 +8,9 @@ import (
 	identityconfig "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/config"
 )
 
-// @title Patreon Clone API
+// @title Patreon Clone Identity API
 // @version 1.0
-// @description REST API для платформы публикации контента (аналог Patreon).
+// @description Аутентификация, профили и данные пользователей.
 // @securityDefinitions.apikey CookieAuth
 // @in cookie
 // @name __Host-token

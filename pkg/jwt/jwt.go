@@ -74,11 +74,8 @@ type JWTManager struct {
 	ttl       time.Duration
 }
 
-type UserPayload struct {
-	UserID   uuid.UUID `json:"user_id"`
-	Email    string    `json:"email"`
-	Username string    `json:"username"`
-	Role     string    `json:"role"`
+type Payload interface {
+	Encode() ([]byte, error)
 }
 
 func NewJWTManager(cfg JWTConfig) (*JWTManager, error) {
@@ -88,14 +85,19 @@ func NewJWTManager(cfg JWTConfig) (*JWTManager, error) {
 	return &JWTManager{secretKey: []byte(cfg.Secret), ttl: cfg.TokenTTL}, nil
 }
 
-func (m *JWTManager) Generate(ID uuid.UUID, payload any) (string, error) {
+func (m *JWTManager) Generate(ID uuid.UUID, payload Payload) (string, error) {
 	if ID == uuid.Nil {
 		return "", ErrInvalidUserID
 	}
 
-	rawPayload, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
+	var rawPayload json.RawMessage
+	if payload != nil {
+		encoded, err := payload.Encode()
+		if err != nil {
+			return "", err
+		}
+
+		rawPayload = encoded
 	}
 
 	now := time.Now()

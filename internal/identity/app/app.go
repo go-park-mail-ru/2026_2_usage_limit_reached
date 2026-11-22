@@ -6,17 +6,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	authuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/usecase"
-	authorrepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/author/repository"
-	authoruc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/author/usecase"
 	identityconfig "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/config"
 	identitygrpc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc"
 	identityhttp "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/http"
 	httprouter "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/http/router"
-	profilerepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/profile/repository/profile"
-	profileuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/profile/usecase"
-	userrepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/repository/user"
-	useruc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/user/usecase"
+	identityrepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/repository"
+	identityuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/grpcserver"
@@ -57,21 +52,15 @@ func Run(configPath string) error {
 		return fmt.Errorf("s3 client initialization error: %w", err)
 	}
 
-	userRepo := userrepo.NewUserRepository(postgresClient, appLogger)
-	authorRepo := authorrepo.NewAuthorRepository(postgresClient, appLogger)
-	profileRepo := profilerepo.NewProfileRepository(postgresClient, appLogger)
-
-	userUc := useruc.NewUsecase(userRepo, cfg.S3.PublicPath)
-	authUc := authuc.NewUsecase(userUc, tokens)
-	authorUc := authoruc.NewUsecase(authorRepo)
-	profileUc := profileuc.NewProfileUsecase(userUc, authorUc, profileRepo, s3Client, cfg.S3.PublicPath, appLogger)
+	userRepo := identityrepo.NewUserRepository(postgresClient, appLogger)
+	identityUc := identityuc.New(userRepo, tokens, s3Client, cfg.S3.PublicPath, appLogger)
 
 	valid, err := validator.NewValidator(cfg.Validation)
 	if err != nil {
 		return fmt.Errorf("validator initialization error: %w", err)
 	}
 
-	identityHandler := identitygrpc.NewHandler(userUc, authorUc, authUc, appLogger)
+	identityHandler := identitygrpc.NewHandler(identityUc, appLogger)
 	grpcApp := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			interceptors.UnaryRecovery(appLogger),
@@ -95,14 +84,14 @@ func Run(configPath string) error {
 	)
 
 	public := router.NewRoute().Subrouter()
-	public.Use(middleware.OptionalAuthMiddleware(authUc), middleware.CSRFMiddleware(csrfManager))
+	public.Use(middleware.OptionalAuthMiddleware(identityUc), middleware.CSRFMiddleware(csrfManager))
 
 	private := router.NewRoute().Subrouter()
-	private.Use(middleware.AuthMiddleware(authUc), middleware.CSRFMiddleware(csrfManager))
+	private.Use(middleware.AuthMiddleware(identityUc), middleware.CSRFMiddleware(csrfManager))
 
 	httprouter.RegisterRoutes(public, private, httprouter.Handlers{
-		Auth:    identityhttp.NewAuthHandler(authUc, valid, appLogger),
-		Profile: identityhttp.NewProfileHandler(profileUc, valid, appLogger),
+		Auth:    identityhttp.NewAuthHandler(identityUc, valid, appLogger),
+		Profile: identityhttp.NewProfileHandler(identityUc, valid, appLogger),
 		CSRF:    identityhttp.NewCSRFHandler(csrfManager, appLogger),
 	})
 

@@ -1,6 +1,8 @@
 package jwt_test
 
 import (
+	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +22,23 @@ var (
 	testRole     = "user"
 )
 
+type testPayload struct {
+	UserID   uuid.UUID `json:"user_id"`
+	Email    string    `json:"email"`
+	Username string    `json:"username"`
+	Role     string    `json:"role"`
+}
+
+func (p testPayload) Encode() ([]byte, error) {
+	return json.Marshal(p)
+}
+
+type failingPayload struct{}
+
+func (failingPayload) Encode() ([]byte, error) {
+	return nil, errors.New("encode failed")
+}
+
 func newTestManager(t *testing.T, secret string) *jwt.JWTManager {
 	t.Helper()
 	manager, err := jwt.NewJWTManager(jwt.JWTConfig{Secret: secret, TokenTTL: time.Hour})
@@ -32,7 +51,7 @@ func signedToken(t *testing.T, expiresAt int64) string {
 	token := jwtv5.NewWithClaims(jwtv5.SigningMethodHS256, jwtv5.MapClaims{
 		"sub":     testUserID.String(),
 		"exp":     expiresAt,
-		"payload": jwt.UserPayload{UserID: testUserID, Email: testEmail, Username: testUsername, Role: testRole},
+		"payload": testPayload{UserID: testUserID, Email: testEmail, Username: testUsername, Role: testRole},
 	})
 	signed, err := token.SignedString([]byte(testSecret))
 	require.NoError(t, err)
@@ -84,12 +103,12 @@ func TestJWTManager_Generate_Success(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		payload any
+		payload jwt.Payload
 		want    any
 	}{
 		{
 			name:    "user payload",
-			payload: jwt.UserPayload{UserID: testUserID, Email: testEmail, Username: testUsername, Role: testRole},
+			payload: testPayload{UserID: testUserID, Email: testEmail, Username: testUsername, Role: testRole},
 			want:    map[string]any{"user_id": testUserID.String(), "email": testEmail, "username": testUsername, "role": testRole},
 		},
 		{name: "nil payload", want: nil},
@@ -120,11 +139,11 @@ func TestJWTManager_Generate_Errors(t *testing.T) {
 	tests := []struct {
 		name    string
 		id      uuid.UUID
-		payload any
+		payload jwt.Payload
 		wantErr error
 	}{
 		{name: "nil user ID", id: uuid.Nil, wantErr: jwt.ErrInvalidUserID},
-		{name: "unsupported payload", id: testUserID, payload: make(chan int)},
+		{name: "unsupported payload", id: testUserID, payload: failingPayload{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -143,7 +162,7 @@ func TestJWTManager_Generate_Errors(t *testing.T) {
 func TestJWTManager_GenerateVerify_RoundTrip(t *testing.T) {
 	t.Parallel()
 	manager := newTestManager(t, testSecret)
-	payload := jwt.UserPayload{UserID: testUserID, Email: testEmail, Username: testUsername, Role: testRole}
+	payload := testPayload{UserID: testUserID, Email: testEmail, Username: testUsername, Role: testRole}
 
 	token, err := manager.Generate(testUserID, payload)
 	require.NoError(t, err)
@@ -163,7 +182,7 @@ func TestJWTManager_Verify_Success(t *testing.T) {
 
 func TestJWTManager_Verify_Errors(t *testing.T) {
 	t.Parallel()
-	token, err := newTestManager(t, testSecret).Generate(testUserID, jwt.UserPayload{UserID: testUserID, Email: testEmail, Username: testUsername, Role: testRole})
+	token, err := newTestManager(t, testSecret).Generate(testUserID, testPayload{UserID: testUserID, Email: testEmail, Username: testUsername, Role: testRole})
 	require.NoError(t, err)
 	parts := strings.Split(token, ".")
 

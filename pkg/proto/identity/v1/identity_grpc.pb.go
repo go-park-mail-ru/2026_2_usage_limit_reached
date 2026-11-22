@@ -20,7 +20,6 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	IdentityService_GetUsers_FullMethodName          = "/identity.v1.IdentityService/GetUsers"
-	IdentityService_GetAuthors_FullMethodName        = "/identity.v1.IdentityService/GetAuthors"
 	IdentityService_GetUserByUsername_FullMethodName = "/identity.v1.IdentityService/GetUserByUsername"
 	IdentityService_VerifyToken_FullMethodName       = "/identity.v1.IdentityService/VerifyToken"
 )
@@ -30,7 +29,6 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type IdentityServiceClient interface {
 	GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (*GetUsersResponse, error)
-	GetAuthors(ctx context.Context, in *GetAuthorsRequest, opts ...grpc.CallOption) (*GetAuthorsResponse, error)
 	GetUserByUsername(ctx context.Context, in *GetUserByUsernameRequest, opts ...grpc.CallOption) (*UserInfo, error)
 	VerifyToken(ctx context.Context, in *VerifyTokenRequest, opts ...grpc.CallOption) (*VerifyTokenResponse, error)
 }
@@ -47,16 +45,6 @@ func (c *identityServiceClient) GetUsers(ctx context.Context, in *GetUsersReques
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetUsersResponse)
 	err := c.cc.Invoke(ctx, IdentityService_GetUsers_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *identityServiceClient) GetAuthors(ctx context.Context, in *GetAuthorsRequest, opts ...grpc.CallOption) (*GetAuthorsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetAuthorsResponse)
-	err := c.cc.Invoke(ctx, IdentityService_GetAuthors_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +76,6 @@ func (c *identityServiceClient) VerifyToken(ctx context.Context, in *VerifyToken
 // for forward compatibility.
 type IdentityServiceServer interface {
 	GetUsers(context.Context, *GetUsersRequest) (*GetUsersResponse, error)
-	GetAuthors(context.Context, *GetAuthorsRequest) (*GetAuthorsResponse, error)
 	GetUserByUsername(context.Context, *GetUserByUsernameRequest) (*UserInfo, error)
 	VerifyToken(context.Context, *VerifyTokenRequest) (*VerifyTokenResponse, error)
 	mustEmbedUnimplementedIdentityServiceServer()
@@ -103,9 +90,6 @@ type UnimplementedIdentityServiceServer struct{}
 
 func (UnimplementedIdentityServiceServer) GetUsers(context.Context, *GetUsersRequest) (*GetUsersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUsers not implemented")
-}
-func (UnimplementedIdentityServiceServer) GetAuthors(context.Context, *GetAuthorsRequest) (*GetAuthorsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetAuthors not implemented")
 }
 func (UnimplementedIdentityServiceServer) GetUserByUsername(context.Context, *GetUserByUsernameRequest) (*UserInfo, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUserByUsername not implemented")
@@ -148,24 +132,6 @@ func _IdentityService_GetUsers_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(IdentityServiceServer).GetUsers(ctx, req.(*GetUsersRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _IdentityService_GetAuthors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAuthorsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(IdentityServiceServer).GetAuthors(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: IdentityService_GetAuthors_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(IdentityServiceServer).GetAuthors(ctx, req.(*GetAuthorsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -216,10 +182,6 @@ var IdentityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUsers",
 			Handler:    _IdentityService_GetUsers_Handler,
-		},
-		{
-			MethodName: "GetAuthors",
-			Handler:    _IdentityService_GetAuthors_Handler,
 		},
 		{
 			MethodName: "GetUserByUsername",

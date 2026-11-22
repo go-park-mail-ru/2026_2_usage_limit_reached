@@ -8,7 +8,6 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/grpcserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/jwt"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
@@ -23,7 +22,6 @@ const DefaultConfigPath = "configs/dev.yaml"
 
 type Config struct {
 	Postgres   postgres.PostgresConfig    `mapstructure:"postgres"`
-	GRPC       grpcserver.GRPCConfig      `mapstructure:"grpc"`
 	S3         s3.S3Config                `mapstructure:"s3"`
 	Log        logger.LoggerConfig        `mapstructure:"log"`
 	HTTP       httpserver.HTTPConfig      `mapstructure:"http"`
@@ -43,7 +41,6 @@ func Load(path string) (*Config, error) {
 
 	if err := errors.Join(
 		cfg.Postgres.Validate(),
-		cfg.GRPC.Validate(),
 		cfg.S3.Validate(),
 		cfg.Log.Validate(),
 		cfg.HTTP.Validate(),
@@ -72,7 +69,6 @@ func load(path string) (*Config, error) {
 
 	cfg := Config{
 		Postgres:   postgres.DefaultConfig(),
-		GRPC:       grpcserver.DefaultConfig(),
 		S3:         s3.DefaultConfig(),
 		Log:        logger.DefaultConfig(),
 		HTTP:       httpserver.DefaultConfig(),

@@ -19,7 +19,6 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type IdentityServiceClient interface {
 	GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (*GetUsersResponse, error)
-	GetAuthors(ctx context.Context, in *GetAuthorsRequest, opts ...grpc.CallOption) (*GetAuthorsResponse, error)
 	GetUserByUsername(ctx context.Context, in *GetUserByUsernameRequest, opts ...grpc.CallOption) (*UserInfo, error)
 	VerifyToken(ctx context.Context, in *VerifyTokenRequest, opts ...grpc.CallOption) (*VerifyTokenResponse, error)
 }
@@ -35,15 +34,6 @@ func NewIdentityServiceClient(cc grpc.ClientConnInterface) IdentityServiceClient
 func (c *identityServiceClient) GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (*GetUsersResponse, error) {
 	out := new(GetUsersResponse)
 	err := c.cc.Invoke(ctx, "/identity.v1.IdentityService/GetUsers", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *identityServiceClient) GetAuthors(ctx context.Context, in *GetAuthorsRequest, opts ...grpc.CallOption) (*GetAuthorsResponse, error) {
-	out := new(GetAuthorsResponse)
-	err := c.cc.Invoke(ctx, "/identity.v1.IdentityService/GetAuthors", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +63,6 @@ func (c *identityServiceClient) VerifyToken(ctx context.Context, in *VerifyToken
 // for forward compatibility
 type IdentityServiceServer interface {
 	GetUsers(context.Context, *GetUsersRequest) (*GetUsersResponse, error)
-	GetAuthors(context.Context, *GetAuthorsRequest) (*GetAuthorsResponse, error)
 	GetUserByUsername(context.Context, *GetUserByUsernameRequest) (*UserInfo, error)
 	VerifyToken(context.Context, *VerifyTokenRequest) (*VerifyTokenResponse, error)
 	mustEmbedUnimplementedIdentityServiceServer()
@@ -85,9 +74,6 @@ type UnimplementedIdentityServiceServer struct {
 
 func (UnimplementedIdentityServiceServer) GetUsers(context.Context, *GetUsersRequest) (*GetUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUsers not implemented")
-}
-func (UnimplementedIdentityServiceServer) GetAuthors(context.Context, *GetAuthorsRequest) (*GetAuthorsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAuthors not implemented")
 }
 func (UnimplementedIdentityServiceServer) GetUserByUsername(context.Context, *GetUserByUsernameRequest) (*UserInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUserByUsername not implemented")
@@ -122,24 +108,6 @@ func _IdentityService_GetUsers_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(IdentityServiceServer).GetUsers(ctx, req.(*GetUsersRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _IdentityService_GetAuthors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAuthorsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(IdentityServiceServer).GetAuthors(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/identity.v1.IdentityService/GetAuthors",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(IdentityServiceServer).GetAuthors(ctx, req.(*GetAuthorsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -190,10 +158,6 @@ var IdentityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUsers",
 			Handler:    _IdentityService_GetUsers_Handler,
-		},
-		{
-			MethodName: "GetAuthors",
-			Handler:    _IdentityService_GetAuthors_Handler,
 		},
 		{
 			MethodName: "GetUserByUsername",

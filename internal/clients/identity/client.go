@@ -168,54 +168,6 @@ func (c *Client) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*
 	return result, nil
 }
 
-func (c *Client) GetAuthors(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*identitycontracts.AuthorInfo, error) {
-	requestIDs, err := toProtoIDs(ids)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make(map[uuid.UUID]*identitycontracts.AuthorInfo, len(requestIDs))
-	if len(requestIDs) == 0 {
-		return result, nil
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, c.timeout)
-	defer cancel()
-
-	resp, err := c.client.GetAuthors(ctx, &identitypb.GetAuthorsRequest{Ids: requestIDs})
-	if err != nil {
-		return nil, c.wrapRPCError("get authors", err)
-	}
-	if resp == nil {
-		return nil, errors.New("identity returned empty get authors response")
-	}
-
-	for _, author := range resp.GetAuthors() {
-		if author == nil {
-			return nil, errors.New("identity returned nil author")
-		}
-
-		id, err := uuid.Parse(author.GetId())
-		if err != nil {
-			return nil, fmt.Errorf("parse author id: %w", err)
-		}
-
-		var category *string
-		if author.Category != nil {
-			value := author.GetCategory()
-			category = &value
-		}
-
-		result[id] = &identitycontracts.AuthorInfo{
-			ID:       id,
-			Bio:      author.GetBio(),
-			Category: category,
-		}
-	}
-
-	return result, nil
-}
-
 func toProtoIDs(ids []uuid.UUID) ([]string, error) {
 	seen := make(map[uuid.UUID]struct{}, len(ids))
 	result := make([]string, 0, len(ids))

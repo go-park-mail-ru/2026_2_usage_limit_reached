@@ -4,18 +4,18 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/auth/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 )
 
 type AuthHandler struct {
-	auth      AuthUsecase
+	auth      IdentityUsecase
 	validator *validator.Validator
 	logger    *slog.Logger
 }
 
-func NewAuthHandler(auth AuthUsecase, validator *validator.Validator, logger *slog.Logger) *AuthHandler {
+func NewAuthHandler(auth IdentityUsecase, validator *validator.Validator, logger *slog.Logger) *AuthHandler {
 	return &AuthHandler{auth: auth, validator: validator, logger: logger}
 }
 

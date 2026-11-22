@@ -20,8 +20,3 @@ type UserInfo struct {
 	Status    string
 }
 
-type AuthorInfo struct {
-	ID       uuid.UUID
-	Bio      string
-	Category *string
-}

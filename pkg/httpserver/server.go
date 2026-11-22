@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"golang.org/x/sync/errgroup"
 )
 
 type HTTPConfig struct {
@@ -66,36 +67,33 @@ func (s *Server) Run(ctx context.Context, r *mux.Router) error {
 		ReadHeaderTimeout: s.readHeaderTimeout,
 	}
 
-	serveErr := make(chan error, 1)
-	go func() {
-		s.logger.Info("server starting", slog.String("addr", s.port))
-		serveErr <- srv.ListenAndServe()
-	}()
+	g, ctx := errgroup.WithContext(ctx)
 
-	select {
-	case err := <-serveErr:
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+	g.Go(func() error {
+		s.logger.Info("server starting", slog.String("addr", s.port))
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.logger.Error("server fatal error", slog.String("error", err.Error()))
 			return err
 		}
+
 		return nil
-	case <-ctx.Done():
-	}
+	})
 
-	s.logger.Info("shutting down server gracefully")
+	g.Go(func() error {
+		<-ctx.Done()
+		s.logger.Info("shutting down server gracefully")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
-	defer cancel()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
+		defer cancel()
 
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		s.logger.Error("server forced to shutdown", slog.String("error", err.Error()))
-		return err
-	}
-	if err := <-serveErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
-		s.logger.Error("server fatal error", slog.String("error", err.Error()))
-		return err
-	}
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			s.logger.Error("server forced to shutdown", slog.String("error", err.Error()))
+			return err
+		}
 
-	s.logger.Info("server stopped gracefully")
-	return nil
+		s.logger.Info("server stopped gracefully")
+		return nil
+	})
+
+	return g.Wait()
 }

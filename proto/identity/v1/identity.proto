@@ -8,7 +8,6 @@ option go_package = "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/p
 
 service IdentityService {
   rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
-  rpc GetAuthors(GetAuthorsRequest) returns (GetAuthorsResponse);
   rpc GetUserByUsername(GetUserByUsernameRequest) returns (UserInfo);
   rpc VerifyToken(VerifyTokenRequest) returns (VerifyTokenResponse);
 }
@@ -19,14 +18,6 @@ message GetUsersRequest {
 
 message GetUsersResponse {
   repeated UserInfo users = 1;
-}
-
-message GetAuthorsRequest {
-  repeated string ids = 1;
-}
-
-message GetAuthorsResponse {
-  repeated Author authors = 1;
 }
 
 message GetUserByUsernameRequest {
@@ -49,10 +40,4 @@ message UserInfo {
   string avatar_url = 4;
   google.protobuf.Timestamp created_at = 5;
   string status = 6;
-}
-
-message Author {
-  string id = 1;
-  string bio = 2;
-  optional string category = 3;
 }

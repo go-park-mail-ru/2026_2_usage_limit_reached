@@ -15,13 +15,23 @@ func UnaryLogging(logger *slog.Logger) grpc.UnaryServerInterceptor {
 	}
 
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		logger.InfoContext(ctx, "grpc request start", slog.String("method", info.FullMethod))
+
 		start := time.Now()
 		resp, err := handler(ctx, req)
-		attrs := []any{slog.String("method", info.FullMethod), slog.String("code", status.Code(err).String()), slog.Duration("duration", time.Since(start))}
+
+		attrs := []any{
+			slog.String("method", info.FullMethod),
+			slog.String("code", status.Code(err).String()),
+			slog.Duration("duration", time.Since(start)),
+		}
+
 		if err != nil {
 			attrs = append(attrs, slog.String("error", err.Error()))
 		}
-		logger.InfoContext(ctx, "grpc request", attrs...)
+
+		logger.InfoContext(ctx, "grpc request finish", attrs...)
+
 		return resp, err
 	}
 }

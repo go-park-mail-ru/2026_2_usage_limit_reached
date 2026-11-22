@@ -8,13 +8,6 @@ import (
 
 	identityclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/config"
-	DonationHandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/delivery"
-	DonationRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/repository"
-	DonationUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/usecase"
-	PaymentsRepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/repository"
-	PaymentsUsecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase"
-	PaymentProvider "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider/mock"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
@@ -47,23 +40,10 @@ func Run(configPath string) error {
 	}
 	defer postgresClient.Close()
 
-	paymentRepo := PaymentsRepo.NewPaymentRepository(postgresClient, appLogger)
-	donationRepo := DonationRepo.NewDonationRepository(postgresClient, appLogger)
-
-	valid, err := validator.NewValidator(cfg.Validation)
-	if err != nil {
-		return fmt.Errorf("validator initialization error: %w", err)
-	}
 	csrfManager := csrf.NewManager(cfg.CSRF)
 	authMiddleware := middleware.AuthMiddleware(identityClient)
 	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(identityClient)
 	csrfMiddleware := middleware.CSRFMiddleware(csrfManager)
-
-	provider := PaymentProvider.NewMockProvider()
-	paymentUc := PaymentsUsecase.NewPaymentUsecase(paymentRepo, provider)
-
-	donationUc := DonationUsecase.NewDonationUsecase(donationRepo, paymentUc)
-	donationHandler := DonationHandlers.NewHandler(donationUc, valid, appLogger)
 
 	r := mux.NewRouter()
 	r.Use(
@@ -77,8 +57,6 @@ func Run(configPath string) error {
 
 	private := r.NewRoute().Subrouter()
 	private.Use(authMiddleware, csrfMiddleware)
-
-	donationHandler.RegisterRoutes(private)
 
 	srv, err := httpserver.New(cfg.HTTP, appLogger)
 	if err != nil {

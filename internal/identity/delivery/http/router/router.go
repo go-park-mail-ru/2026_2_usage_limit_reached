@@ -16,7 +16,6 @@ type ProfileHandler interface {
 	GetMe(w http.ResponseWriter, r *http.Request)
 	GetPublicProfile(w http.ResponseWriter, r *http.Request)
 	UpdateMyProfile(w http.ResponseWriter, r *http.Request)
-	BecomeAuthor(w http.ResponseWriter, r *http.Request)
 	UploadAvatar(w http.ResponseWriter, r *http.Request)
 	DeleteAvatar(w http.ResponseWriter, r *http.Request)
 }
@@ -40,7 +39,6 @@ func RegisterRoutes(public *mux.Router, private *mux.Router, deps Handlers) {
 	private.HandleFunc("/logout", deps.Auth.Logout).Methods(http.MethodPost, http.MethodOptions)
 	private.HandleFunc("/profile/me", deps.Profile.GetMe).Methods(http.MethodGet, http.MethodOptions)
 	private.HandleFunc("/profile/me", deps.Profile.UpdateMyProfile).Methods(http.MethodPut, http.MethodOptions)
-	private.HandleFunc("/profile/me/author", deps.Profile.BecomeAuthor).Methods(http.MethodPost, http.MethodOptions)
 	private.HandleFunc("/profile/me/avatar", deps.Profile.UploadAvatar).Methods(http.MethodPut, http.MethodOptions)
 	private.HandleFunc("/profile/me/avatar", deps.Profile.DeleteAvatar).Methods(http.MethodDelete, http.MethodOptions)
 }

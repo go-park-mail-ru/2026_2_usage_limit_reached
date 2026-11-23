@@ -8,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
 	"github.com/google/uuid"
 	mock "github.com/stretchr/testify/mock"
 )

@@ -3,8 +3,8 @@ package postusecase_test
 import (
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/usecase/mock_posts_usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/usecase/mock_content_usecase"
 	identitycontracts "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/contracts/identity"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
@@ -75,7 +75,7 @@ func postAuthorIDForItems(items []*dto.PostPreview) uuid.UUID {
 	return items[0].Author.ID
 }
 
-func expectGetUsers(identity *mock_posts_usecase.MockIdentityClient, items []*dto.PostPreview) {
+func expectGetUsers(identity *mock_content_usecase.MockIdentityClient, items []*dto.PostPreview) {
 	if len(items) == 0 {
 		return
 	}
@@ -102,7 +102,7 @@ func expectGetUsers(identity *mock_posts_usecase.MockIdentityClient, items []*dt
 }
 
 func expectListIdentity(
-	identity *mock_posts_usecase.MockIdentityClient,
+	identity *mock_content_usecase.MockIdentityClient,
 	m listMethod,
 	items []*dto.PostPreview,
 ) {

@@ -10,8 +10,8 @@ import (
 
 	handlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http/mock_delivery_http"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/dto"
-	postusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
+	postusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"

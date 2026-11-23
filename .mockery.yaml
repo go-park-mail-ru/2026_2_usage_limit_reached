@@ -17,7 +17,7 @@ packages:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider:
     interfaces:
       Provider:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/usecase:
+  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/usecase:
     interfaces:
       PostRepository:
       IdentityClient:

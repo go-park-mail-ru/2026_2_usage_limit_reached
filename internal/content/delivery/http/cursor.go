@@ -3,7 +3,7 @@ package handlers
 import (
 	"github.com/google/uuid"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/cursor"
 )
 

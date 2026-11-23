@@ -20,6 +20,7 @@ import (
 type PaymentUsecase interface {
 	CreatePayment(ctx context.Context, req dto.CreatePayment) (*models.PaymentOrder, error)
 	GetPayments(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*models.PaymentOrder, error)
+	CancelPayment(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, error)
 }
 
 type Handler struct {
@@ -73,16 +74,7 @@ func (h *Handler) CreatePayment(ctx context.Context, req *paymentspb.CreatePayme
 		return nil, h.handleError(ctx, "create payment", err)
 	}
 
-	response, err := paymentOrderToProto(result)
-	if err != nil {
-		h.logger.ErrorContext(ctx, "failed to convert payment state",
-			slog.String("op", "create payment"),
-			slog.Any("error", err),
-		)
-		return nil, status.Error(codes.Internal, "internal error")
-	}
-
-	return response, nil
+	return paymentOrderToProto(result)
 }
 
 func (h *Handler) GetPayments(ctx context.Context, req *paymentspb.GetPaymentsRequest) (*paymentspb.GetPaymentsResponse, error) {
@@ -131,6 +123,24 @@ func (h *Handler) GetPayments(ctx context.Context, req *paymentspb.GetPaymentsRe
 	}
 
 	return response, nil
+}
+
+func (h *Handler) CancelPayment(ctx context.Context, req *paymentspb.CancelPaymentRequest) (*paymentspb.PaymentOrder, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+
+	orderID, err := uuid.Parse(req.GetPaymentOrderId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid payment_order_id")
+	}
+
+	order, err := h.uc.CancelPayment(ctx, orderID)
+	if err != nil {
+		return nil, h.handleError(ctx, "cancel payment", err)
+	}
+
+	return paymentOrderToProto(order)
 }
 
 func parseUUID(value, field string) (uuid.UUID, error) {

@@ -4,6 +4,7 @@ package paymentv1
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -21,6 +22,7 @@ type PaymentServiceClient interface {
 	CreatePayment(ctx context.Context, in *CreatePaymentRequest, opts ...grpc.CallOption) (*PaymentOrder, error)
 	GetPayments(ctx context.Context, in *GetPaymentsRequest, opts ...grpc.CallOption) (*GetPaymentsResponse, error)
 	Pay(ctx context.Context, in *PayRequest, opts ...grpc.CallOption) (*PayResponse, error)
+	CancelPayment(ctx context.Context, in *CancelPaymentRequest, opts ...grpc.CallOption) (*PaymentOrder, error)
 }
 
 type paymentServiceClient struct {
@@ -58,6 +60,15 @@ func (c *paymentServiceClient) Pay(ctx context.Context, in *PayRequest, opts ...
 	return out, nil
 }
 
+func (c *paymentServiceClient) CancelPayment(ctx context.Context, in *CancelPaymentRequest, opts ...grpc.CallOption) (*PaymentOrder, error) {
+	out := new(PaymentOrder)
+	err := c.cc.Invoke(ctx, "/payment.v1.PaymentService/CancelPayment", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PaymentServiceServer is the server API for PaymentService service.
 // All implementations must embed UnimplementedPaymentServiceServer
 // for forward compatibility
@@ -65,6 +76,7 @@ type PaymentServiceServer interface {
 	CreatePayment(context.Context, *CreatePaymentRequest) (*PaymentOrder, error)
 	GetPayments(context.Context, *GetPaymentsRequest) (*GetPaymentsResponse, error)
 	Pay(context.Context, *PayRequest) (*PayResponse, error)
+	CancelPayment(context.Context, *CancelPaymentRequest) (*PaymentOrder, error)
 	mustEmbedUnimplementedPaymentServiceServer()
 }
 
@@ -80,6 +92,9 @@ func (UnimplementedPaymentServiceServer) GetPayments(context.Context, *GetPaymen
 }
 func (UnimplementedPaymentServiceServer) Pay(context.Context, *PayRequest) (*PayResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Pay not implemented")
+}
+func (UnimplementedPaymentServiceServer) CancelPayment(context.Context, *CancelPaymentRequest) (*PaymentOrder, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelPayment not implemented")
 }
 func (UnimplementedPaymentServiceServer) mustEmbedUnimplementedPaymentServiceServer() {}
 
@@ -148,6 +163,24 @@ func _PaymentService_Pay_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PaymentService_CancelPayment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelPaymentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PaymentServiceServer).CancelPayment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/payment.v1.PaymentService/CancelPayment",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PaymentServiceServer).CancelPayment(ctx, req.(*CancelPaymentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PaymentService_ServiceDesc is the grpc.ServiceDesc for PaymentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -166,6 +199,10 @@ var PaymentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Pay",
 			Handler:    _PaymentService_Pay_Handler,
+		},
+		{
+			MethodName: "CancelPayment",
+			Handler:    _PaymentService_CancelPayment_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -21,12 +21,13 @@ var (
 )
 
 type PaymentRepo interface {
-	CreateOrGetOrderWithAttempt(ctx context.Context, req dto.CreatePayment) (orderID, attemptID uuid.UUID, err error)
+	CreateOrGetOrder(ctx context.Context, req dto.CreatePayment) (orderID uuid.UUID, err error)
 	GetOrdersByIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*models.PaymentOrder, error)
 	GetOrderByID(ctx context.Context, id uuid.UUID) (*models.PaymentOrder, error)
+	StartAttempt(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, *models.PaymentAttempt, bool, error)
 	CompleteSuccessfulAttempt(ctx context.Context, attempt dto.AttemptToComplete) (bool, error)
 	FailAttempt(ctx context.Context, orderID, attemptID uuid.UUID, reason string) error
-	GetAttemptByID(ctx context.Context, id uuid.UUID) (*models.PaymentAttempt, error)
+	CancelOrder(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, error)
 }
 
 var repoErrors = []struct{ from, to error }{
@@ -57,18 +58,14 @@ func NewPaymentUsecase(repo PaymentRepo, provider paymentProvider.Provider) *Pay
 }
 
 func (uc *PaymentUsecase) CreatePayment(ctx context.Context, req dto.CreatePayment) (*models.PaymentOrder, error) {
-	orderID, attemptID, err := uc.repo.CreateOrGetOrderWithAttempt(ctx, req)
+	orderID, err := uc.repo.CreateOrGetOrder(ctx, req)
 	if err != nil {
 		return nil, mapRepoError("create payment", err)
 	}
 
-	if _, err := uc.Pay(ctx, orderID, attemptID); err != nil {
-		return nil, fmt.Errorf("pay: %w", err)
-	}
-
 	order, err := uc.repo.GetOrderByID(ctx, orderID)
 	if err != nil {
-		return nil, mapRepoError("get created payment", err)
+		return nil, mapRepoError("get created payment order", err)
 	}
 
 	return order, nil
@@ -87,30 +84,40 @@ func (uc *PaymentUsecase) GetPayments(ctx context.Context, orderIDs []uuid.UUID)
 	return payments, nil
 }
 
-func (uc *PaymentUsecase) Pay(ctx context.Context, orderID, attemptID uuid.UUID) (models.PaymentOrderStatus, error) {
-	order, err := uc.repo.GetOrderByID(ctx, orderID)
-	if err != nil {
-		return "", mapRepoError("get order", err)
+func (uc *PaymentUsecase) CancelPayment(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, error) {
+	if orderID == uuid.Nil {
+		return nil, ErrValidation
 	}
 
-	attempt, err := uc.repo.GetAttemptByID(ctx, attemptID)
+	order, err := uc.repo.CancelOrder(ctx, orderID)
 	if err != nil {
-		return "", mapRepoError("get attempt", err)
+		return nil, mapRepoError("cancel payment", err)
+	}
+
+	return order, nil
+}
+
+func (uc *PaymentUsecase) Pay(ctx context.Context, orderID uuid.UUID) (models.PaymentOrderStatus, error) {
+	if orderID == uuid.Nil {
+		return "", ErrValidation
+	}
+
+	order, attempt, started, err := uc.repo.StartAttempt(ctx, orderID)
+	if err != nil {
+		return "", mapRepoError("start payment attempt", err)
 	}
 
 	if attempt.PaymentOrderID != orderID {
 		return "", ErrValidation
 	}
 
-	if order.Status == models.StatusPaid ||
-		order.Status == models.StatusFailed ||
-		order.Status == models.StatusCanceled ||
-		attempt.Status != models.AttemptStatusCreated {
+	// Заказ уже обрабатывается или находится в конечном состоянии.
+	if !started {
 		return order.Status, nil
 	}
 
 	res, err := uc.paymentProvider.Charge(ctx, paymentProvider.ChargeRequest{
-		AttemptID:   attemptID,
+		AttemptID:   attempt.ID,
 		AmountMinor: order.ExpectedAmountMinor,
 		Currency:    order.Currency,
 	})
@@ -121,7 +128,7 @@ func (uc *PaymentUsecase) Pay(ctx context.Context, orderID, attemptID uuid.UUID)
 	switch res.Status {
 	case paymentProvider.ChargeSucceeded:
 		if _, err := uc.repo.CompleteSuccessfulAttempt(ctx, dto.AttemptToComplete{
-			ID:                    attemptID,
+			ID:                    attempt.ID,
 			OrderID:               orderID,
 			ExternalTransactionID: res.ExternalID,
 			ChargedAmountMinor:    res.AmountMinor,
@@ -131,14 +138,15 @@ func (uc *PaymentUsecase) Pay(ctx context.Context, orderID, attemptID uuid.UUID)
 			return "", mapRepoError("complete attempt", err)
 		}
 	case paymentProvider.ChargeFailed:
-		if err := uc.repo.FailAttempt(ctx, orderID, attemptID, res.FailureReason); err != nil {
+		if err := uc.repo.FailAttempt(ctx, orderID, attempt.ID, res.FailureReason); err != nil {
 			return "", mapRepoError("fail attempt", err)
 		}
 	}
 
 	final, err := uc.repo.GetOrderByID(ctx, orderID)
 	if err != nil {
-		return "", mapRepoError("get order", err)
+		return "", mapRepoError("get final order", err)
 	}
+
 	return final.Status, nil
 }

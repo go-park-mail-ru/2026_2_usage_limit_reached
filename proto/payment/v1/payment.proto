@@ -10,6 +10,7 @@ service PaymentService {
   rpc CreatePayment(CreatePaymentRequest) returns (PaymentOrder);
   rpc GetPayments(GetPaymentsRequest) returns (GetPaymentsResponse);
   rpc Pay(PayRequest) returns (PayResponse);
+  rpc CancelPayment(CancelPaymentRequest) returns (PaymentOrder);
 }
 
 message PayRequest {
@@ -60,4 +61,8 @@ message PaymentAttempt {
   optional string charged_currency = 6;
   optional string failure_reason = 7;
   google.protobuf.Timestamp completed_at = 8;
+}
+
+message CancelPaymentRequest {
+    string payment_order_id = 1;
 }

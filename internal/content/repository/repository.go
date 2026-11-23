@@ -14,16 +14,16 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type PostRepository struct {
+type Repository struct {
 	pool   postgres.DB
 	logger *slog.Logger
 }
 
-func NewPostRepository(db *postgres.DBClient, logger *slog.Logger) *PostRepository {
-	return &PostRepository{pool: db.Pool, logger: logger}
+func NewRepository(db *postgres.DBClient, logger *slog.Logger) *Repository {
+	return &Repository{pool: db.Pool, logger: logger}
 }
 
-func (r *PostRepository) CreatePost(ctx context.Context, userID *uuid.UUID, p models.Post) (uuid.UUID, error) {
+func (r *Repository) CreatePost(ctx context.Context, userID *uuid.UUID, p models.Post) (uuid.UUID, error) {
 	const query = `
 		INSERT INTO post (author_id, title, body, status, published_at)
 		VALUES ($1, $2, $3, $4, CASE WHEN $4 = 'published' THEN now() END)
@@ -50,7 +50,7 @@ func (r *PostRepository) CreatePost(ctx context.Context, userID *uuid.UUID, p mo
 	return postID, nil
 }
 
-func (r *PostRepository) GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error) {
+func (r *Repository) GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error) {
 	const query = `
 		SELECT p.id, p.author_id, p.title,
 			CASE WHEN l.locked THEN '' ELSE p.body END AS body,
@@ -94,7 +94,7 @@ func (r *PostRepository) GetPost(ctx context.Context, userID *uuid.UUID, postID 
 	return post, nil
 }
 
-func (r *PostRepository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
 			p.id, p.author_id, p.title, p.body, p.published_at, p.likes_count,
@@ -122,7 +122,7 @@ func (r *PostRepository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, c
 	return posts, nil
 }
 
-func (r *PostRepository) GetMyOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetMyOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
 			p.id, p.author_id, p.title, p.body, p.published_at, p.likes_count,
@@ -150,7 +150,7 @@ func (r *PostRepository) GetMyOldPosts(ctx context.Context, userID *uuid.UUID, c
 	return posts, nil
 }
 
-func (r *PostRepository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
 			p.id, p.author_id, p.title, p.body, p.published_at, p.likes_count,
@@ -178,7 +178,7 @@ func (r *PostRepository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUI
 	return posts, nil
 }
 
-func (r *PostRepository) GetMyNewDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetMyNewDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
 			p.id, p.author_id, p.title, p.body, p.updated_at, p.likes_count,
@@ -205,7 +205,7 @@ func (r *PostRepository) GetMyNewDrafts(ctx context.Context, userID *uuid.UUID, 
 	return posts, nil
 }
 
-func (r *PostRepository) GetMyOldDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetMyOldDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
 			p.id, p.author_id, p.title, p.body, p.updated_at, p.likes_count,
@@ -232,7 +232,7 @@ func (r *PostRepository) GetMyOldDrafts(ctx context.Context, userID *uuid.UUID, 
 	return posts, nil
 }
 
-func (r *PostRepository) GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, p.body,
@@ -284,7 +284,7 @@ func (r *PostRepository) GetUserNewPosts(ctx context.Context, userID *uuid.UUID,
 	return posts, nil
 }
 
-func (r *PostRepository) GetUserOldPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetUserOldPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, p.body,
@@ -336,7 +336,7 @@ func (r *PostRepository) GetUserOldPosts(ctx context.Context, userID *uuid.UUID,
 	return posts, nil
 }
 
-func (r *PostRepository) GetUserPopularPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetUserPopularPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, p.body,
@@ -389,7 +389,7 @@ func (r *PostRepository) GetUserPopularPosts(ctx context.Context, userID *uuid.U
 	return posts, nil
 }
 
-func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, p.body,
@@ -427,7 +427,7 @@ func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cur
 	return posts, nil
 }
 
-func (r *PostRepository) GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, p.body,
@@ -465,7 +465,7 @@ func (r *PostRepository) GetOldPosts(ctx context.Context, userID *uuid.UUID, cur
 	return posts, nil
 }
 
-func (r *PostRepository) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, p.body,
@@ -502,7 +502,7 @@ func (r *PostRepository) GetPopularPosts(ctx context.Context, userID *uuid.UUID,
 	return posts, nil
 }
 
-func (r *PostRepository) getTimedPosts(ctx context.Context, query string, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) getTimedPosts(ctx context.Context, query string, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	var (
 		ts *time.Time
 		id *uuid.UUID
@@ -522,7 +522,7 @@ func (r *PostRepository) getTimedPosts(ctx context.Context, query string, userID
 	return posts, nil
 }
 
-func (r *PostRepository) getPopularPosts(ctx context.Context, query string, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) getPopularPosts(ctx context.Context, query string, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	var (
 		likes *int64
 		ts    *time.Time
@@ -569,7 +569,7 @@ func scanPosts(rows pgx.Rows) ([]*dto.PostPreview, error) {
 	return posts, nil
 }
 
-func (r *PostRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) error {
+func (r *Repository) UpdatePost(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) error {
 	const query = `
 		UPDATE post SET
 			title = $3,
@@ -635,7 +635,7 @@ func (r *PostRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p mo
 	return nil
 }
 
-func (r *PostRepository) DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error {
+func (r *Repository) DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error {
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "delete post"),
 		slog.String("postID", postID.String()),
@@ -652,7 +652,7 @@ func (r *PostRepository) DeletePost(ctx context.Context, userID *uuid.UUID, post
 	return nil
 }
 
-func (r *PostRepository) LikePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
+func (r *Repository) LikePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
 	const getPostAuthor = `
 		SELECT p.author_id
 		FROM post p
@@ -717,7 +717,7 @@ func (r *PostRepository) LikePost(ctx context.Context, userID *uuid.UUID, postID
 	return likesCount, nil
 }
 
-func (r *PostRepository) DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
+func (r *Repository) DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
 	const deletePostLike = `DELETE FROM post_like WHERE post_id = $1 AND user_id = $2`
 	const getLikesCount = `SELECT likes_count FROM post WHERE id = $1`
 

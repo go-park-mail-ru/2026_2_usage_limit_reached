@@ -74,7 +74,7 @@ type listMethod struct {
 	name  string
 	query string
 	args  []any
-	call  func(r *PostRepository) ([]*dto.PostPreview, error)
+	call  func(r *Repository) ([]*dto.PostPreview, error)
 }
 
 func listMethods() []listMethod {
@@ -83,28 +83,28 @@ func listMethods() []listMethod {
 	methods = append(methods, timed("GetMyNewPosts",
 		testutils.SQLInOrder("WHERE p.status = 'published'", "(p.published_at, p.id) < ($2::timestamptz, $3::uuid)",
 			"AND p.author_id = $1", "ORDER BY p.published_at DESC, p.id DESC", "LIMIT $4"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+		func(r *Repository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
 			return r.GetMyNewPosts
 		})...)
 
 	methods = append(methods, timed("GetMyOldPosts",
 		testutils.SQLInOrder("WHERE p.status = 'published'", "(p.published_at, p.id) > ($2::timestamptz, $3::uuid)",
 			"AND p.author_id = $1", "ORDER BY p.published_at, p.id", "LIMIT $4"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+		func(r *Repository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
 			return r.GetMyOldPosts
 		})...)
 
 	methods = append(methods, timed("GetMyNewDrafts",
 		testutils.SQLInOrder("p.updated_at", "WHERE p.status = 'draft'", "(p.updated_at, p.id) < ($2::timestamptz, $3::uuid)",
 			"AND p.author_id = $1", "ORDER BY p.updated_at DESC, p.id DESC", "LIMIT $4"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+		func(r *Repository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
 			return r.GetMyNewDrafts
 		})...)
 
 	methods = append(methods, timed("GetMyOldDrafts",
 		testutils.SQLInOrder("p.updated_at", "WHERE p.status = 'draft'", "(p.updated_at, p.id) > ($2::timestamptz, $3::uuid)",
 			"AND p.author_id = $1", "ORDER BY p.updated_at, p.id", "LIMIT $4"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+		func(r *Repository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
 			return r.GetMyOldDrafts
 		})...)
 
@@ -112,7 +112,7 @@ func listMethods() []listMethod {
 		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published'",
 			"(p.published_at, p.id) < ($2::timestamptz, $3::uuid)", "ORDER BY p.published_at DESC, p.id DESC", "LIMIT $4",
 			"LEFT JOIN post_access pa", "ORDER BY p.published_at DESC, p.id DESC"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+		func(r *Repository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
 			return r.GetNewPosts
 		})...)
 
@@ -120,7 +120,7 @@ func listMethods() []listMethod {
 		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published'",
 			"(p.published_at, p.id) > ($2::timestamptz, $3::uuid)", "ORDER BY p.published_at, p.id", "LIMIT $4",
 			"LEFT JOIN post_access pa", "ORDER BY p.published_at, p.id"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+		func(r *Repository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
 			return r.GetOldPosts
 		})...)
 
@@ -128,7 +128,7 @@ func listMethods() []listMethod {
 		testutils.SQLInOrder("WHERE p.status = 'published'",
 			"(p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid)",
 			"AND p.author_id = $1", "ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC", "LIMIT $5"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error) {
+		func(r *Repository) func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error) {
 			return r.GetMyPopularPosts
 		})...)
 
@@ -136,7 +136,7 @@ func listMethods() []listMethod {
 		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published'",
 			"(p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid)",
 			"ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC", "LIMIT $5", "LEFT JOIN post_access pa"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error) {
+		func(r *Repository) func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error) {
 			return r.GetPopularPosts
 		})...)
 
@@ -144,7 +144,7 @@ func listMethods() []listMethod {
 		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published'", "AND p.author_id = $2",
 			"(p.published_at, p.id) < ($3::timestamptz, $4::uuid)", "ORDER BY p.published_at DESC, p.id DESC", "LIMIT $5",
 			"LEFT JOIN post_access pa"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+		func(r *Repository) func(context.Context, *uuid.UUID, uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
 			return r.GetUserNewPosts
 		})...)
 
@@ -152,7 +152,7 @@ func listMethods() []listMethod {
 		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published'", "AND p.author_id = $2",
 			"(p.published_at, p.id) > ($3::timestamptz, $4::uuid)", "ORDER BY p.published_at ASC, p.id ASC", "LIMIT $5",
 			"LEFT JOIN post_access pa"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
+		func(r *Repository) func(context.Context, *uuid.UUID, uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
 			return r.GetUserOldPosts
 		})...)
 
@@ -160,14 +160,14 @@ func listMethods() []listMethod {
 		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published'", "AND p.author_id = $2",
 			"(p.likes_count, p.published_at, p.id) < ($3::bigint, $4::timestamptz, $5::uuid)",
 			"ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC", "LIMIT $6", "LEFT JOIN post_access pa"),
-		func(r *PostRepository) func(context.Context, *uuid.UUID, uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error) {
+		func(r *Repository) func(context.Context, *uuid.UUID, uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error) {
 			return r.GetUserPopularPosts
 		})...)
 
 	return methods
 }
 
-func TestPostRepository_CreatePost_Success(t *testing.T) {
+func TestRepository_CreatePost_Success(t *testing.T) {
 	t.Parallel()
 
 	post := models.Post{Title: "Мой первый пост", Body: "Текст поста", Status: "published"}
@@ -181,7 +181,7 @@ func TestPostRepository_CreatePost_Success(t *testing.T) {
 	require.Equal(t, postID, got)
 }
 
-func TestPostRepository_CreatePost_Errors(t *testing.T) {
+func TestRepository_CreatePost_Errors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -209,7 +209,7 @@ func TestPostRepository_CreatePost_Errors(t *testing.T) {
 	}
 }
 
-func TestPostRepository_GetPost(t *testing.T) {
+func TestRepository_GetPost(t *testing.T) {
 	t.Parallel()
 
 	post := &dto.PostInfo{
@@ -279,7 +279,7 @@ func TestPostRepository_GetPost(t *testing.T) {
 	}
 }
 
-func TestPostRepository_ListPosts_Success(t *testing.T) {
+func TestRepository_ListPosts_Success(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -306,7 +306,7 @@ func TestPostRepository_ListPosts_Success(t *testing.T) {
 	}
 }
 
-func TestPostRepository_ListPosts_Errors(t *testing.T) {
+func TestRepository_ListPosts_Errors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -349,7 +349,7 @@ func TestPostRepository_ListPosts_Errors(t *testing.T) {
 	}
 }
 
-func TestPostRepository_UpdatePost(t *testing.T) {
+func TestRepository_UpdatePost(t *testing.T) {
 	t.Parallel()
 
 	post := models.Post{ID: postID, Title: "Новый заголовок", Body: "Новый текст", Status: "published"}
@@ -441,7 +441,7 @@ func TestPostRepository_UpdatePost(t *testing.T) {
 	}
 }
 
-func TestPostRepository_DeletePost(t *testing.T) {
+func TestRepository_DeletePost(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -478,7 +478,7 @@ func TestPostRepository_DeletePost(t *testing.T) {
 	}
 }
 
-func TestPostRepository_LikePost_Success(t *testing.T) {
+func TestRepository_LikePost_Success(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -522,7 +522,7 @@ func TestPostRepository_LikePost_Success(t *testing.T) {
 	}
 }
 
-func TestPostRepository_LikePost_Errors(t *testing.T) {
+func TestRepository_LikePost_Errors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -587,7 +587,7 @@ func TestPostRepository_LikePost_Errors(t *testing.T) {
 	}
 }
 
-func TestPostRepository_LikePost_BeginFailure(t *testing.T) {
+func TestRepository_LikePost_BeginFailure(t *testing.T) {
 	t.Parallel()
 
 	repo, pool := newRepository(t)
@@ -599,7 +599,7 @@ func TestPostRepository_LikePost_BeginFailure(t *testing.T) {
 	require.ErrorIs(t, err, technicalErr)
 }
 
-func TestPostRepository_DeletePostLike(t *testing.T) {
+func TestRepository_DeletePostLike(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

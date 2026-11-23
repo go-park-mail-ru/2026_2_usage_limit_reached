@@ -44,7 +44,7 @@ func Run(configPath string) error {
 	}
 	defer postgresClient.Close()
 
-	postRepo := contentrepo.NewPostRepository(postgresClient, appLogger)
+	postRepo := contentrepo.NewRepository(postgresClient, appLogger)
 	postSanitizer, err := sanitizer.NewSanitizer(cfg.Sanitizer)
 	if err != nil {
 		return fmt.Errorf("sanitizer initialization error: %w", err)

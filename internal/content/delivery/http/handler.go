@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
-	postusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/usecase"
+	contentusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 	"github.com/google/uuid"
 )
 
-type PostUsecase interface {
+type ContentUsecase interface {
 	CreatePost(ctx context.Context, userID *uuid.UUID, p dto.PostRequest) (uuid.UUID, error)
 	GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error)
 	GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
@@ -38,15 +38,15 @@ type PostUsecase interface {
 func handleError(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, action string, err error) {
 	logError(ctx, logger, action, err)
 	switch {
-	case errors.Is(err, postusecase.ErrConflict):
+	case errors.Is(err, contentusecase.ErrConflict):
 		response.ErrorConflict(w)
-	case errors.Is(err, postusecase.ErrForbidden):
+	case errors.Is(err, contentusecase.ErrForbidden):
 		response.ErrorForbidden(w)
-	case errors.Is(err, postusecase.ErrUnauthorized):
+	case errors.Is(err, contentusecase.ErrUnauthorized):
 		response.ErrorUnauthorized(w)
-	case errors.Is(err, postusecase.ErrNotFound):
+	case errors.Is(err, contentusecase.ErrNotFound):
 		response.ErrorNotFound(w)
-	case errors.Is(err, validator.ErrValidation), errors.Is(err, postusecase.ErrValidation):
+	case errors.Is(err, validator.ErrValidation), errors.Is(err, contentusecase.ErrValidation):
 		response.ErrorBadRequest(w)
 	default:
 		response.ErrorInternal(w)

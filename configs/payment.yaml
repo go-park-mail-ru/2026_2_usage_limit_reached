@@ -6,6 +6,9 @@ payment:
   grpc:
     port: "50052"
     shutdown_timeout: 5s
+  expiration_worker:
+    interval: 30s
+    batch_size: 100
 
 identity:
   address: identity:50051

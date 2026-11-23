@@ -11,6 +11,7 @@ import (
 	paymentgrpc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/delivery/grpc"
 	paymentrepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/repository"
 	paymentuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase"
+	expirationworker "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_expiration_worker"
 	paymentprovider "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider/mock"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
@@ -93,6 +94,11 @@ func Run(configPath string) error {
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		return grpcSrv.Run(gctx)
+	})
+
+	g.Go(func() error {
+		expirationworker.RunExpirationWorker(gctx, paymentRepo, cfg.Payment.ExpirationWorker, appLogger)
+		return nil
 	})
 
 	return g.Wait()

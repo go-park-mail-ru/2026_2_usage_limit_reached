@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	identityclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
+	expirationworker "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_expiration_worker"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/grpcserver"
@@ -28,13 +29,16 @@ type Config struct {
 }
 
 type ServiceConfig struct {
-	GRPC grpcserver.GRPCConfig `mapstructure:"grpc"`
+	GRPC             grpcserver.GRPCConfig   `mapstructure:"grpc"`
+	ExpirationWorker expirationworker.Config `mapstructure:"expiration_worker"`
 }
 
 func DefaultConfig() Config {
 
 	return Config{
-		Payment:    ServiceConfig{GRPC: grpcserver.DefaultConfig()},
+		Payment: ServiceConfig{
+			GRPC:             grpcserver.DefaultConfig(),
+			ExpirationWorker: expirationworker.DefaultConfig()},
 		Identity:   identityclient.DefaultConfig(),
 		Postgres:   postgres.DefaultConfig(),
 		Log:        logger.DefaultConfig(),
@@ -47,6 +51,7 @@ func DefaultConfig() Config {
 func (c Config) Validate() error {
 	return errors.Join(
 		c.Payment.GRPC.Validate(),
+		c.Payment.ExpirationWorker.Validate(),
 		c.Identity.Validate(),
 		c.Postgres.Validate(),
 		c.Log.Validate(),

@@ -2,7 +2,7 @@
 // github.com/vektra/mockery
 // template: testify
 
-package mock_posts_usecase
+package mock_content_usecase
 
 import (
 	"context"

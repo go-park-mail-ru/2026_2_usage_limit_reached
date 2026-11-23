@@ -8,10 +8,10 @@ import (
 
 	identityclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
 	contentconfig "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/config"
-	posthandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http"
+	contenthttp "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http"
 	httprouter "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http/router"
-	postrepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/repository"
-	postuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/usecase"
+	contentrepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/repository"
+	contentuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
@@ -44,7 +44,7 @@ func Run(configPath string) error {
 	}
 	defer postgresClient.Close()
 
-	postRepo := postrepo.NewPostRepository(postgresClient, appLogger)
+	postRepo := contentrepo.NewPostRepository(postgresClient, appLogger)
 	postSanitizer, err := sanitizer.NewSanitizer(cfg.Sanitizer)
 	if err != nil {
 		return fmt.Errorf("sanitizer initialization error: %w", err)
@@ -57,7 +57,7 @@ func Run(configPath string) error {
 	defer identityConn.Close()
 
 	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout)
-	postUc := postuc.NewPostUsecase(postRepo, identityClient, postSanitizer, valid, cfg.S3.PublicPath)
+	contentUc := contentuc.New(postRepo, identityClient, postSanitizer, valid, cfg.S3.PublicPath)
 
 	csrfManager := csrf.NewManager(cfg.CSRF)
 
@@ -75,7 +75,7 @@ func Run(configPath string) error {
 	private.Use(middleware.AuthMiddleware(identityClient), middleware.CSRFMiddleware(csrfManager))
 
 	httprouter.RegisterRoutes(public, private, httprouter.Handlers{
-		Post: posthandlers.NewPostHandler(postUc, valid, appLogger),
+		Post: contenthttp.NewPostHandler(contentUc, valid, appLogger),
 	})
 
 	httpSrv, err := httpserver.New(cfg.Content.HTTP, appLogger)

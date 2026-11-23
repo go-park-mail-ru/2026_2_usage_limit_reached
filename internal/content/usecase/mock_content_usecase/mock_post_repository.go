@@ -2,14 +2,14 @@
 // github.com/vektra/mockery
 // template: testify
 
-package mock_posts_usecase
+package mock_content_usecase
 
 import (
 	"context"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/models"
 	"github.com/google/uuid"
 	mock "github.com/stretchr/testify/mock"
 )

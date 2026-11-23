@@ -1,4 +1,4 @@
-package postusecase
+package usecase
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/models"
 	identitycontracts "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/contracts/identity"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
 )
@@ -78,6 +78,6 @@ type PostUsecase struct {
 	avatarBasePath string
 }
 
-func NewPostUsecase(r PostRepository, ic IdentityClient, s *sanitizer.Sanitizer, v SanitizedBodyValidator, abp string) *PostUsecase {
+func New(r PostRepository, ic IdentityClient, s *sanitizer.Sanitizer, v SanitizedBodyValidator, abp string) *PostUsecase {
 	return &PostUsecase{repo: r, identity: ic, sanitizer: s, bodyCheck: v, avatarBasePath: abp}
 }

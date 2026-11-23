@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"

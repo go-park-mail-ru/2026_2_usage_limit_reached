@@ -1,4 +1,4 @@
-package postrepository
+package repository
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/posts/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

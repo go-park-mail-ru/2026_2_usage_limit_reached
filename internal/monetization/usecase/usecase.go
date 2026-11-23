@@ -1,14 +1,12 @@
-package donationusecase
+package usecase
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/models"
-	paymentmodels "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
-	paymentsusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
 	"github.com/google/uuid"
 )
@@ -20,8 +18,10 @@ var (
 	ErrConflict   = errors.New("payment conflict")
 )
 
+const statusPending = "pending"
+
 type PaymentProcessor interface {
-	Pay(ctx context.Context, orderID, attemptID uuid.UUID) (paymentmodels.PaymentOrderStatus, error)
+	Pay(ctx context.Context, orderID uuid.UUID) (string, error)
 }
 
 type DonationRepository interface {
@@ -52,7 +52,7 @@ type DonationUsecase struct {
 	payments PaymentProcessor
 }
 
-func NewDonationUsecase(repo DonationRepository, payments PaymentProcessor) *DonationUsecase {
+func New(repo DonationRepository, payments PaymentProcessor) *DonationUsecase {
 	return &DonationUsecase{repo: repo, payments: payments}
 }
 
@@ -75,18 +75,20 @@ func (uc *DonationUsecase) Donate(ctx context.Context, payerID uuid.UUID, donati
 		return nil, mapRepoError("create donation", err)
 	}
 
-	if d.Status != string(paymentmodels.StatusPending) || d.PaymentAttemptID == nil {
+	if d.Status != statusPending {
 		return d, nil
 	}
 
-	status, err := uc.payments.Pay(ctx, d.PaymentOrderID, *d.PaymentAttemptID)
+	if d.PaymentOrderID == uuid.Nil {
+		return nil, errors.New("pending donation has no payment order")
+	}
+
+	paymentStatus, err := uc.payments.Pay(ctx, d.PaymentOrderID)
 	if err != nil {
-		if errors.Is(err, paymentsusecase.ErrIdempotencyKeyReused) {
-			return nil, fmt.Errorf("%w: %w", ErrConflict, err)
-		}
 		return nil, fmt.Errorf("pay: %w", err)
 	}
-	d.Status = string(status)
+
+	d.Status = paymentStatus
 	return d, nil
 }
 

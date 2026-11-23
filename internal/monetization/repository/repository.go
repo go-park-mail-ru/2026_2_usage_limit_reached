@@ -1,4 +1,4 @@
-package donationrepository
+package repository
 
 import (
 	"context"
@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/dto"
-	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
+	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/util"
 	"github.com/google/uuid"
@@ -81,14 +81,13 @@ func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UU
 		}
 
 		result = &dto.SentDonation{
-			PaymentOrderID:   orderID,
-			PaymentAttemptID: &attemptID,
-			Message:          req.Message,
-			IsAnonymous:      req.IsAnonymous,
-			AmountMinor:      req.AmountMinor,
-			Currency:         req.Currency,
-			Status:           "pending",
-			CreatedAt:        donationCreatedAt,
+			PaymentOrderID: orderID,
+			Message:        req.Message,
+			IsAnonymous:    req.IsAnonymous,
+			AmountMinor:    req.AmountMinor,
+			Currency:       req.Currency,
+			Status:         "pending",
+			CreatedAt:      donationCreatedAt,
 		}
 
 		return nil
@@ -130,7 +129,6 @@ func getExistingOrder(ctx context.Context, tx pgx.Tx, req *dto.CreateDonationReq
 		&donation.Currency,
 		&donation.Status,
 		&donation.CreatedAt,
-		&donation.PaymentAttemptID,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

@@ -1,4 +1,4 @@
-package donationhandlers_test
+package handlers_test
 
 import (
 	"fmt"
@@ -8,22 +8,23 @@ import (
 	"testing"
 	"time"
 
-	donationhandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/delivery"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/delivery/mock_donations_delivery"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/dto"
+	donationhandlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/delivery/http"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/delivery/http/mock_delivery_http"
+	httprouter "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/delivery/http/router"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 )
 
-func newRouter(t *testing.T) (*mux.Router, *mock_donations_delivery.MockDonationUsecase) {
+func newRouter(t *testing.T) (*mux.Router, *mock_delivery_http.MockDonationUsecase) {
 	t.Helper()
 
-	uc := mock_donations_delivery.NewMockDonationUsecase(t)
-	h := donationhandlers.NewHandler(uc, testutils.SetupValidator(), testutils.SetupLogger())
+	uc := mock_delivery_http.NewMockDonationUsecase(t)
+	h := donationhandlers.NewDonationHandler(uc, testutils.SetupValidator(), testutils.SetupLogger())
 	router := mux.NewRouter()
-	h.RegisterRoutes(router)
+	httprouter.RegisterRoutes(router, httprouter.Handlers{Donation: h})
 	return router, uc
 }
 

@@ -73,13 +73,12 @@ type DonationPageResponse struct {
 }
 
 type SentDonation struct {
-	PaymentOrderID   uuid.UUID
-	PaymentAttemptID *uuid.UUID
-	Message          *string
-	IsAnonymous      bool
-	AmountMinor      int64
-	Currency         string
-	Status           string
-	CreatedAt        time.Time
-	Author           *DonationUserInfo
+	PaymentOrderID uuid.UUID
+	Message        *string
+	IsAnonymous    bool
+	AmountMinor    int64
+	Currency       string
+	Status         string
+	CreatedAt      time.Time
+	Author         *DonationUserInfo
 }

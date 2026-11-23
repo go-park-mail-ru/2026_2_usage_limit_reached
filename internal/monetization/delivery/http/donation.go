@@ -1,13 +1,14 @@
-package donationhandlers
+package handlers
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/cursor"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
@@ -23,6 +24,16 @@ const (
 	defaultLimit = 20
 	maxLimit     = 50
 )
+
+type DonationHandler struct {
+	uc        DonationUsecase
+	validator *validator.Validator
+	logger    *slog.Logger
+}
+
+func NewDonationHandler(uc DonationUsecase, v *validator.Validator, logger *slog.Logger) *DonationHandler {
+	return &DonationHandler{uc: uc, validator: v, logger: logger}
+}
 
 type getDonationsFunc func(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error)
 
@@ -47,17 +58,17 @@ func (h *DonationHandler) SendDonation(w http.ResponseWriter, r *http.Request) {
 	var donationReq dto.CreateDonationRequest
 	authorID, err := uuid.Parse(mux.Vars(r)["author_id"])
 	if err != nil {
-		h.handleError(ctx, w, "send donation", "invalid author id", fmt.Errorf("invalid author id: %w: %w", validator.ErrValidation, err))
+		handleError(ctx, h.logger, w, "send donation", fmt.Errorf("invalid author id: %w: %w", validator.ErrValidation, err))
 		return
 	}
 	donationReq.AuthorID = authorID
 	if err := response.DecodeJSON(w, r, &donationReq); err != nil {
-		h.handleError(ctx, w, "send donation", "request body decode error", fmt.Errorf("invalid request body: %w: %w", validator.ErrValidation, err))
+		handleError(ctx, h.logger, w, "send donation", fmt.Errorf("invalid request body: %w: %w", validator.ErrValidation, err))
 		return
 	}
 
 	if err := donationReq.Validate(h.validator); err != nil {
-		h.handleError(ctx, w, "send donation", "validation error", err)
+		handleError(ctx, h.logger, w, "send donation", err)
 		return
 	}
 
@@ -69,7 +80,7 @@ func (h *DonationHandler) SendDonation(w http.ResponseWriter, r *http.Request) {
 
 	donation, err := h.uc.Donate(ctx, user.ID, donationReq)
 	if err != nil {
-		h.handleError(ctx, w, "send donation", "donate error", err)
+		handleError(ctx, h.logger, w, "send donation", err)
 		return
 	}
 
@@ -100,7 +111,7 @@ func (h *DonationHandler) GetMySentDonations(w http.ResponseWriter, r *http.Requ
 
 	resp, err := h.getMyDonations(ctx, query, user.ID, h.uc.GetSentDonations)
 	if err != nil {
-		h.handleError(ctx, w, "get my sent donations", "", err)
+		handleError(ctx, h.logger, w, "get my sent donations", err)
 		return
 	}
 
@@ -131,7 +142,7 @@ func (h *DonationHandler) GetMyReceivedDonations(w http.ResponseWriter, r *http.
 
 	resp, err := h.getMyDonations(ctx, query, user.ID, h.uc.GetReceivedDonations)
 	if err != nil {
-		h.handleError(ctx, w, "get my received donations", "", err)
+		handleError(ctx, h.logger, w, "get my received donations", err)
 		return
 	}
 

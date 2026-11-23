@@ -1,9 +1,9 @@
-package donationrepository
+package repository
 
 import (
 	"testing"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/pashagolub/pgxmock/v5"
 )

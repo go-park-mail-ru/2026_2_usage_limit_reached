@@ -1,4 +1,4 @@
-package donationrepository
+package repository
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -61,13 +61,12 @@ func TestDonationRepository_CreateDonation_NewOrder(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, &dto.SentDonation{
-		PaymentOrderID:   donationOrderID,
-		PaymentAttemptID: &donationAttemptID,
-		Message:          &donationMessage,
-		AmountMinor:      50000,
-		Currency:         "RUB",
-		Status:           "pending",
-		CreatedAt:        donationTime,
+		PaymentOrderID: donationOrderID,
+		Message:        &donationMessage,
+		AmountMinor:    50000,
+		Currency:       "RUB",
+		Status:         "pending",
+		CreatedAt:      donationTime,
 	}, got)
 }
 
@@ -89,13 +88,12 @@ func TestDonationRepository_CreateDonation_RepeatedRequest(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, &dto.SentDonation{
-		PaymentOrderID:   donationOrderID,
-		PaymentAttemptID: &donationAttemptID,
-		Message:          &donationMessage,
-		AmountMinor:      50000,
-		Currency:         "RUB",
-		Status:           "paid",
-		CreatedAt:        donationTime,
+		PaymentOrderID: donationOrderID,
+		Message:        &donationMessage,
+		AmountMinor:    50000,
+		Currency:       "RUB",
+		Status:         "paid",
+		CreatedAt:      donationTime,
 	}, got)
 }
 

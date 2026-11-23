@@ -1,4 +1,4 @@
-package donationhandlers_test
+package handlers_test
 
 import (
 	"errors"
@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/delivery/mock_donations_delivery"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/dto"
-	donationusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/delivery/http/mock_delivery_http"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
+	donationusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/cursor"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
@@ -148,20 +148,20 @@ func TestDonationHandler_SendDonation_Errors(t *testing.T) {
 type listEndpoint struct {
 	name   string
 	target string
-	expect func(uc *mock_donations_delivery.MockDonationUsecase, c *dto.DonationCursor, limit int) *mock.Call
+	expect func(uc *mock_delivery_http.MockDonationUsecase, c *dto.DonationCursor, limit int) *mock.Call
 }
 
 func listEndpoints() []listEndpoint {
 	return []listEndpoint{
 		{
 			name: "sent", target: "/profile/me/donations/sent",
-			expect: func(uc *mock_donations_delivery.MockDonationUsecase, c *dto.DonationCursor, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockDonationUsecase, c *dto.DonationCursor, limit int) *mock.Call {
 				return uc.EXPECT().GetSentDonations(mock.Anything, donationPayerID, c, limit).Call
 			},
 		},
 		{
 			name: "received", target: "/profile/me/donations/received",
-			expect: func(uc *mock_donations_delivery.MockDonationUsecase, c *dto.DonationCursor, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockDonationUsecase, c *dto.DonationCursor, limit int) *mock.Call {
 				return uc.EXPECT().GetReceivedDonations(mock.Anything, donationPayerID, c, limit).Call
 			},
 		},

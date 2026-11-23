@@ -9,6 +9,15 @@ option go_package = "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/p
 service PaymentService {
   rpc CreatePayment(CreatePaymentRequest) returns (PaymentOrder);
   rpc GetPayments(GetPaymentsRequest) returns (GetPaymentsResponse);
+  rpc Pay(PayRequest) returns (PayResponse);
+}
+
+message PayRequest {
+    string payment_order_id = 1;
+}
+
+message PayResponse {
+    string status = 1;
 }
 
 message CreatePaymentRequest {

@@ -1,4 +1,4 @@
-package donationusecase_test
+package usecase_test
 
 import (
 	"context"
@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/models"
-	donationusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/usecase"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/usecase/mock_donations_usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/models"
+	donationusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/usecase/mock_monetization_usecase"
 	paymentmodels "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
 	paymentsusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase"
 	"github.com/google/uuid"
@@ -47,13 +47,12 @@ var (
 
 func sentDonation(status paymentmodels.PaymentOrderStatus, attemptID *uuid.UUID) *dto.SentDonation {
 	return &dto.SentDonation{
-		PaymentOrderID:   donationOrderID,
-		PaymentAttemptID: attemptID,
-		Message:          &donationMessage,
-		AmountMinor:      50000,
-		Currency:         "RUB",
-		Status:           string(status),
-		CreatedAt:        donationTime,
+		PaymentOrderID: donationOrderID,
+		Message:        &donationMessage,
+		AmountMinor:    50000,
+		Currency:       "RUB",
+		Status:         string(status),
+		CreatedAt:      donationTime,
 	}
 }
 
@@ -62,11 +61,11 @@ func TestDonationUsecase_Donate_PaysPendingOrder(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		payStatus paymentmodels.PaymentOrderStatus
+		payStatus string
 	}{
-		{name: "payment succeeded", payStatus: paymentmodels.StatusPaid},
-		{name: "payment failed", payStatus: paymentmodels.StatusFailed},
-		{name: "payment still processing", payStatus: paymentmodels.StatusProcessing},
+		{name: "payment succeeded", payStatus: string(paymentmodels.StatusPaid)},
+		{name: "payment failed", payStatus: string(paymentmodels.StatusFailed)},
+		{name: "payment still processing", payStatus: string(paymentmodels.StatusProcessing)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -76,13 +75,13 @@ func TestDonationUsecase_Donate_PaysPendingOrder(t *testing.T) {
 			mock.InOrder(
 				repo.EXPECT().CreateDonation(mock.Anything, donationPayerID, storedReq).
 					Return(sentDonation(paymentmodels.StatusPending, &donationAttemptID), nil).Call,
-				payments.EXPECT().Pay(mock.Anything, donationOrderID, donationAttemptID).Return(tt.payStatus, nil).Call,
+				payments.EXPECT().Pay(mock.Anything, donationOrderID).Return(tt.payStatus, nil).Call,
 			)
 
 			got, err := uc.Donate(context.Background(), donationPayerID, donationReq)
 
 			require.NoError(t, err)
-			require.Equal(t, sentDonation(tt.payStatus, &donationAttemptID), got)
+			require.Equal(t, sentDonation(paymentmodels.PaymentOrderStatus(tt.payStatus), &donationAttemptID), got)
 		})
 	}
 }
@@ -175,7 +174,7 @@ func TestDonationUsecase_Donate_PaymentErrors(t *testing.T) {
 			uc, repo, payments := newUsecase(t)
 			repo.EXPECT().CreateDonation(mock.Anything, donationPayerID, storedReq).
 				Return(sentDonation(paymentmodels.StatusPending, &donationAttemptID), nil)
-			payments.EXPECT().Pay(mock.Anything, donationOrderID, donationAttemptID).Return("", tt.payErr)
+			payments.EXPECT().Pay(mock.Anything, donationOrderID).Return("", tt.payErr)
 
 			got, err := uc.Donate(context.Background(), donationPayerID, donationReq)
 
@@ -190,7 +189,7 @@ func TestDonationUsecase_Donate_PaymentErrors(t *testing.T) {
 
 type listMethod struct {
 	name   string
-	expect func(repo *mock_donations_usecase.MockDonationRepository, items []*dto.GetDonationResponse, err error)
+	expect func(repo *mock_monetization_usecase.MockDonationRepository, items []*dto.GetDonationResponse, err error)
 	call   func(uc *donationusecase.DonationUsecase) (*dto.DonationPage, error)
 }
 
@@ -199,7 +198,7 @@ func listMethods() []listMethod {
 	return []listMethod{
 		{
 			name: "GetSentDonations",
-			expect: func(repo *mock_donations_usecase.MockDonationRepository, items []*dto.GetDonationResponse, err error) {
+			expect: func(repo *mock_monetization_usecase.MockDonationRepository, items []*dto.GetDonationResponse, err error) {
 				repo.EXPECT().GetSentDonations(mock.Anything, donationPayerID, donationCursor, pageLimit+1).Return(items, err)
 			},
 			call: func(uc *donationusecase.DonationUsecase) (*dto.DonationPage, error) {
@@ -208,7 +207,7 @@ func listMethods() []listMethod {
 		},
 		{
 			name: "GetReceivedDonations",
-			expect: func(repo *mock_donations_usecase.MockDonationRepository, items []*dto.GetDonationResponse, err error) {
+			expect: func(repo *mock_monetization_usecase.MockDonationRepository, items []*dto.GetDonationResponse, err error) {
 				repo.EXPECT().GetReceivedDonations(mock.Anything, donationPayerID, donationCursor, pageLimit+1).Return(items, err)
 			},
 			call: func(uc *donationusecase.DonationUsecase) (*dto.DonationPage, error) {

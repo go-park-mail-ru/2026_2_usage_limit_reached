@@ -2,12 +2,12 @@
 // github.com/vektra/mockery
 // template: testify
 
-package mock_donations_usecase
+package mock_monetization_usecase
 
 import (
 	"context"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
 	"github.com/google/uuid"
 	mock "github.com/stretchr/testify/mock"
 )

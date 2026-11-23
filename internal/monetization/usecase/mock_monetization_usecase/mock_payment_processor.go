@@ -2,12 +2,11 @@
 // github.com/vektra/mockery
 // template: testify
 
-package mock_donations_usecase
+package mock_monetization_usecase
 
 import (
 	"context"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
 	"github.com/google/uuid"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -49,25 +48,25 @@ func (_m *MockPaymentProcessor) EXPECT() *MockPaymentProcessor_Expecter {
 }
 
 // Pay provides a mock function for the type MockPaymentProcessor
-func (_mock *MockPaymentProcessor) Pay(ctx context.Context, orderID uuid.UUID, attemptID uuid.UUID) (paymentmodels.PaymentOrderStatus, error) {
-	ret := _mock.Called(ctx, orderID, attemptID)
+func (_mock *MockPaymentProcessor) Pay(ctx context.Context, orderID uuid.UUID) (string, error) {
+	ret := _mock.Called(ctx, orderID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Pay")
 	}
 
-	var r0 paymentmodels.PaymentOrderStatus
+	var r0 string
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (paymentmodels.PaymentOrderStatus, error)); ok {
-		return returnFunc(ctx, orderID, attemptID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (string, error)); ok {
+		return returnFunc(ctx, orderID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) paymentmodels.PaymentOrderStatus); ok {
-		r0 = returnFunc(ctx, orderID, attemptID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) string); ok {
+		r0 = returnFunc(ctx, orderID)
 	} else {
-		r0 = ret.Get(0).(paymentmodels.PaymentOrderStatus)
+		r0 = ret.Get(0).(string)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
-		r1 = returnFunc(ctx, orderID, attemptID)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, orderID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -82,12 +81,11 @@ type MockPaymentProcessor_Pay_Call struct {
 // Pay is a helper method to define mock.On call
 //   - ctx context.Context
 //   - orderID uuid.UUID
-//   - attemptID uuid.UUID
-func (_e *MockPaymentProcessor_Expecter) Pay(ctx any, orderID any, attemptID any) *MockPaymentProcessor_Pay_Call {
-	return &MockPaymentProcessor_Pay_Call{Call: _e.mock.On("Pay", ctx, orderID, attemptID)}
+func (_e *MockPaymentProcessor_Expecter) Pay(ctx any, orderID any) *MockPaymentProcessor_Pay_Call {
+	return &MockPaymentProcessor_Pay_Call{Call: _e.mock.On("Pay", ctx, orderID)}
 }
 
-func (_c *MockPaymentProcessor_Pay_Call) Run(run func(ctx context.Context, orderID uuid.UUID, attemptID uuid.UUID)) *MockPaymentProcessor_Pay_Call {
+func (_c *MockPaymentProcessor_Pay_Call) Run(run func(ctx context.Context, orderID uuid.UUID)) *MockPaymentProcessor_Pay_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -97,25 +95,20 @@ func (_c *MockPaymentProcessor_Pay_Call) Run(run func(ctx context.Context, order
 		if args[1] != nil {
 			arg1 = args[1].(uuid.UUID)
 		}
-		var arg2 uuid.UUID
-		if args[2] != nil {
-			arg2 = args[2].(uuid.UUID)
-		}
 		run(
 			arg0,
 			arg1,
-			arg2,
 		)
 	})
 	return _c
 }
 
-func (_c *MockPaymentProcessor_Pay_Call) Return(paymentOrderStatus paymentmodels.PaymentOrderStatus, err error) *MockPaymentProcessor_Pay_Call {
-	_c.Call.Return(paymentOrderStatus, err)
+func (_c *MockPaymentProcessor_Pay_Call) Return(s string, err error) *MockPaymentProcessor_Pay_Call {
+	_c.Call.Return(s, err)
 	return _c
 }
 
-func (_c *MockPaymentProcessor_Pay_Call) RunAndReturn(run func(ctx context.Context, orderID uuid.UUID, attemptID uuid.UUID) (paymentmodels.PaymentOrderStatus, error)) *MockPaymentProcessor_Pay_Call {
+func (_c *MockPaymentProcessor_Pay_Call) RunAndReturn(run func(ctx context.Context, orderID uuid.UUID) (string, error)) *MockPaymentProcessor_Pay_Call {
 	_c.Call.Return(run)
 	return _c
 }

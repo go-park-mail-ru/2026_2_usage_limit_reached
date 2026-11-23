@@ -1,4 +1,4 @@
-package postusecase_test
+package usecase_test
 
 import (
 	"time"

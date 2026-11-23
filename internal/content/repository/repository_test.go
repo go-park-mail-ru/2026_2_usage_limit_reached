@@ -1,4 +1,4 @@
-package postrepository
+package repository
 
 import (
 	"context"

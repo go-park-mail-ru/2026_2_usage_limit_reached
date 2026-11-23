@@ -1,4 +1,4 @@
-package postusecase_test
+package usecase_test
 
 import (
 	"context"
@@ -593,5 +593,5 @@ func newTestUsecase(repo postusecase.PostRepository, identities ...postusecase.I
 		identity = identities[0]
 	}
 
-	return postusecase.NewPostUsecase(repo, identity, s, testutils.SetupValidator(), "/media")
+	return postusecase.New(repo, identity, s, testutils.SetupValidator(), "/media")
 }

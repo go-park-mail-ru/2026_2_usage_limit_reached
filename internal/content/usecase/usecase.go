@@ -1,4 +1,4 @@
-package postusecase
+package usecase
 
 import (
 	"context"
@@ -78,6 +78,6 @@ type PostUsecase struct {
 	avatarBasePath string
 }
 
-func NewPostUsecase(r PostRepository, ic IdentityClient, s *sanitizer.Sanitizer, v SanitizedBodyValidator, abp string) *PostUsecase {
+func New(r PostRepository, ic IdentityClient, s *sanitizer.Sanitizer, v SanitizedBodyValidator, abp string) *PostUsecase {
 	return &PostUsecase{repo: r, identity: ic, sanitizer: s, bodyCheck: v, avatarBasePath: abp}
 }

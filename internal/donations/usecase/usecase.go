@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/donations/models"
-	paymentmodels "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
-	paymentsusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase"
+	paymentmodels "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/models"
+	paymentsusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
 	"github.com/google/uuid"
 )

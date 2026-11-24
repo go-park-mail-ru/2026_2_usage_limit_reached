@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
+	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/models"
 	paymentspb "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/payment/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"

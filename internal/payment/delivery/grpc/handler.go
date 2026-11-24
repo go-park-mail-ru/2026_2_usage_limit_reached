@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/dto"
-	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/dto"
+	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/models"
+	paymentsusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	paymentspb "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/payment/v1"
 	"github.com/google/uuid"
@@ -20,6 +21,7 @@ import (
 type PaymentUsecase interface {
 	CreatePayment(ctx context.Context, req dto.CreatePayment) (*models.PaymentOrder, error)
 	GetPayments(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*models.PaymentOrder, error)
+	Pay(ctx context.Context, orderID uuid.UUID) (models.PaymentOrderStatus, error)
 	CancelPayment(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, error)
 }
 
@@ -125,6 +127,24 @@ func (h *Handler) GetPayments(ctx context.Context, req *paymentspb.GetPaymentsRe
 	return response, nil
 }
 
+func (h *Handler) Pay(ctx context.Context, req *paymentspb.PayRequest) (*paymentspb.PayResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+
+	orderID, err := parseUUID(req.GetPaymentOrderId(), "payment_order_id")
+	if err != nil {
+		return nil, err
+	}
+
+	paymentStatus, err := h.uc.Pay(ctx, orderID)
+	if err != nil {
+		return nil, h.handleError(ctx, "pay", err)
+	}
+
+	return &paymentspb.PayResponse{Status: string(paymentStatus)}, nil
+}
+
 func (h *Handler) CancelPayment(ctx context.Context, req *paymentspb.CancelPaymentRequest) (*paymentspb.PaymentOrder, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
@@ -157,6 +177,11 @@ func parseUUID(value, field string) (uuid.UUID, error) {
 }
 
 func (h *Handler) handleError(ctx context.Context, op string, err error) error {
+	h.logger.ErrorContext(ctx, "payment grpc error",
+		slog.String("op", op),
+		slog.Any("error", err),
+	)
+
 	switch {
 	case errors.Is(err, context.Canceled):
 		return status.Error(codes.Canceled, "request canceled")
@@ -172,17 +197,17 @@ func (h *Handler) handleError(ctx context.Context, op string, err error) error {
 
 	case errors.Is(err, models.ErrPaymentOrderValidation),
 		errors.Is(err, models.ErrPaymentAttemptValidation),
-		errors.Is(err, validator.ErrValidation):
+		errors.Is(err, validator.ErrValidation),
+		errors.Is(err, paymentsusecase.ErrValidation):
 		return status.Error(codes.InvalidArgument, "invalid payment data")
 
-	case errors.Is(err, models.ErrForbiddenUpdate):
+	case errors.Is(err, models.ErrForbiddenUpdate),
+		errors.Is(err, paymentsusecase.ErrForbidden):
 		return status.Error(codes.FailedPrecondition, "payment cannot be updated")
-	}
 
-	h.logger.ErrorContext(ctx, "payment usecase failed",
-		slog.String("op", op),
-		slog.Any("error", err),
-	)
+	case errors.Is(err, paymentsusecase.ErrNotFound):
+		return status.Error(codes.NotFound, "payment order or attempt not found")
+	}
 
 	return status.Error(codes.Internal, "internal error")
 }

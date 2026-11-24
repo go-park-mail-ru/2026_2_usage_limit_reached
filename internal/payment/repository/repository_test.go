@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/dto"
-	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
-	paymentmodels "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/dto"
+	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/models"
+	paymentmodels "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -219,7 +219,7 @@ func TestPaymentRepositoryFull_CreateOrGetOrder(t *testing.T) {
 				repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
 
 				pool.ExpectQuery("FROM payment_order").
-					WithArgs(req.RequestKey).
+					WithArgs(req.PayerID, req.RequestKey).
 					WillReturnRows(repoOrderRowForRequest(req, req.ExpiresAt))
 
 				pool.ExpectQuery("FROM payment_attempt").
@@ -245,12 +245,6 @@ func TestPaymentRepositoryFull_CreateOrGetOrder(t *testing.T) {
 					mutate func(*dto.CreatePayment)
 				}{
 					{
-						name: "payer",
-						mutate: func(req *dto.CreatePayment) {
-							req.PayerID = uuid.New()
-						},
-					},
-					{
 						name: "purpose",
 						mutate: func(req *dto.CreatePayment) {
 							req.Purpose = "subscription"
@@ -274,12 +268,6 @@ func TestPaymentRepositoryFull_CreateOrGetOrder(t *testing.T) {
 							req.Currency = "USD"
 						},
 					},
-					{
-						name: "expiry",
-						mutate: func(req *dto.CreatePayment) {
-							req.ExpiresAt = nil
-						},
-					},
 				}
 
 				for _, field := range fields {
@@ -294,7 +282,7 @@ func TestPaymentRepositoryFull_CreateOrGetOrder(t *testing.T) {
 						repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
 
 						pool.ExpectQuery("FROM payment_order").
-							WithArgs(req.RequestKey).
+							WithArgs(req.PayerID, req.RequestKey).
 							WillReturnRows(
 								repoOrderRowForRequest(storedReq, storedReq.ExpiresAt),
 							)
@@ -311,6 +299,30 @@ func TestPaymentRepositoryFull_CreateOrGetOrder(t *testing.T) {
 			},
 		},
 		{
+			name: "scopes request key to payer",
+			run: func(t *testing.T) {
+				repo, pool := newPaymentRepositoryTest(t)
+				req := repoCreatePaymentRequest()
+				req.PayerID = uuid.New()
+
+				repoExpectBegin(pool)
+				repoExpectInsertOrder(pool, req).
+					WillReturnRows(repoOrderRowForRequest(req, req.ExpiresAt))
+
+				pool.ExpectExec("INSERT INTO payment_attempt").
+					WithArgs(repoTestOrderID, defaultPaymentProvider).
+					WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+				repoExpectCommit(pool)
+
+				got, err := repo.CreateOrGetOrder(context.Background(), req)
+
+				require.NoError(t, err)
+				require.Equal(t, repoExpectedOrder(req, req.ExpiresAt), got)
+				require.NoError(t, pool.ExpectationsWereMet())
+			},
+		},
+		{
 			name: "matches nil expirations",
 			run: func(t *testing.T) {
 				repo, pool := newPaymentRepositoryTest(t)
@@ -321,7 +333,7 @@ func TestPaymentRepositoryFull_CreateOrGetOrder(t *testing.T) {
 				repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
 
 				pool.ExpectQuery("FROM payment_order").
-					WithArgs(req.RequestKey).
+					WithArgs(req.PayerID, req.RequestKey).
 					WillReturnRows(repoOrderRowForRequest(req, nil))
 
 				pool.ExpectQuery("FROM payment_attempt").
@@ -349,7 +361,7 @@ func TestPaymentRepositoryFull_CreateOrGetOrder(t *testing.T) {
 				repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
 
 				pool.ExpectQuery("FROM payment_order").
-					WithArgs(req.RequestKey).
+					WithArgs(req.PayerID, req.RequestKey).
 					WillReturnError(pgx.ErrNoRows)
 
 				repoExpectRollback(pool)
@@ -371,7 +383,7 @@ func TestPaymentRepositoryFull_CreateOrGetOrder(t *testing.T) {
 				repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
 
 				pool.ExpectQuery("FROM payment_order").
-					WithArgs(req.RequestKey).
+					WithArgs(req.PayerID, req.RequestKey).
 					WillReturnError(repoTestDBErr)
 
 				repoExpectRollback(pool)
@@ -394,7 +406,7 @@ func TestPaymentRepositoryFull_CreateOrGetOrder(t *testing.T) {
 				repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
 
 				pool.ExpectQuery("FROM payment_order").
-					WithArgs(req.RequestKey).
+					WithArgs(req.PayerID, req.RequestKey).
 					WillReturnRows(repoOrderRowForRequest(req, req.ExpiresAt))
 
 				pool.ExpectQuery("FROM payment_attempt").
@@ -420,7 +432,7 @@ func TestPaymentRepositoryFull_CreateOrGetOrder(t *testing.T) {
 				repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
 
 				pool.ExpectQuery("FROM payment_order").
-					WithArgs(req.RequestKey).
+					WithArgs(req.PayerID, req.RequestKey).
 					WillReturnRows(repoOrderRowForRequest(req, req.ExpiresAt))
 
 				pool.ExpectQuery("FROM payment_attempt").
@@ -2092,21 +2104,6 @@ func TestPaymentRepositoryFull_UtilityFunctions(t *testing.T) {
 		name string
 		run  func(t *testing.T)
 	}{
-		{name: "equalOptionalTime handles nil values", run: func(t *testing.T) {
-			require.True(t, equalOptionalTime(nil, nil))
-			require.False(t, equalOptionalTime(nil, &repoTestTime))
-			require.False(t, equalOptionalTime(&repoTestTime, nil))
-		}},
-
-		{name: "equalOptionalTime compares at PostgreSQL microsecond precision", run: func(t *testing.T) {
-			a := repoTestTime.Add(100 * time.Nanosecond)
-			b := repoTestTime.Add(900 * time.Nanosecond)
-			require.True(t, equalOptionalTime(&a, &b))
-
-			c := repoTestTime.Add(2 * time.Microsecond)
-			require.False(t, equalOptionalTime(&a, &c))
-		}},
-
 		{name: "uniqueUUIDs preserves first occurrence order", run: func(t *testing.T) {
 			got := uniqueUUIDs([]uuid.UUID{
 				repoTestOrderID,

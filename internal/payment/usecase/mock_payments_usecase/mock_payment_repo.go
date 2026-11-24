@@ -7,8 +7,8 @@ package mock_payments_usecase
 import (
 	"context"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/dto"
+	paymentmodels "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/models"
 	"github.com/google/uuid"
 	mock "github.com/stretchr/testify/mock"
 )

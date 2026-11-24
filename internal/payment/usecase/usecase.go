@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/dto"
-	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/dto"
+	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/models"
 	paymentProvider "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider"
 	"github.com/google/uuid"
 )
@@ -42,7 +42,7 @@ var repoErrors = []struct{ from, to error }{
 func mapRepoError(op string, err error) error {
 	for _, e := range repoErrors {
 		if errors.Is(err, e.from) {
-			return fmt.Errorf("%s: %w", op, e.to)
+			return fmt.Errorf("%s: %w: %w", op, e.to, err)
 		}
 	}
 	return fmt.Errorf("%s: %w", op, err)

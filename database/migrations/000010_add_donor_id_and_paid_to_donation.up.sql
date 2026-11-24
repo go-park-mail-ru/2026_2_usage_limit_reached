@@ -1,5 +1,7 @@
 ALTER TABLE donation
     ADD COLUMN donor_id UUID;
+ALTER TABLE donation
+    ADD COLUMN paid BOOLEAN NOT NULL DEFAULT FALSE;
 
 UPDATE donation d
 SET donor_id = po.payer_id
@@ -26,4 +28,5 @@ CREATE INDEX IF NOT EXISTS idx_donation_donor_feed
     ON donation (donor_id, created_at DESC, payment_order_id DESC);
 
 CREATE INDEX IF NOT EXISTS idx_donation_author_feed
-    ON donation (author_id, created_at DESC, payment_order_id DESC);
+    ON donation (author_id, created_at DESC, payment_order_id DESC)
+    WHERE paid = TRUE;

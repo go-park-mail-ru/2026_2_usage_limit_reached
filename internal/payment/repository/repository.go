@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/dto"
-	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/dto"
+	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -57,7 +56,7 @@ func (r *PaymentRepository) CreateOrGetOrder(ctx context.Context, req dto.Create
 				expires_at
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)
-			ON CONFLICT (request_key) DO NOTHING
+			ON CONFLICT (payer_id, request_key) DO NOTHING
 			RETURNING 
 				id,
 				payer_id,
@@ -114,7 +113,7 @@ func (r *PaymentRepository) CreateOrGetOrder(ctx context.Context, req dto.Create
 			if errors.Is(parsedErr, postgres.ErrFKViolation) ||
 				errors.Is(parsedErr, postgres.ErrCheckViolation) ||
 				errors.Is(parsedErr, postgres.ErrUniqViolation) {
-				return models.ErrPaymentOrderValidation
+				return fmt.Errorf("%w: %w", models.ErrPaymentOrderValidation, parsedErr)
 			}
 
 			return fmt.Errorf("insert payment order: %w", err)
@@ -126,7 +125,7 @@ func (r *PaymentRepository) CreateOrGetOrder(ctx context.Context, req dto.Create
 		if errors.Is(parsedErr, postgres.ErrFKViolation) ||
 			errors.Is(parsedErr, postgres.ErrCheckViolation) ||
 			errors.Is(parsedErr, postgres.ErrUniqViolation) {
-			return nil, models.ErrPaymentOrderValidation
+			return nil, fmt.Errorf("%w: %w", models.ErrPaymentOrderValidation, parsedErr)
 		}
 
 		return nil, fmt.Errorf("create payment transaction: %w", err)
@@ -147,7 +146,7 @@ func createInitialAttempt(ctx context.Context, tx pgx.Tx, orderID uuid.UUID) err
 		if errors.Is(parsedErr, postgres.ErrFKViolation) ||
 			errors.Is(parsedErr, postgres.ErrCheckViolation) ||
 			errors.Is(parsedErr, postgres.ErrUniqViolation) {
-			return models.ErrPaymentAttemptValidation
+			return fmt.Errorf("%w: %w", models.ErrPaymentAttemptValidation, parsedErr)
 		}
 
 		return fmt.Errorf("create initial payment attempt: %w", err)
@@ -174,12 +173,12 @@ func getExistingOrder(ctx context.Context, tx pgx.Tx, req dto.CreatePayment) (*m
 			created_at,
 			updated_at
 		FROM payment_order
-		WHERE request_key = $1
+		WHERE payer_id = $1 AND request_key = $2
 		FOR UPDATE
 	`
 
 	order := &models.PaymentOrder{}
-	err := tx.QueryRow(ctx, getOrder, req.RequestKey).Scan(
+	err := tx.QueryRow(ctx, getOrder, req.PayerID, req.RequestKey).Scan(
 		&order.ID,
 		&order.PayerID,
 		&order.RequestKey,
@@ -206,8 +205,7 @@ func getExistingOrder(ctx context.Context, tx pgx.Tx, req dto.CreatePayment) (*m
 		string(order.Purpose) != req.Purpose ||
 		string(order.Origin) != req.Origin ||
 		order.ExpectedAmountMinor != req.AmountMinor ||
-		order.Currency != req.Currency ||
-		!equalOptionalTime(order.ExpiresAt, req.ExpiresAt) {
+		order.Currency != req.Currency {
 		return nil, models.ErrPaymentOrderValidation
 	}
 
@@ -1040,15 +1038,6 @@ func changeAttemptStatus(ctx context.Context, tx pgx.Tx, orderID, attemptID uuid
 	}
 
 	return nil
-}
-
-func equalOptionalTime(a, b *time.Time) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-
-	// PostgreSQL timestamptz хранит микросекундную точность.
-	return a.Truncate(time.Microsecond).Equal(b.Truncate(time.Microsecond))
 }
 
 func uniqueUUIDs(ids []uuid.UUID) []uuid.UUID {

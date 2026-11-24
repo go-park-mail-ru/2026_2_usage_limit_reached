@@ -34,7 +34,7 @@ func NewPaymentRepository(db *postgres.DBClient, logger *slog.Logger) *PaymentRe
 	return &PaymentRepository{pool: db.Pool, logger: logger}
 }
 
-func (r *PaymentRepository) CreateOrGetOrder(ctx context.Context, req dto.CreatePayment) (uuid.UUID, error) {
+func (r *PaymentRepository) CreateOrGetOrder(ctx context.Context, req dto.CreatePayment) (*models.PaymentOrder, error) {
 	r.logger.DebugContext(ctx, "executing transaction",
 		slog.String("op", "create or get payment order"),
 		slog.String("payerID", req.PayerID.String()),
@@ -42,7 +42,7 @@ func (r *PaymentRepository) CreateOrGetOrder(ctx context.Context, req dto.Create
 		slog.String("purpose", req.Purpose),
 	)
 
-	var orderID uuid.UUID
+	order := &models.PaymentOrder{}
 
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
 		const insertOrder = `
@@ -58,7 +58,21 @@ func (r *PaymentRepository) CreateOrGetOrder(ctx context.Context, req dto.Create
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)
 			ON CONFLICT (request_key) DO NOTHING
-			RETURNING id
+			RETURNING 
+				id,
+				payer_id,
+				request_key,
+				purpose,
+				origin,
+				expected_amount_minor,
+				currency,
+				status,
+				credited_attempt_id,
+				expires_at,
+				paid_at,
+				canceled_at,
+				created_at,
+				updated_at
 		`
 
 		err := tx.QueryRow(
@@ -71,14 +85,29 @@ func (r *PaymentRepository) CreateOrGetOrder(ctx context.Context, req dto.Create
 			req.AmountMinor,
 			req.Currency,
 			req.ExpiresAt,
-		).Scan(&orderID)
+		).Scan(
+			&order.ID,
+			&order.PayerID,
+			&order.RequestKey,
+			&order.Purpose,
+			&order.Origin,
+			&order.ExpectedAmountMinor,
+			&order.Currency,
+			&order.Status,
+			&order.CreditedAttemptID,
+			&order.ExpiresAt,
+			&order.PaidAt,
+			&order.CanceledAt,
+			&order.CreatedAt,
+			&order.UpdatedAt,
+		)
 
 		switch {
 		case err == nil:
-			err = createInitialAttempt(ctx, tx, orderID)
+			err = createInitialAttempt(ctx, tx, order.ID)
 			return err
 		case errors.Is(err, pgx.ErrNoRows):
-			orderID, err = getExistingOrder(ctx, tx, req)
+			order, err = getExistingOrder(ctx, tx, req)
 			return err
 		default:
 			parsedErr := postgres.ParseError(err)
@@ -97,13 +126,13 @@ func (r *PaymentRepository) CreateOrGetOrder(ctx context.Context, req dto.Create
 		if errors.Is(parsedErr, postgres.ErrFKViolation) ||
 			errors.Is(parsedErr, postgres.ErrCheckViolation) ||
 			errors.Is(parsedErr, postgres.ErrUniqViolation) {
-			return uuid.Nil, models.ErrPaymentOrderValidation
+			return nil, models.ErrPaymentOrderValidation
 		}
 
-		return uuid.Nil, fmt.Errorf("create payment transaction: %w", err)
+		return nil, fmt.Errorf("create payment transaction: %w", err)
 	}
 
-	return orderID, nil
+	return order, nil
 }
 
 func createInitialAttempt(ctx context.Context, tx pgx.Tx, orderID uuid.UUID) error {
@@ -127,45 +156,59 @@ func createInitialAttempt(ctx context.Context, tx pgx.Tx, orderID uuid.UUID) err
 	return nil
 }
 
-func getExistingOrder(ctx context.Context, tx pgx.Tx, req dto.CreatePayment) (uuid.UUID, error) {
+func getExistingOrder(ctx context.Context, tx pgx.Tx, req dto.CreatePayment) (*models.PaymentOrder, error) {
 	const getOrder = `
 		SELECT
 			id,
 			payer_id,
+			request_key,
 			purpose,
 			origin,
 			expected_amount_minor,
 			currency,
-			expires_at
+			status,
+			credited_attempt_id,
+			expires_at,
+			paid_at,
+			canceled_at,
+			created_at,
+			updated_at
 		FROM payment_order
 		WHERE request_key = $1
 		FOR UPDATE
 	`
 
-	existing := &models.PaymentOrder{}
+	order := &models.PaymentOrder{}
 	err := tx.QueryRow(ctx, getOrder, req.RequestKey).Scan(
-		&existing.ID,
-		&existing.PayerID,
-		&existing.Purpose,
-		&existing.Origin,
-		&existing.ExpectedAmountMinor,
-		&existing.Currency,
-		&existing.ExpiresAt,
+		&order.ID,
+		&order.PayerID,
+		&order.RequestKey,
+		&order.Purpose,
+		&order.Origin,
+		&order.ExpectedAmountMinor,
+		&order.Currency,
+		&order.Status,
+		&order.CreditedAttemptID,
+		&order.ExpiresAt,
+		&order.PaidAt,
+		&order.CanceledAt,
+		&order.CreatedAt,
+		&order.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return uuid.Nil, models.ErrPaymentOrderNotFound
+			return nil, models.ErrPaymentOrderNotFound
 		}
-		return uuid.Nil, fmt.Errorf("get existing payment order: %w", err)
+		return nil, fmt.Errorf("get existing payment order: %w", err)
 	}
 
-	if existing.PayerID != req.PayerID ||
-		string(existing.Purpose) != req.Purpose ||
-		string(existing.Origin) != req.Origin ||
-		existing.ExpectedAmountMinor != req.AmountMinor ||
-		existing.Currency != req.Currency ||
-		!equalOptionalTime(existing.ExpiresAt, req.ExpiresAt) {
-		return uuid.Nil, models.ErrPaymentOrderValidation
+	if order.PayerID != req.PayerID ||
+		string(order.Purpose) != req.Purpose ||
+		string(order.Origin) != req.Origin ||
+		order.ExpectedAmountMinor != req.AmountMinor ||
+		order.Currency != req.Currency ||
+		!equalOptionalTime(order.ExpiresAt, req.ExpiresAt) {
+		return nil, models.ErrPaymentOrderValidation
 	}
 
 	const getLatestAttempt = `
@@ -177,15 +220,15 @@ func getExistingOrder(ctx context.Context, tx pgx.Tx, req dto.CreatePayment) (uu
 	`
 
 	var attemptID uuid.UUID
-	err = tx.QueryRow(ctx, getLatestAttempt, existing.ID).Scan(&attemptID)
+	err = tx.QueryRow(ctx, getLatestAttempt, order.ID).Scan(&attemptID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return uuid.Nil, models.ErrPaymentAttemptNotFound
+			return nil, models.ErrPaymentAttemptNotFound
 		}
-		return uuid.Nil, fmt.Errorf("get latest payment attempt: %w", err)
+		return nil, fmt.Errorf("get latest payment attempt: %w", err)
 	}
 
-	return existing.ID, nil
+	return order, nil
 }
 
 func (r *PaymentRepository) StartAttempt(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, *models.PaymentAttempt, bool, error) {

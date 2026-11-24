@@ -21,7 +21,7 @@ var (
 )
 
 type PaymentRepo interface {
-	CreateOrGetOrder(ctx context.Context, req dto.CreatePayment) (orderID uuid.UUID, err error)
+	CreateOrGetOrder(ctx context.Context, req dto.CreatePayment) (*models.PaymentOrder, error)
 	GetOrdersByIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*models.PaymentOrder, error)
 	GetOrderByID(ctx context.Context, id uuid.UUID) (*models.PaymentOrder, error)
 	StartAttempt(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, *models.PaymentAttempt, bool, error)
@@ -58,14 +58,9 @@ func NewPaymentUsecase(repo PaymentRepo, provider paymentProvider.Provider) *Pay
 }
 
 func (uc *PaymentUsecase) CreatePayment(ctx context.Context, req dto.CreatePayment) (*models.PaymentOrder, error) {
-	orderID, err := uc.repo.CreateOrGetOrder(ctx, req)
+	order, err := uc.repo.CreateOrGetOrder(ctx, req)
 	if err != nil {
 		return nil, mapRepoError("create payment", err)
-	}
-
-	order, err := uc.repo.GetOrderByID(ctx, orderID)
-	if err != nil {
-		return nil, mapRepoError("get created payment order", err)
 	}
 
 	return order, nil

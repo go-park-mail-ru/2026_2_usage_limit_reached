@@ -34,7 +34,7 @@ tools:
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 # Каждый сервис пишет свою спецификацию в свою папку.
-swagger: swagger-identity swagger-content
+swagger: swagger-identity swagger-content swagger-monetization
 
 swagger-identity:
 	@mkdir -p docs/identity
@@ -42,4 +42,8 @@ swagger-identity:
 
 swagger-content:
 	@mkdir -p docs/content
-	$(SWAG) init -g cmd/server/main.go -o docs/content $(SWAG_FLAGS) --tags posts,donations
+	$(SWAG) init -g cmd/content/main.go -o docs/content $(SWAG_FLAGS) --tags posts
+
+swagger-monetization:
+	@mkdir -p docs/monetization
+	$(SWAG) init -g cmd/monetization/main.go -o docs/monetization $(SWAG_FLAGS) --tags donations

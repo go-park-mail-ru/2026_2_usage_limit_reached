@@ -12,6 +12,6 @@ const typeDonations cursor.CursorType = "donations"
 var DonationsCursor = cursor.Codec[dto.DonationCursor]{
 	Kind: typeDonations,
 	Valid: func(c *dto.DonationCursor) bool {
-		return !c.CreatedOrPaidAt.IsZero() && c.DonationID != uuid.Nil
+		return !c.CreatedAt.IsZero() && c.DonationID != uuid.Nil
 	},
 }

@@ -7,6 +7,7 @@ package mock_monetization_usecase
 import (
 	"context"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/contracts/payment"
 	"github.com/google/uuid"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -45,6 +46,142 @@ type MockPaymentProcessor_Expecter struct {
 
 func (_m *MockPaymentProcessor) EXPECT() *MockPaymentProcessor_Expecter {
 	return &MockPaymentProcessor_Expecter{mock: &_m.Mock}
+}
+
+// CreatePayment provides a mock function for the type MockPaymentProcessor
+func (_mock *MockPaymentProcessor) CreatePayment(ctx context.Context, req payment.CreatePaymentRequest) (*payment.PaymentOrder, error) {
+	ret := _mock.Called(ctx, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreatePayment")
+	}
+
+	var r0 *payment.PaymentOrder
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, payment.CreatePaymentRequest) (*payment.PaymentOrder, error)); ok {
+		return returnFunc(ctx, req)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, payment.CreatePaymentRequest) *payment.PaymentOrder); ok {
+		r0 = returnFunc(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*payment.PaymentOrder)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, payment.CreatePaymentRequest) error); ok {
+		r1 = returnFunc(ctx, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockPaymentProcessor_CreatePayment_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreatePayment'
+type MockPaymentProcessor_CreatePayment_Call struct {
+	*mock.Call
+}
+
+// CreatePayment is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req payment.CreatePaymentRequest
+func (_e *MockPaymentProcessor_Expecter) CreatePayment(ctx any, req any) *MockPaymentProcessor_CreatePayment_Call {
+	return &MockPaymentProcessor_CreatePayment_Call{Call: _e.mock.On("CreatePayment", ctx, req)}
+}
+
+func (_c *MockPaymentProcessor_CreatePayment_Call) Run(run func(ctx context.Context, req payment.CreatePaymentRequest)) *MockPaymentProcessor_CreatePayment_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 payment.CreatePaymentRequest
+		if args[1] != nil {
+			arg1 = args[1].(payment.CreatePaymentRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockPaymentProcessor_CreatePayment_Call) Return(paymentOrder *payment.PaymentOrder, err error) *MockPaymentProcessor_CreatePayment_Call {
+	_c.Call.Return(paymentOrder, err)
+	return _c
+}
+
+func (_c *MockPaymentProcessor_CreatePayment_Call) RunAndReturn(run func(ctx context.Context, req payment.CreatePaymentRequest) (*payment.PaymentOrder, error)) *MockPaymentProcessor_CreatePayment_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetPayments provides a mock function for the type MockPaymentProcessor
+func (_mock *MockPaymentProcessor) GetPayments(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*payment.PaymentOrder, error) {
+	ret := _mock.Called(ctx, orderIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetPayments")
+	}
+
+	var r0 map[uuid.UUID]*payment.PaymentOrder
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) (map[uuid.UUID]*payment.PaymentOrder, error)); ok {
+		return returnFunc(ctx, orderIDs)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) map[uuid.UUID]*payment.PaymentOrder); ok {
+		r0 = returnFunc(ctx, orderIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[uuid.UUID]*payment.PaymentOrder)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, []uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, orderIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockPaymentProcessor_GetPayments_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPayments'
+type MockPaymentProcessor_GetPayments_Call struct {
+	*mock.Call
+}
+
+// GetPayments is a helper method to define mock.On call
+//   - ctx context.Context
+//   - orderIDs []uuid.UUID
+func (_e *MockPaymentProcessor_Expecter) GetPayments(ctx any, orderIDs any) *MockPaymentProcessor_GetPayments_Call {
+	return &MockPaymentProcessor_GetPayments_Call{Call: _e.mock.On("GetPayments", ctx, orderIDs)}
+}
+
+func (_c *MockPaymentProcessor_GetPayments_Call) Run(run func(ctx context.Context, orderIDs []uuid.UUID)) *MockPaymentProcessor_GetPayments_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].([]uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockPaymentProcessor_GetPayments_Call) Return(uUIDToPaymentOrder map[uuid.UUID]*payment.PaymentOrder, err error) *MockPaymentProcessor_GetPayments_Call {
+	_c.Call.Return(uUIDToPaymentOrder, err)
+	return _c
+}
+
+func (_c *MockPaymentProcessor_GetPayments_Call) RunAndReturn(run func(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*payment.PaymentOrder, error)) *MockPaymentProcessor_GetPayments_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Pay provides a mock function for the type MockPaymentProcessor

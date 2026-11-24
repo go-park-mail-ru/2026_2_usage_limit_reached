@@ -50,13 +50,13 @@ func donations(n int) []*dto.GetDonationResponse {
 	items := make([]*dto.GetDonationResponse, n)
 	for i := range items {
 		items[i] = &dto.GetDonationResponse{
-			PaymentOrderID:  uuid.New(),
-			Message:         &donationMessage,
-			AmountMinor:     50000,
-			Currency:        "RUB",
-			Status:          "paid",
-			CreatedOrPaidAt: donationTime.Add(-time.Duration(i) * time.Hour),
-			User:            &dto.DonationUserInfo{Username: "ivan001", Nickname: "Иван"},
+			PaymentOrderID: uuid.New(),
+			Message:        &donationMessage,
+			AmountMinor:    50000,
+			Currency:       "RUB",
+			Status:         "paid",
+			CreatedAt:      donationTime.Add(-time.Duration(i) * time.Hour),
+			User:           &dto.DonationUserInfo{Username: "ivan001", Nickname: "Иван"},
 		}
 	}
 	return items

@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
+	identitycontracts "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/contracts/identity"
+	paymentcontracts "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/contracts/payment"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/models"
 	donationusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/usecase/mock_monetization_usecase"
-	paymentmodels "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/models"
-	paymentsusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -20,14 +20,20 @@ import (
 const pageLimit = 2
 
 var (
-	donationPayerID   = uuid.MustParse("00000000-0000-4000-8000-000000000001")
-	donationAuthorID  = uuid.MustParse("00000000-0000-4000-8000-000000000002")
-	donationOrderID   = uuid.MustParse("00000000-0000-4000-8000-000000000301")
-	donationAttemptID = uuid.MustParse("00000000-0000-4000-8000-000000000401")
-	donationTime      = time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
-	donationMessage   = "Спасибо за посты!"
-	technicalErr      = errors.New("donation storage unavailable")
-	donationCursor    = &dto.DonationCursor{CreatedOrPaidAt: donationTime, DonationID: donationOrderID}
+	donationPayerID  = uuid.MustParse("00000000-0000-4000-8000-000000000001")
+	donationAuthorID = uuid.MustParse("00000000-0000-4000-8000-000000000002")
+	donationOrderID  = uuid.MustParse("00000000-0000-4000-8000-000000000301")
+
+	donationTime = time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
+
+	donationMessage = "Спасибо за посты!"
+
+	technicalErr = errors.New("donation storage unavailable")
+
+	donationCursor = &dto.DonationCursor{
+		CreatedAt:  donationTime,
+		DonationID: donationOrderID,
+	}
 
 	donationReq = dto.CreateDonationRequest{
 		AuthorID:    donationAuthorID,
@@ -36,97 +42,327 @@ var (
 		AmountMinor: 50000,
 		Currency:    "RUB",
 	}
-	storedReq = &dto.CreateDonationRequest{
-		AuthorID:    donationAuthorID,
-		RequestKey:  donationPayerID.String() + ":00000000-0000-4000-8000-000000000501",
-		Message:     &donationMessage,
-		AmountMinor: 50000,
-		Currency:    "RUB",
-	}
 )
 
-func sentDonation(status paymentmodels.PaymentOrderStatus, attemptID *uuid.UUID) *dto.SentDonation {
-	return &dto.SentDonation{
-		PaymentOrderID: donationOrderID,
-		Message:        &donationMessage,
-		AmountMinor:    50000,
-		Currency:       "RUB",
-		Status:         string(status),
-		CreatedAt:      donationTime,
+func paymentOrder(status string) *paymentcontracts.PaymentOrder {
+	return &paymentcontracts.PaymentOrder{
+		ID:                  donationOrderID,
+		PayerID:             donationPayerID,
+		Purpose:             "donation",
+		Origin:              "manual",
+		ExpectedAmountMinor: 50000,
+		Currency:            "RUB",
+		Status:              status,
 	}
 }
 
-func TestDonationUsecase_Donate_PaysPendingOrder(t *testing.T) {
+func donationRecord() *models.Donation {
+	return &models.Donation{
+		PaymentOrderID: donationOrderID,
+		DonorID:        donationPayerID,
+		AuthorID:       donationAuthorID,
+		Message:        &donationMessage,
+		IsAnonymous:    false,
+		CreatedAt:      donationTime,
+		UpdatedAt:      donationTime,
+	}
+}
+
+func authorInfo() *identitycontracts.UserInfo {
+	return &identitycontracts.UserInfo{
+		ID:        donationAuthorID,
+		Username:  "author",
+		Nickname:  "Автор",
+		AvatarURL: "avatars/author.png",
+	}
+}
+
+func createPaymentRequestMatcher() interface{} {
+	return mock.MatchedBy(func(req paymentcontracts.CreatePaymentRequest) bool {
+		if req.ExpiresAt == nil {
+			return false
+		}
+
+		now := time.Now()
+
+		return req.PayerID == donationPayerID &&
+			req.RequestKey == donationReq.RequestKey &&
+			req.Purpose == "donation" &&
+			req.Origin == "manual" &&
+			req.AmountMinor == donationReq.AmountMinor &&
+			req.Currency == donationReq.Currency &&
+			req.ExpiresAt.After(now.Add(14*time.Minute)) &&
+			req.ExpiresAt.Before(now.Add(16*time.Minute))
+	})
+}
+
+func createDonationRequestMatcher() interface{} {
+	return mock.MatchedBy(func(req *dto.CreateDonationRequest) bool {
+		return req != nil &&
+			req.AuthorID == donationReq.AuthorID &&
+			req.IsAnonymous == donationReq.IsAnonymous &&
+			equalOptionalString(req.Message, donationReq.Message)
+	})
+}
+
+func equalOptionalString(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+
+	return *a == *b
+}
+
+func expectDonationPrefix(
+	repo *mock_monetization_usecase.MockDonationRepository,
+	payments *mock_monetization_usecase.MockPaymentProcessor,
+	identity *mock_monetization_usecase.MockIdentityClient,
+) []*mock.Call {
+	identityCall := identity.EXPECT().
+		GetUsers(mock.Anything, []uuid.UUID{donationAuthorID}).
+		Return(map[uuid.UUID]*identitycontracts.UserInfo{
+			donationAuthorID: authorInfo(),
+		}, nil).Call
+
+	createPaymentCall := payments.EXPECT().
+		CreatePayment(mock.Anything, createPaymentRequestMatcher()).
+		Return(paymentOrder("pending"), nil).Call
+
+	createDonationCall := repo.EXPECT().
+		CreateDonation(
+			mock.Anything,
+			donationOrderID,
+			donationPayerID,
+			createDonationRequestMatcher(),
+		).
+		Return(donationRecord(), nil).Call
+
+	return []*mock.Call{
+		identityCall,
+		createPaymentCall,
+		createDonationCall,
+	}
+}
+
+func expectedSentDonation(status string) *dto.SentDonation {
+	avatar := "avatars/author.png"
+
+	return &dto.SentDonation{
+		PaymentOrderID: donationOrderID,
+		Message:        &donationMessage,
+		IsAnonymous:    false,
+		AmountMinor:    50000,
+		Currency:       "RUB",
+		Status:         status,
+		CreatedAt:      donationTime,
+		Author: &dto.DonationUserInfo{
+			Username:  "author",
+			Nickname:  "Автор",
+			AvatarUrl: &avatar,
+		},
+	}
+}
+
+func TestMonetizationUsecase_Donate_PaymentStatuses(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name      string
 		payStatus string
+		markPaid  bool
 	}{
-		{name: "payment succeeded", payStatus: string(paymentmodels.StatusPaid)},
-		{name: "payment failed", payStatus: string(paymentmodels.StatusFailed)},
-		{name: "payment still processing", payStatus: string(paymentmodels.StatusProcessing)},
+		{
+			name:      "payment succeeded",
+			payStatus: "paid",
+			markPaid:  true,
+		},
+		{
+			name:      "payment failed",
+			payStatus: "failed",
+		},
+		{
+			name:      "payment still processing",
+			payStatus: "processing",
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			uc, repo, payments := newUsecase(t)
-			mock.InOrder(
-				repo.EXPECT().CreateDonation(mock.Anything, donationPayerID, storedReq).
-					Return(sentDonation(paymentmodels.StatusPending, &donationAttemptID), nil).Call,
-				payments.EXPECT().Pay(mock.Anything, donationOrderID).Return(tt.payStatus, nil).Call,
-			)
+			uc, repo, payments, identity := newUsecase(t)
+
+			calls := expectDonationPrefix(repo, payments, identity)
+
+			payCall := payments.EXPECT().
+				Pay(mock.Anything, donationOrderID).
+				Return(tt.payStatus, nil).Call
+
+			calls = append(calls, payCall)
+
+			if tt.markPaid {
+				calls = append(calls,
+					repo.EXPECT().
+						MarkPaid(mock.Anything, donationOrderID).
+						Return(nil).Call,
+				)
+			}
+
+			mock.InOrder(calls...)
 
 			got, err := uc.Donate(context.Background(), donationPayerID, donationReq)
 
 			require.NoError(t, err)
-			require.Equal(t, sentDonation(paymentmodels.PaymentOrderStatus(tt.payStatus), &donationAttemptID), got)
+			require.Equal(t, expectedSentDonation(tt.payStatus), got)
 		})
 	}
 }
 
-func TestDonationUsecase_Donate_SkipsPayment(t *testing.T) {
+func TestMonetizationUsecase_Donate_InvalidIDs(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		donation *dto.SentDonation
+		name    string
+		donorID uuid.UUID
+		req     dto.CreateDonationRequest
+		wantErr error
 	}{
-		{name: "repeated request for paid order", donation: sentDonation(paymentmodels.StatusPaid, &donationAttemptID)},
-		{name: "repeated request for failed order", donation: sentDonation(paymentmodels.StatusFailed, &donationAttemptID)},
-		{name: "repeated request for canceled order", donation: sentDonation(paymentmodels.StatusCanceled, &donationAttemptID)},
-		{name: "pending order without attempt", donation: sentDonation(paymentmodels.StatusPending, nil)},
+		{
+			name:    "nil donor ID",
+			donorID: uuid.Nil,
+			req:     donationReq,
+			wantErr: donationusecase.ErrValidation,
+		},
+		{
+			name:    "nil author ID",
+			donorID: donationPayerID,
+			req: dto.CreateDonationRequest{
+				RequestKey: donationReq.RequestKey,
+			},
+			wantErr: donationusecase.ErrValidation,
+		},
+		{
+			name:    "self donation",
+			donorID: donationPayerID,
+			req: func() dto.CreateDonationRequest {
+				req := donationReq
+				req.AuthorID = donationPayerID
+				return req
+			}(),
+			wantErr: donationusecase.ErrForbidden,
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			uc, repo, _ := newUsecase(t)
-			repo.EXPECT().CreateDonation(mock.Anything, donationPayerID, storedReq).Return(tt.donation, nil)
+			uc, _, _, _ := newUsecase(t)
 
-			got, err := uc.Donate(context.Background(), donationPayerID, donationReq)
+			got, err := uc.Donate(context.Background(), tt.donorID, tt.req)
 
-			require.NoError(t, err)
-			require.Same(t, tt.donation, got)
+			require.Nil(t, got)
+			require.ErrorIs(t, err, tt.wantErr)
 		})
 	}
 }
 
-func TestDonationUsecase_Donate_SelfDonation(t *testing.T) {
+func TestMonetizationUsecase_Donate_AuthorNotFound(t *testing.T) {
 	t.Parallel()
 
-	uc, _, _ := newUsecase(t)
-	req := donationReq
-	req.AuthorID = donationPayerID
+	uc, _, _, identity := newUsecase(t)
 
-	got, err := uc.Donate(context.Background(), donationPayerID, req)
+	identity.EXPECT().
+		GetUsers(mock.Anything, []uuid.UUID{donationAuthorID}).
+		Return(map[uuid.UUID]*identitycontracts.UserInfo{}, nil)
+
+	got, err := uc.Donate(context.Background(), donationPayerID, donationReq)
 
 	require.Nil(t, got)
-	require.ErrorIs(t, err, donationusecase.ErrForbidden)
+	require.ErrorIs(t, err, donationusecase.ErrNotFound)
 }
 
-func TestDonationUsecase_Donate_RepositoryErrors(t *testing.T) {
+func TestMonetizationUsecase_Donate_IdentityError(t *testing.T) {
+	t.Parallel()
+
+	uc, _, _, identity := newUsecase(t)
+
+	identity.EXPECT().
+		GetUsers(mock.Anything, []uuid.UUID{donationAuthorID}).
+		Return(nil, technicalErr)
+
+	got, err := uc.Donate(context.Background(), donationPayerID, donationReq)
+
+	require.Nil(t, got)
+	require.ErrorIs(t, err, technicalErr)
+}
+
+func TestMonetizationUsecase_Donate_CreatePaymentError(t *testing.T) {
+	t.Parallel()
+
+	uc, _, payments, identity := newUsecase(t)
+
+	identity.EXPECT().
+		GetUsers(mock.Anything, []uuid.UUID{donationAuthorID}).
+		Return(map[uuid.UUID]*identitycontracts.UserInfo{
+			donationAuthorID: authorInfo(),
+		}, nil)
+
+	payments.EXPECT().
+		CreatePayment(mock.Anything, createPaymentRequestMatcher()).
+		Return(nil, technicalErr)
+
+	got, err := uc.Donate(context.Background(), donationPayerID, donationReq)
+
+	require.Nil(t, got)
+	require.ErrorIs(t, err, technicalErr)
+}
+
+func TestMonetizationUsecase_Donate_InvalidPaymentOrder(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		order *paymentcontracts.PaymentOrder
+	}{
+		{
+			name:  "nil order",
+			order: nil,
+		},
+		{
+			name: "nil order ID",
+			order: &paymentcontracts.PaymentOrder{
+				ExpectedAmountMinor: 50000,
+				Currency:            "RUB",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			uc, _, payments, identity := newUsecase(t)
+
+			identity.EXPECT().
+				GetUsers(mock.Anything, []uuid.UUID{donationAuthorID}).
+				Return(map[uuid.UUID]*identitycontracts.UserInfo{
+					donationAuthorID: authorInfo(),
+				}, nil)
+
+			payments.EXPECT().
+				CreatePayment(mock.Anything, createPaymentRequestMatcher()).
+				Return(tt.order, nil)
+
+			got, err := uc.Donate(context.Background(), donationPayerID, donationReq)
+
+			require.Nil(t, got)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestMonetizationUsecase_Donate_RepositoryErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -134,19 +370,59 @@ func TestDonationUsecase_Donate_RepositoryErrors(t *testing.T) {
 		repoErr error
 		wantErr error
 	}{
-		{name: "unknown donation", repoErr: models.ErrDonationNotFound, wantErr: donationusecase.ErrNotFound},
-		{name: "unknown author", repoErr: models.ErrAuthorNotFound, wantErr: donationusecase.ErrNotFound},
-		{name: "self donation", repoErr: models.ErrSelfDonation, wantErr: donationusecase.ErrForbidden},
-		{name: "request key reused", repoErr: models.ErrIdempotencyKeyReused, wantErr: donationusecase.ErrConflict},
-		{name: "invalid donation", repoErr: models.ErrDonationValidation, wantErr: donationusecase.ErrValidation},
-		{name: "storage failure", repoErr: technicalErr, wantErr: technicalErr},
+		{
+			name:    "unknown donation",
+			repoErr: models.ErrDonationNotFound,
+			wantErr: donationusecase.ErrNotFound,
+		},
+		{
+			name:    "unknown author",
+			repoErr: models.ErrAuthorNotFound,
+			wantErr: donationusecase.ErrNotFound,
+		},
+		{
+			name:    "request key reused",
+			repoErr: models.ErrIdempotencyKeyReused,
+			wantErr: donationusecase.ErrConflict,
+		},
+		{
+			name:    "invalid donation",
+			repoErr: models.ErrDonationValidation,
+			wantErr: donationusecase.ErrValidation,
+		},
+		{
+			name:    "storage failure",
+			repoErr: technicalErr,
+			wantErr: technicalErr,
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			uc, repo, _ := newUsecase(t)
-			repo.EXPECT().CreateDonation(mock.Anything, donationPayerID, storedReq).Return(nil, tt.repoErr)
+			uc, repo, payments, identity := newUsecase(t)
+
+			identityCall := identity.EXPECT().
+				GetUsers(mock.Anything, []uuid.UUID{donationAuthorID}).
+				Return(map[uuid.UUID]*identitycontracts.UserInfo{
+					donationAuthorID: authorInfo(),
+				}, nil).Call
+
+			createPaymentCall := payments.EXPECT().
+				CreatePayment(mock.Anything, createPaymentRequestMatcher()).
+				Return(paymentOrder("pending"), nil).Call
+
+			createDonationCall := repo.EXPECT().
+				CreateDonation(
+					mock.Anything,
+					donationOrderID,
+					donationPayerID,
+					createDonationRequestMatcher(),
+				).
+				Return(nil, tt.repoErr).Call
+
+			mock.InOrder(identityCall, createPaymentCall, createDonationCall)
 
 			got, err := uc.Donate(context.Background(), donationPayerID, donationReq)
 
@@ -156,68 +432,251 @@ func TestDonationUsecase_Donate_RepositoryErrors(t *testing.T) {
 	}
 }
 
-func TestDonationUsecase_Donate_PaymentErrors(t *testing.T) {
+func TestMonetizationUsecase_Donate_PaymentError(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		payErr  error
-		wantErr error
-	}{
-		{name: "request key reused in payments", payErr: paymentsusecase.ErrIdempotencyKeyReused, wantErr: donationusecase.ErrConflict},
-		{name: "payment failure", payErr: technicalErr, wantErr: technicalErr},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	uc, repo, payments, identity := newUsecase(t)
 
-			uc, repo, payments := newUsecase(t)
-			repo.EXPECT().CreateDonation(mock.Anything, donationPayerID, storedReq).
-				Return(sentDonation(paymentmodels.StatusPending, &donationAttemptID), nil)
-			payments.EXPECT().Pay(mock.Anything, donationOrderID).Return("", tt.payErr)
+	calls := expectDonationPrefix(repo, payments, identity)
+	calls = append(calls,
+		payments.EXPECT().
+			Pay(mock.Anything, donationOrderID).
+			Return("", technicalErr).Call,
+	)
 
-			got, err := uc.Donate(context.Background(), donationPayerID, donationReq)
+	mock.InOrder(calls...)
 
-			require.Nil(t, got)
-			require.ErrorIs(t, err, tt.wantErr)
-			if tt.wantErr != donationusecase.ErrConflict {
-				require.False(t, errors.Is(err, donationusecase.ErrConflict))
-			}
-		})
-	}
+	got, err := uc.Donate(context.Background(), donationPayerID, donationReq)
+
+	require.Nil(t, got)
+	require.ErrorIs(t, err, technicalErr)
+}
+
+func TestMonetizationUsecase_Donate_MarkPaidError(t *testing.T) {
+	t.Parallel()
+
+	uc, repo, payments, identity := newUsecase(t)
+
+	calls := expectDonationPrefix(repo, payments, identity)
+	calls = append(calls,
+		payments.EXPECT().
+			Pay(mock.Anything, donationOrderID).
+			Return("paid", nil).Call,
+		repo.EXPECT().
+			MarkPaid(mock.Anything, donationOrderID).
+			Return(technicalErr).Call,
+	)
+
+	mock.InOrder(calls...)
+
+	got, err := uc.Donate(context.Background(), donationPayerID, donationReq)
+
+	require.Nil(t, got)
+	require.ErrorIs(t, err, technicalErr)
 }
 
 type listMethod struct {
-	name   string
-	expect func(repo *mock_monetization_usecase.MockDonationRepository, items []*dto.GetDonationResponse, err error)
-	call   func(uc *donationusecase.DonationUsecase) (*dto.DonationPage, error)
+	name     string
+	userID   uuid.UUID
+	received bool
+	expect   func(
+		repo *mock_monetization_usecase.MockDonationRepository,
+		cursor *dto.DonationCursor,
+		limit int,
+		items []*models.Donation,
+		err error,
+	)
+	call func(
+		uc *donationusecase.MonetizationUsecase,
+		cursor *dto.DonationCursor,
+		limit int,
+	) (*dto.DonationPage, error)
 }
 
 func listMethods() []listMethod {
 	ctx := context.Background()
+
 	return []listMethod{
 		{
-			name: "GetSentDonations",
-			expect: func(repo *mock_monetization_usecase.MockDonationRepository, items []*dto.GetDonationResponse, err error) {
-				repo.EXPECT().GetSentDonations(mock.Anything, donationPayerID, donationCursor, pageLimit+1).Return(items, err)
+			name:     "GetSentDonations",
+			userID:   donationPayerID,
+			received: false,
+			expect: func(
+				repo *mock_monetization_usecase.MockDonationRepository,
+				cursor *dto.DonationCursor,
+				limit int,
+				items []*models.Donation,
+				err error,
+			) {
+				repo.EXPECT().
+					GetSentDonations(mock.Anything, donationPayerID, cursor, limit+1).
+					Return(items, err)
 			},
-			call: func(uc *donationusecase.DonationUsecase) (*dto.DonationPage, error) {
-				return uc.GetSentDonations(ctx, donationPayerID, donationCursor, pageLimit)
+			call: func(
+				uc *donationusecase.MonetizationUsecase,
+				cursor *dto.DonationCursor,
+				limit int,
+			) (*dto.DonationPage, error) {
+				return uc.GetSentDonations(ctx, donationPayerID, cursor, limit)
 			},
 		},
 		{
-			name: "GetReceivedDonations",
-			expect: func(repo *mock_monetization_usecase.MockDonationRepository, items []*dto.GetDonationResponse, err error) {
-				repo.EXPECT().GetReceivedDonations(mock.Anything, donationPayerID, donationCursor, pageLimit+1).Return(items, err)
+			name:     "GetReceivedDonations",
+			userID:   donationAuthorID,
+			received: true,
+			expect: func(
+				repo *mock_monetization_usecase.MockDonationRepository,
+				cursor *dto.DonationCursor,
+				limit int,
+				items []*models.Donation,
+				err error,
+			) {
+				repo.EXPECT().
+					GetReceivedDonations(mock.Anything, donationAuthorID, cursor, limit+1).
+					Return(items, err)
 			},
-			call: func(uc *donationusecase.DonationUsecase) (*dto.DonationPage, error) {
-				return uc.GetReceivedDonations(ctx, donationPayerID, donationCursor, pageLimit)
+			call: func(
+				uc *donationusecase.MonetizationUsecase,
+				cursor *dto.DonationCursor,
+				limit int,
+			) (*dto.DonationPage, error) {
+				return uc.GetReceivedDonations(ctx, donationAuthorID, cursor, limit)
 			},
 		},
 	}
 }
 
-func TestDonationUsecase_ListDonations_Pagination(t *testing.T) {
+func listPaymentStatus(i int) string {
+	statuses := []string{"paid", "failed", "processing"}
+	return statuses[i%len(statuses)]
+}
+
+func listUserID(donation *models.Donation, received bool) uuid.UUID {
+	if received {
+		return donation.DonorID
+	}
+
+	return donation.AuthorID
+}
+
+func listUserInfo(id uuid.UUID) *identitycontracts.UserInfo {
+	return &identitycontracts.UserInfo{
+		ID:        id,
+		Username:  "donation-user",
+		Nickname:  "Пользователь",
+		AvatarURL: "avatar.png",
+	}
+}
+
+func listDonationOrders(
+	items []*models.Donation,
+) ([]uuid.UUID, map[uuid.UUID]*paymentcontracts.PaymentOrder) {
+	orderIDs := make([]uuid.UUID, 0, len(items))
+	orders := make(map[uuid.UUID]*paymentcontracts.PaymentOrder, len(items))
+
+	for i, donation := range items {
+		orderIDs = append(orderIDs, donation.PaymentOrderID)
+		orders[donation.PaymentOrderID] = &paymentcontracts.PaymentOrder{
+			ID:                  donation.PaymentOrderID,
+			PayerID:             donation.DonorID,
+			ExpectedAmountMinor: int64(50000 + i),
+			Currency:            "RUB",
+			Status:              listPaymentStatus(i),
+		}
+	}
+
+	return orderIDs, orders
+}
+
+func listIdentityUsers(
+	items []*models.Donation,
+	received bool,
+) ([]uuid.UUID, map[uuid.UUID]*identitycontracts.UserInfo) {
+	userIDs := make([]uuid.UUID, 0, len(items))
+	users := make(map[uuid.UUID]*identitycontracts.UserInfo, len(items))
+	seen := make(map[uuid.UUID]struct{}, len(items))
+
+	for _, donation := range items {
+		if received && donation.IsAnonymous {
+			continue
+		}
+
+		id := listUserID(donation, received)
+		if _, ok := seen[id]; ok {
+			continue
+		}
+
+		seen[id] = struct{}{}
+		userIDs = append(userIDs, id)
+		users[id] = listUserInfo(id)
+	}
+
+	return userIDs, users
+}
+
+func expectListEnrichment(
+	payments *mock_monetization_usecase.MockPaymentProcessor,
+	identity *mock_monetization_usecase.MockIdentityClient,
+	items []*models.Donation,
+	received bool,
+) {
+	orderIDs, orders := listDonationOrders(items)
+	userIDs, users := listIdentityUsers(items, received)
+
+	paymentCall := payments.EXPECT().
+		GetPayments(mock.Anything, orderIDs).
+		Return(orders, nil).Call
+
+	identityCall := identity.EXPECT().
+		GetUsers(mock.Anything, userIDs).
+		Return(users, nil).Call
+
+	mock.InOrder(paymentCall, identityCall)
+}
+
+func expectedDonationResponses(
+	items []*models.Donation,
+	received bool,
+) []*dto.GetDonationResponse {
+	_, users := listIdentityUsers(items, received)
+
+	result := make([]*dto.GetDonationResponse, 0, len(items))
+
+	for i, donation := range items {
+		var user *dto.DonationUserInfo
+
+		if !received || !donation.IsAnonymous {
+			if info, ok := users[listUserID(donation, received)]; ok {
+				avatar := info.AvatarURL
+				var avatarURL *string
+				if avatar != "" {
+					avatarURL = &avatar
+				}
+
+				user = &dto.DonationUserInfo{
+					Username:  info.Username,
+					Nickname:  info.Nickname,
+					AvatarUrl: avatarURL,
+				}
+			}
+		}
+
+		result = append(result, &dto.GetDonationResponse{
+			PaymentOrderID: donation.PaymentOrderID,
+			Message:        donation.Message,
+			IsAnonymous:    donation.IsAnonymous,
+			AmountMinor:    int64(50000 + i),
+			Currency:       "RUB",
+			Status:         listPaymentStatus(i),
+			CreatedAt:      donation.CreatedAt,
+			User:           user,
+		})
+	}
+
+	return result
+}
+
+func TestMonetizationUsecase_ListDonations_Pagination(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -226,36 +685,64 @@ func TestDonationUsecase_ListDonations_Pagination(t *testing.T) {
 		wantItems int
 		wantNext  bool
 	}{
-		{name: "empty page", fetched: 0, wantItems: 0},
-		{name: "last full page", fetched: pageLimit, wantItems: pageLimit},
-		{name: "extra item becomes next cursor", fetched: pageLimit + 1, wantItems: pageLimit, wantNext: true},
+		{
+			name:      "empty page",
+			fetched:   0,
+			wantItems: 0,
+		},
+		{
+			name:      "last full page",
+			fetched:   pageLimit,
+			wantItems: pageLimit,
+		},
+		{
+			name:      "extra item becomes next cursor",
+			fetched:   pageLimit + 1,
+			wantItems: pageLimit,
+			wantNext:  true,
+		},
 	}
+
 	for _, m := range listMethods() {
 		for _, tt := range tests {
 			t.Run(m.name+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
 
 				items := donations(tt.fetched)
-				uc, repo, _ := newUsecase(t)
-				m.expect(repo, items, nil)
+				uc, repo, payments, identity := newUsecase(t)
 
-				got, err := m.call(uc)
+				m.expect(repo, donationCursor, pageLimit, items, nil)
+
+				pageItems := items[:tt.wantItems]
+				if len(pageItems) > 0 {
+					expectListEnrichment(payments, identity, pageItems, m.received)
+				}
+
+				got, err := m.call(uc, donationCursor, pageLimit)
 
 				require.NoError(t, err)
-				require.Equal(t, items[:tt.wantItems], got.Items)
+				require.Equal(
+					t,
+					expectedDonationResponses(pageItems, m.received),
+					got.Items,
+				)
+
 				if !tt.wantNext {
 					require.Nil(t, got.Next)
-
 					return
 				}
-				last := items[tt.wantItems-1]
-				require.Equal(t, &dto.DonationCursor{CreatedOrPaidAt: last.CreatedOrPaidAt, DonationID: last.PaymentOrderID}, got.Next)
+
+				last := pageItems[len(pageItems)-1]
+				require.Equal(t, &dto.DonationCursor{
+					CreatedAt:  last.CreatedAt,
+					DonationID: last.PaymentOrderID,
+				}, got.Next)
 			})
 		}
 	}
 }
 
-func TestDonationUsecase_ListDonations_Errors(t *testing.T) {
+func TestMonetizationUsecase_ListDonations_RepositoryErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -263,22 +750,153 @@ func TestDonationUsecase_ListDonations_Errors(t *testing.T) {
 		repoErr error
 		wantErr error
 	}{
-		{name: "unknown user", repoErr: models.ErrAuthorNotFound, wantErr: donationusecase.ErrNotFound},
-		{name: "storage failure", repoErr: technicalErr, wantErr: technicalErr},
+		{
+			name:    "unknown author",
+			repoErr: models.ErrAuthorNotFound,
+			wantErr: donationusecase.ErrNotFound,
+		},
+		{
+			name:    "storage failure",
+			repoErr: technicalErr,
+			wantErr: technicalErr,
+		},
 	}
+
 	for _, m := range listMethods() {
 		for _, tt := range tests {
 			t.Run(m.name+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				uc, repo, _ := newUsecase(t)
-				m.expect(repo, nil, tt.repoErr)
+				uc, repo, _, _ := newUsecase(t)
 
-				got, err := m.call(uc)
+				m.expect(repo, donationCursor, pageLimit, nil, tt.repoErr)
+
+				got, err := m.call(uc, donationCursor, pageLimit)
 
 				require.Nil(t, got)
 				require.ErrorIs(t, err, tt.wantErr)
 			})
 		}
 	}
+}
+
+func TestMonetizationUsecase_ListDonations_PaymentError(t *testing.T) {
+	t.Parallel()
+
+	for _, m := range listMethods() {
+		t.Run(m.name, func(t *testing.T) {
+			t.Parallel()
+
+			items := donations(1)
+			uc, repo, payments, _ := newUsecase(t)
+
+			m.expect(repo, nil, pageLimit, items, nil)
+
+			payments.EXPECT().
+				GetPayments(mock.Anything, []uuid.UUID{items[0].PaymentOrderID}).
+				Return(nil, technicalErr)
+
+			got, err := m.call(uc, nil, pageLimit)
+
+			require.Nil(t, got)
+			require.ErrorIs(t, err, technicalErr)
+		})
+	}
+}
+
+func TestMonetizationUsecase_ListDonations_IdentityError(t *testing.T) {
+	t.Parallel()
+
+	for _, m := range listMethods() {
+		t.Run(m.name, func(t *testing.T) {
+			t.Parallel()
+
+			items := donations(1)
+			uc, repo, payments, identity := newUsecase(t)
+
+			m.expect(repo, nil, pageLimit, items, nil)
+
+			_, orders := listDonationOrders(items)
+			userIDs, _ := listIdentityUsers(items, m.received)
+
+			payments.EXPECT().
+				GetPayments(mock.Anything, []uuid.UUID{items[0].PaymentOrderID}).
+				Return(orders, nil)
+
+			identity.EXPECT().
+				GetUsers(mock.Anything, userIDs).
+				Return(nil, technicalErr)
+
+			got, err := m.call(uc, nil, pageLimit)
+
+			require.Nil(t, got)
+			require.ErrorIs(t, err, technicalErr)
+		})
+	}
+}
+
+func TestMonetizationUsecase_ListDonations_MissingPayment(t *testing.T) {
+	t.Parallel()
+
+	for _, m := range listMethods() {
+		t.Run(m.name, func(t *testing.T) {
+			t.Parallel()
+
+			items := donations(1)
+			uc, repo, payments, identity := newUsecase(t)
+
+			m.expect(repo, nil, pageLimit, items, nil)
+
+			_, users := listIdentityUsers(items, m.received)
+
+			payments.EXPECT().
+				GetPayments(mock.Anything, []uuid.UUID{items[0].PaymentOrderID}).
+				Return(map[uuid.UUID]*paymentcontracts.PaymentOrder{}, nil)
+
+			userIDs, _ := listIdentityUsers(items, m.received)
+			identity.EXPECT().
+				GetUsers(mock.Anything, userIDs).
+				Return(users, nil)
+
+			got, err := m.call(uc, nil, pageLimit)
+
+			require.Nil(t, got)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestMonetizationUsecase_GetReceivedDonations_AnonymousDonor(t *testing.T) {
+	t.Parallel()
+
+	items := donations(1)
+	items[0].IsAnonymous = true
+
+	uc, repo, payments, identity := newUsecase(t)
+
+	repo.EXPECT().
+		GetReceivedDonations(mock.Anything, donationAuthorID, (*dto.DonationCursor)(nil), pageLimit+1).
+		Return(items, nil)
+
+	orderIDs, orders := listDonationOrders(items)
+
+	payments.EXPECT().
+		GetPayments(mock.Anything, orderIDs).
+		Return(orders, nil)
+
+	identity.EXPECT().
+		GetUsers(mock.Anything, []uuid.UUID{}).
+		Return(map[uuid.UUID]*identitycontracts.UserInfo{}, nil)
+
+	got, err := uc.GetReceivedDonations(
+		context.Background(),
+		donationAuthorID,
+		nil,
+		pageLimit,
+	)
+
+	require.NoError(t, err)
+	require.Len(t, got.Items, 1)
+	require.True(t, got.Items[0].IsAnonymous)
+	require.Nil(t, got.Items[0].User)
 }

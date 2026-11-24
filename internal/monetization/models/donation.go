@@ -17,6 +17,7 @@ var (
 
 type Donation struct {
 	PaymentOrderID uuid.UUID
+	DonorID        uuid.UUID
 	AuthorID       uuid.UUID
 	Message        *string
 	IsAnonymous    bool

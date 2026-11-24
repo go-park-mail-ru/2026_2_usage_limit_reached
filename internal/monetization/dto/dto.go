@@ -44,14 +44,14 @@ type CreateDonationResponse struct {
 }
 
 type GetDonationResponse struct {
-	PaymentOrderID  uuid.UUID         `json:"id"`
-	Message         *string           `json:"message"`
-	IsAnonymous     bool              `json:"is_anonymous"`
-	AmountMinor     int64             `json:"amount_minor"`
-	Currency        string            `json:"currency"`
-	Status          string            `json:"status"`
-	CreatedOrPaidAt time.Time         `json:"created_or_paid_at"`
-	User            *DonationUserInfo `json:"user"`
+	PaymentOrderID uuid.UUID         `json:"id"`
+	Message        *string           `json:"message"`
+	IsAnonymous    bool              `json:"is_anonymous"`
+	AmountMinor    int64             `json:"amount_minor"`
+	Currency       string            `json:"currency"`
+	Status         string            `json:"status"`
+	CreatedAt      time.Time         `json:"created_at"`
+	User           *DonationUserInfo `json:"user"`
 }
 
 type DonationUserInfo struct {
@@ -61,8 +61,8 @@ type DonationUserInfo struct {
 }
 
 type DonationCursor struct {
-	CreatedOrPaidAt time.Time `json:"created_or_paid_at"`
-	DonationID      uuid.UUID `json:"donation_id"`
+	CreatedAt  time.Time `json:"created_at"`
+	DonationID uuid.UUID `json:"donation_id"`
 }
 
 type DonationPage feed.Page[*GetDonationResponse, DonationCursor]

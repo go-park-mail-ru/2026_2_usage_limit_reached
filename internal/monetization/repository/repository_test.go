@@ -16,57 +16,122 @@ import (
 )
 
 var (
-	donationPayerID   = uuid.MustParse("00000000-0000-4000-8000-000000000001")
-	donationAuthorID  = uuid.MustParse("00000000-0000-4000-8000-000000000002")
-	donationOrderID   = uuid.MustParse("00000000-0000-4000-8000-000000000301")
-	donationAttemptID = uuid.MustParse("00000000-0000-4000-8000-000000000401")
+	donationPayerID  = uuid.MustParse("00000000-0000-4000-8000-000000000001")
+	donationAuthorID = uuid.MustParse("00000000-0000-4000-8000-000000000002")
+	donationOrderID  = uuid.MustParse("00000000-0000-4000-8000-000000000301")
+
 	donationTime      = time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
+	donationUpdatedAt = donationTime.Add(time.Minute)
 	donationMessage   = "Спасибо за посты!"
-	technicalErr      = errors.New("donation storage unavailable")
-	txOptions         = pgx.TxOptions{IsoLevel: pgx.ReadCommitted}
 
-	insertOrderQuery    = testutils.SQLInOrder("INSERT INTO payment_order", "'donation', 'manual'", "'pending'", "ON CONFLICT (request_key) DO NOTHING", "RETURNING id")
-	insertDonationQuery = testutils.SQLInOrder("INSERT INTO donation (payment_order_id, author_id, message, is_anonymous)", "RETURNING created_at")
-	insertAttemptQuery  = testutils.SQLInOrder("INSERT INTO payment_attempt (payment_order_id, provider, status)", "'mock', 'created'", "RETURNING id")
-	existingOrderQuery  = testutils.SQLInOrder("FROM payment_order po", "JOIN donation d ON d.payment_order_id = po.id", "WHERE po.request_key = $1")
-	receivedQuery       = testutils.SQLInOrder("FROM donation d", `JOIN "user" u ON u.id = po.payer_id`, "WHERE d.author_id = $1", "AND po.status = 'paid'", "(po.paid_at, po.id) < ($2::timestamptz, $3::uuid)", "ORDER BY po.paid_at DESC", "LIMIT $4")
-	sentQuery           = testutils.SQLInOrder("FROM donation d", `JOIN "user" u ON u.id = d.author_id`, "WHERE po.payer_id = $1", "< ($2::timestamptz, $3::uuid)", "ORDER BY d.created_at DESC", "LIMIT $4")
+	technicalErr = errors.New("donation storage unavailable")
 
-	existingOrderColumns = []string{"id", "author_id", "message", "is_anonymous", "expected_amount_minor", "currency", "status", "created_at", "attempt_id"}
-	donationListColumns  = []string{"payment_order_id", "message", "is_anonymous", "expected_amount_minor", "currency", "status", "created_or_paid_at", "username", "nickname", "avatar_key"}
+	txOptions = pgx.TxOptions{IsoLevel: pgx.ReadCommitted}
+
+	insertDonationQuery = testutils.SQLInOrder(
+		"INSERT INTO donation",
+		"payment_order_id",
+		"donor_id",
+		"author_id",
+		"message",
+		"is_anonymous",
+		"ON CONFLICT (payment_order_id) DO NOTHING",
+		"RETURNING created_at, updated_at",
+	)
+
+	existingDonationQuery = testutils.SQLInOrder(
+		"SELECT",
+		"payment_order_id",
+		"donor_id",
+		"author_id",
+		"message",
+		"is_anonymous",
+		"created_at",
+		"updated_at",
+		"FROM donation",
+		"WHERE payment_order_id = $1",
+	)
+
+	markDonationAsPaidQuery = testutils.SQLInOrder(
+		"UPDATE donation",
+		"SET paid = TRUE",
+		"WHERE payment_order_id = $1",
+		"AND paid = FALSE",
+	)
+
+	receivedQuery = testutils.SQLInOrder(
+		"FROM donation",
+		"WHERE author_id = $1",
+		"AND paid = TRUE",
+		"(created_at, payment_order_id) < ($2::timestamptz, $3::uuid)",
+		"ORDER BY created_at DESC, payment_order_id DESC",
+		"LIMIT $4",
+	)
+
+	sentQuery = testutils.SQLInOrder(
+		"FROM donation",
+		"WHERE donor_id = $1",
+		"(created_at, payment_order_id) < ($2::timestamptz, $3::uuid)",
+		"ORDER BY created_at DESC, payment_order_id DESC",
+		"LIMIT $4",
+	)
+
+	donationColumns = []string{
+		"payment_order_id",
+		"donor_id",
+		"author_id",
+		"message",
+		"is_anonymous",
+		"created_at",
+		"updated_at",
+	}
 )
 
 func donationRequest() *dto.CreateDonationRequest {
 	return &dto.CreateDonationRequest{
 		AuthorID:    donationAuthorID,
-		RequestKey:  donationPayerID.String() + ":00000000-0000-4000-8000-000000000501",
 		Message:     &donationMessage,
 		IsAnonymous: false,
-		AmountMinor: 50000,
-		Currency:    "RUB",
 	}
 }
 
-func TestDonationRepository_CreateDonation_NewOrder(t *testing.T) {
+func donationRow(paymentOrderID, donorID, authorID uuid.UUID, message *string, isAnonymous bool) []any {
+	return []any{
+		paymentOrderID,
+		donorID,
+		authorID,
+		message,
+		isAnonymous,
+		donationTime,
+		donationUpdatedAt,
+	}
+}
+
+func TestDonationRepository_CreateDonation_NewDonation(t *testing.T) {
 	t.Parallel()
 
 	req := donationRequest()
 	repo, pool := newRepository(t)
-	donationCreated(pool, req)
-	pool.ExpectQuery(insertAttemptQuery).WithArgs(donationOrderID).
-		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(donationAttemptID))
+
+	donationCreated(pool, donationOrderID, donationPayerID, req)
 	testutils.ExpectTxCommitted(pool)
 
-	got, err := repo.CreateDonation(context.Background(), donationPayerID, req)
+	got, err := repo.CreateDonation(
+		context.Background(),
+		donationOrderID,
+		donationPayerID,
+		req,
+	)
 
 	require.NoError(t, err)
-	require.Equal(t, &dto.SentDonation{
+	require.Equal(t, &models.Donation{
 		PaymentOrderID: donationOrderID,
+		DonorID:        donationPayerID,
+		AuthorID:       donationAuthorID,
 		Message:        &donationMessage,
-		AmountMinor:    50000,
-		Currency:       "RUB",
-		Status:         "pending",
+		IsAnonymous:    false,
 		CreatedAt:      donationTime,
+		UpdatedAt:      donationUpdatedAt,
 	}, got)
 }
 
@@ -75,63 +140,128 @@ func TestDonationRepository_CreateDonation_RepeatedRequest(t *testing.T) {
 
 	req := donationRequest()
 	repo, pool := newRepository(t)
+
 	pool.ExpectBeginTx(txOptions)
-	expectInsertOrder(pool, req).WillReturnRows(pgxmock.NewRows([]string{"id"}))
-	pool.ExpectQuery(existingOrderQuery).WithArgs(req.RequestKey).WillReturnRows(
-		pgxmock.NewRows(existingOrderColumns).AddRow(
-			donationOrderID, donationAuthorID, &donationMessage, false, int64(50000), "RUB", "paid", donationTime, &donationAttemptID,
-		),
-	)
+
+	expectInsertDonation(pool, donationOrderID, donationPayerID, req).
+		WillReturnRows(pgxmock.NewRows([]string{"created_at", "updated_at"}))
+
+	pool.ExpectQuery(existingDonationQuery).
+		WithArgs(donationOrderID).
+		WillReturnRows(
+			pgxmock.NewRows(donationColumns).
+				AddRow(donationRow(
+					donationOrderID,
+					donationPayerID,
+					donationAuthorID,
+					&donationMessage,
+					false,
+				)...),
+		)
+
 	testutils.ExpectTxCommitted(pool)
 
-	got, err := repo.CreateDonation(context.Background(), donationPayerID, req)
+	got, err := repo.CreateDonation(
+		context.Background(),
+		donationOrderID,
+		donationPayerID,
+		req,
+	)
 
 	require.NoError(t, err)
-	require.Equal(t, &dto.SentDonation{
+	require.Equal(t, &models.Donation{
 		PaymentOrderID: donationOrderID,
+		DonorID:        donationPayerID,
+		AuthorID:       donationAuthorID,
 		Message:        &donationMessage,
-		AmountMinor:    50000,
-		Currency:       "RUB",
-		Status:         "paid",
+		IsAnonymous:    false,
 		CreatedAt:      donationTime,
+		UpdatedAt:      donationUpdatedAt,
 	}, got)
 }
 
-func TestDonationRepository_CreateDonation_RequestKeyReused(t *testing.T) {
+func TestDonationRepository_CreateDonation_IdempotencyConflict(t *testing.T) {
 	t.Parallel()
 
 	otherMessage := "Другое сообщение"
+
 	tests := []struct {
 		name        string
+		donorID     uuid.UUID
 		authorID    uuid.UUID
 		message     *string
 		isAnonymous bool
-		amount      int64
-		currency    string
 	}{
-		{name: "other author", authorID: uuid.New(), message: &donationMessage, amount: 50000, currency: "RUB"},
-		{name: "other message", authorID: donationAuthorID, message: &otherMessage, amount: 50000, currency: "RUB"},
-		{name: "message removed", authorID: donationAuthorID, message: nil, amount: 50000, currency: "RUB"},
-		{name: "other anonymity", authorID: donationAuthorID, message: &donationMessage, isAnonymous: true, amount: 50000, currency: "RUB"},
-		{name: "other amount", authorID: donationAuthorID, message: &donationMessage, amount: 100, currency: "RUB"},
-		{name: "other currency", authorID: donationAuthorID, message: &donationMessage, amount: 50000, currency: "USD"},
+		{
+			name:        "other donor",
+			donorID:     uuid.New(),
+			authorID:    donationAuthorID,
+			message:     &donationMessage,
+			isAnonymous: false,
+		},
+		{
+			name:        "other author",
+			donorID:     donationPayerID,
+			authorID:    uuid.New(),
+			message:     &donationMessage,
+			isAnonymous: false,
+		},
+		{
+			name:        "other message",
+			donorID:     donationPayerID,
+			authorID:    donationAuthorID,
+			message:     &otherMessage,
+			isAnonymous: false,
+		},
+		{
+			name:        "message removed",
+			donorID:     donationPayerID,
+			authorID:    donationAuthorID,
+			message:     nil,
+			isAnonymous: false,
+		},
+		{
+			name:        "other anonymity",
+			donorID:     donationPayerID,
+			authorID:    donationAuthorID,
+			message:     &donationMessage,
+			isAnonymous: true,
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			req := donationRequest()
 			repo, pool := newRepository(t)
+
 			pool.ExpectBeginTx(txOptions)
-			expectInsertOrder(pool, req).WillReturnRows(pgxmock.NewRows([]string{"id"}))
-			pool.ExpectQuery(existingOrderQuery).WithArgs(req.RequestKey).WillReturnRows(
-				pgxmock.NewRows(existingOrderColumns).AddRow(
-					donationOrderID, tt.authorID, tt.message, tt.isAnonymous, tt.amount, tt.currency, "pending", donationTime, &donationAttemptID,
-				),
-			)
+
+			expectInsertDonation(pool, donationOrderID, donationPayerID, req).
+				WillReturnRows(pgxmock.NewRows([]string{"created_at", "updated_at"}))
+
+			pool.ExpectQuery(existingDonationQuery).
+				WithArgs(donationOrderID).
+				WillReturnRows(
+					pgxmock.NewRows(donationColumns).
+						AddRow(donationRow(
+							donationOrderID,
+							tt.donorID,
+							tt.authorID,
+							tt.message,
+							tt.isAnonymous,
+						)...),
+				)
+
 			testutils.ExpectTxRolledBack(pool)
 
-			got, err := repo.CreateDonation(context.Background(), donationPayerID, req)
+			got, err := repo.CreateDonation(
+				context.Background(),
+				donationOrderID,
+				donationPayerID,
+				req,
+			)
 
 			require.Nil(t, got)
 			require.ErrorIs(t, err, models.ErrIdempotencyKeyReused)
@@ -139,7 +269,7 @@ func TestDonationRepository_CreateDonation_RequestKeyReused(t *testing.T) {
 	}
 }
 
-func TestDonationRepository_CreateDonation_ExistingOrderErrors(t *testing.T) {
+func TestDonationRepository_CreateDonation_ExistingDonationErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -148,26 +278,47 @@ func TestDonationRepository_CreateDonation_ExistingOrderErrors(t *testing.T) {
 		dbErr   error
 		wantErr error
 	}{
-		{name: "order without donation", rows: pgxmock.NewRows(existingOrderColumns), wantErr: models.ErrDonationNotFound},
-		{name: "storage failure", dbErr: technicalErr, wantErr: technicalErr},
+		{
+			name:    "existing donation not found",
+			rows:    pgxmock.NewRows(donationColumns),
+			wantErr: models.ErrDonationNotFound,
+		},
+		{
+			name:    "storage failure",
+			dbErr:   technicalErr,
+			wantErr: technicalErr,
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			req := donationRequest()
 			repo, pool := newRepository(t)
+
 			pool.ExpectBeginTx(txOptions)
-			expectInsertOrder(pool, req).WillReturnRows(pgxmock.NewRows([]string{"id"}))
-			existing := pool.ExpectQuery(existingOrderQuery).WithArgs(req.RequestKey)
+
+			expectInsertDonation(pool, donationOrderID, donationPayerID, req).
+				WillReturnRows(pgxmock.NewRows([]string{"created_at", "updated_at"}))
+
+			existing := pool.ExpectQuery(existingDonationQuery).
+				WithArgs(donationOrderID)
+
 			if tt.rows != nil {
 				existing.WillReturnRows(tt.rows)
 			} else {
 				existing.WillReturnError(tt.dbErr)
 			}
+
 			testutils.ExpectTxRolledBack(pool)
 
-			got, err := repo.CreateDonation(context.Background(), donationPayerID, req)
+			got, err := repo.CreateDonation(
+				context.Background(),
+				donationOrderID,
+				donationPayerID,
+				req,
+			)
 
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
@@ -175,92 +326,113 @@ func TestDonationRepository_CreateDonation_ExistingOrderErrors(t *testing.T) {
 	}
 }
 
-func TestDonationRepository_CreateDonation_Errors(t *testing.T) {
+func TestDonationRepository_CreateDonation_InsertErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
-		expect  func(pool pgxmock.PgxPoolIface, req *dto.CreateDonationRequest)
+		dbErr   error
 		wantErr error
 	}{
 		{
-			name: "unknown payer",
-			expect: func(pool pgxmock.PgxPoolIface, req *dto.CreateDonationRequest) {
-				pool.ExpectBeginTx(txOptions)
-				expectInsertOrder(pool, req).WillReturnError(testutils.PgError("23503"))
-			},
+			name:    "foreign key violation",
+			dbErr:   testutils.PgError("23503"),
 			wantErr: models.ErrDonationValidation,
 		},
 		{
-			name: "order violates check constraint",
-			expect: func(pool pgxmock.PgxPoolIface, req *dto.CreateDonationRequest) {
-				pool.ExpectBeginTx(txOptions)
-				expectInsertOrder(pool, req).WillReturnError(testutils.PgError("23514"))
-			},
+			name:    "check violation",
+			dbErr:   testutils.PgError("23514"),
 			wantErr: models.ErrDonationValidation,
 		},
 		{
-			name: "order storage failure",
-			expect: func(pool pgxmock.PgxPoolIface, req *dto.CreateDonationRequest) {
-				pool.ExpectBeginTx(txOptions)
-				expectInsertOrder(pool, req).WillReturnError(technicalErr)
-			},
-			wantErr: technicalErr,
-		},
-		{
-			name: "unknown author",
-			expect: func(pool pgxmock.PgxPoolIface, req *dto.CreateDonationRequest) {
-				orderCreated(pool, req)
-				expectInsertDonation(pool, req).WillReturnError(testutils.PgError("23503"))
-			},
-			wantErr: models.ErrAuthorNotFound,
-		},
-		{
-			name: "donation violates check constraint",
-			expect: func(pool pgxmock.PgxPoolIface, req *dto.CreateDonationRequest) {
-				orderCreated(pool, req)
-				expectInsertDonation(pool, req).WillReturnError(testutils.PgError("23514"))
-			},
+			name:    "unique violation",
+			dbErr:   testutils.PgError("23505"),
 			wantErr: models.ErrDonationValidation,
 		},
 		{
-			name: "donation storage failure",
-			expect: func(pool pgxmock.PgxPoolIface, req *dto.CreateDonationRequest) {
-				orderCreated(pool, req)
-				expectInsertDonation(pool, req).WillReturnError(technicalErr)
-			},
-			wantErr: technicalErr,
-		},
-		{
-			name: "attempt violates check constraint",
-			expect: func(pool pgxmock.PgxPoolIface, req *dto.CreateDonationRequest) {
-				donationCreated(pool, req)
-				pool.ExpectQuery(insertAttemptQuery).WithArgs(donationOrderID).WillReturnError(testutils.PgError("23514"))
-			},
-			wantErr: models.ErrDonationValidation,
-		},
-		{
-			name: "attempt storage failure",
-			expect: func(pool pgxmock.PgxPoolIface, req *dto.CreateDonationRequest) {
-				donationCreated(pool, req)
-				pool.ExpectQuery(insertAttemptQuery).WithArgs(donationOrderID).WillReturnError(technicalErr)
-			},
+			name:    "storage failure",
+			dbErr:   technicalErr,
 			wantErr: technicalErr,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			req := donationRequest()
 			repo, pool := newRepository(t)
-			tt.expect(pool, req)
+
+			pool.ExpectBeginTx(txOptions)
+
+			expectInsertDonation(pool, donationOrderID, donationPayerID, req).
+				WillReturnError(tt.dbErr)
+
 			testutils.ExpectTxRolledBack(pool)
 
-			got, err := repo.CreateDonation(context.Background(), donationPayerID, req)
+			got, err := repo.CreateDonation(
+				context.Background(),
+				donationOrderID,
+				donationPayerID,
+				req,
+			)
 
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestDonationRepository_CreateDonation_InvalidArguments(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		paymentOrderID uuid.UUID
+		donorID        uuid.UUID
+		req            *dto.CreateDonationRequest
+	}{
+		{
+			name:           "nil payment order ID",
+			paymentOrderID: uuid.Nil,
+			donorID:        donationPayerID,
+			req:            donationRequest(),
+		},
+		{
+			name:           "nil donor ID",
+			paymentOrderID: donationOrderID,
+			donorID:        uuid.Nil,
+			req:            donationRequest(),
+		},
+		{
+			name:           "nil request",
+			paymentOrderID: donationOrderID,
+			donorID:        donationPayerID,
+			req:            nil,
+		},
+		{
+			name:           "nil author ID",
+			paymentOrderID: donationOrderID,
+			donorID:        donationPayerID,
+			req:            &dto.CreateDonationRequest{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo, _ := newRepository(t)
+
+			got, err := repo.CreateDonation(
+				context.Background(),
+				tt.paymentOrderID,
+				tt.donorID,
+				tt.req,
+			)
+
+			require.Nil(t, got)
+			require.ErrorIs(t, err, models.ErrDonationValidation)
 		})
 	}
 }
@@ -271,60 +443,160 @@ func TestDonationRepository_CreateDonation_BeginFailure(t *testing.T) {
 	repo, pool := newRepository(t)
 	pool.ExpectBeginTx(txOptions).WillReturnError(technicalErr)
 
-	got, err := repo.CreateDonation(context.Background(), donationPayerID, donationRequest())
+	got, err := repo.CreateDonation(
+		context.Background(),
+		donationOrderID,
+		donationPayerID,
+		donationRequest(),
+	)
 
 	require.Nil(t, got)
 	require.ErrorIs(t, err, technicalErr)
 }
 
+func TestDonationRepository_MarkPaid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		rowsAffected int64
+	}{
+		{
+			name:         "updated",
+			rowsAffected: 1,
+		},
+		{
+			name:         "already paid",
+			rowsAffected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo, pool := newRepository(t)
+
+			pool.ExpectExec(markDonationAsPaidQuery).
+				WithArgs(donationOrderID).
+				WillReturnResult(pgxmock.NewResult("UPDATE", tt.rowsAffected))
+
+			err := repo.MarkPaid(context.Background(), donationOrderID)
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestDonationRepository_MarkPaid_Error(t *testing.T) {
+	t.Parallel()
+
+	repo, pool := newRepository(t)
+
+	pool.ExpectExec(markDonationAsPaidQuery).
+		WithArgs(donationOrderID).
+		WillReturnError(technicalErr)
+
+	err := repo.MarkPaid(context.Background(), donationOrderID)
+
+	require.ErrorIs(t, err, technicalErr)
+}
+
 type listMethod struct {
-	name  string
-	query string
-	row   []any
-	call  func(r *DonationRepository, userID uuid.UUID, cursor *dto.DonationCursor) ([]*dto.GetDonationResponse, error)
+	name   string
+	query  string
+	userID uuid.UUID
+	call   func(repo *DonationRepository, userID uuid.UUID, cursor *dto.DonationCursor) ([]*models.Donation, error)
 }
 
 func listMethods() []listMethod {
 	ctx := context.Background()
+
 	return []listMethod{
 		{
-			name: "GetReceivedDonations", query: receivedQuery,
-			row: []any{donationOrderID, (*string)(nil), true, int64(1), "RUB", "paid", donationTime, (*string)(nil), (*string)(nil), (*string)(nil)},
-			call: func(r *DonationRepository, u uuid.UUID, c *dto.DonationCursor) ([]*dto.GetDonationResponse, error) {
-				return r.GetReceivedDonations(ctx, u, c, 21)
+			name:   "GetReceivedDonations",
+			query:  receivedQuery,
+			userID: donationAuthorID,
+			call: func(
+				repo *DonationRepository,
+				userID uuid.UUID,
+				cursor *dto.DonationCursor,
+			) ([]*models.Donation, error) {
+				return repo.GetReceivedDonations(ctx, userID, cursor, 21)
 			},
 		},
 		{
-			name: "GetSentDonations", query: sentQuery,
-			row: []any{donationOrderID, (*string)(nil), true, int64(1), "RUB", "paid", donationTime, "author", "Автор", (*string)(nil)},
-			call: func(r *DonationRepository, u uuid.UUID, c *dto.DonationCursor) ([]*dto.GetDonationResponse, error) {
-				return r.GetSentDonations(ctx, u, c, 21)
+			name:   "GetSentDonations",
+			query:  sentQuery,
+			userID: donationPayerID,
+			call: func(
+				repo *DonationRepository,
+				userID uuid.UUID,
+				cursor *dto.DonationCursor,
+			) ([]*models.Donation, error) {
+				return repo.GetSentDonations(ctx, userID, cursor, 21)
 			},
 		},
 	}
+}
+
+func TestDonationRepository_ListDonations_PaidFilter(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, receivedQuery, "paid = TRUE")
+	require.NotContains(t, sentQuery, "paid = TRUE")
 }
 
 func TestDonationRepository_ListDonations_CursorArgs(t *testing.T) {
 	t.Parallel()
 
-	cursor := &dto.DonationCursor{CreatedOrPaidAt: donationTime, DonationID: donationOrderID}
+	cursor := &dto.DonationCursor{
+		CreatedAt:  donationTime,
+		DonationID: donationOrderID,
+	}
+
 	tests := []struct {
 		name   string
 		cursor *dto.DonationCursor
-		args   []any
+		args   func(userID uuid.UUID) []any
 	}{
-		{name: "first page", args: []any{donationPayerID, (*time.Time)(nil), (*uuid.UUID)(nil), 21}},
-		{name: "next page", cursor: cursor, args: []any{donationPayerID, &cursor.CreatedOrPaidAt, &cursor.DonationID, 21}},
+		{
+			name: "first page",
+			args: func(userID uuid.UUID) []any {
+				return []any{
+					userID,
+					(*time.Time)(nil),
+					(*uuid.UUID)(nil),
+					21,
+				}
+			},
+		},
+		{
+			name:   "next page",
+			cursor: cursor,
+			args: func(userID uuid.UUID) []any {
+				return []any{
+					userID,
+					&cursor.CreatedAt,
+					&cursor.DonationID,
+					21,
+				}
+			},
+		},
 	}
+
 	for _, m := range listMethods() {
 		for _, tt := range tests {
 			t.Run(m.name+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
 
 				repo, pool := newRepository(t)
-				pool.ExpectQuery(m.query).WithArgs(tt.args...).WillReturnRows(pgxmock.NewRows(donationListColumns))
 
-				got, err := m.call(repo, donationPayerID, tt.cursor)
+				pool.ExpectQuery(m.query).
+					WithArgs(tt.args(m.userID)...).
+					WillReturnRows(pgxmock.NewRows(donationColumns))
+
+				got, err := m.call(repo, m.userID, tt.cursor)
 
 				require.NoError(t, err)
 				require.NotNil(t, got)
@@ -334,89 +606,123 @@ func TestDonationRepository_ListDonations_CursorArgs(t *testing.T) {
 	}
 }
 
-func TestDonationRepository_GetReceivedDonations_DonorVisibility(t *testing.T) {
+func TestDonationRepository_ListDonations_Scan(t *testing.T) {
 	t.Parallel()
 
-	username, nickname, avatar := "ivan001", "Иван", "avatars/ivan.png"
-	repo, pool := newRepository(t)
-	pool.ExpectQuery(receivedQuery).WithArgs(donationAuthorID, (*time.Time)(nil), (*uuid.UUID)(nil), 21).WillReturnRows(
-		pgxmock.NewRows(donationListColumns).
-			AddRow(donationOrderID, &donationMessage, false, int64(50000), "RUB", "paid", donationTime, &username, &nickname, &avatar).
-			AddRow(donationAttemptID, (*string)(nil), true, int64(100), "RUB", "paid", donationTime, (*string)(nil), (*string)(nil), (*string)(nil)),
-	)
+	for _, m := range listMethods() {
+		t.Run(m.name, func(t *testing.T) {
+			t.Parallel()
 
-	got, err := repo.GetReceivedDonations(context.Background(), donationAuthorID, nil, 21)
+			repo, pool := newRepository(t)
 
-	require.NoError(t, err)
-	require.Equal(t, []*dto.GetDonationResponse{
-		{
-			PaymentOrderID: donationOrderID, Message: &donationMessage, AmountMinor: 50000, Currency: "RUB",
-			Status: "paid", CreatedOrPaidAt: donationTime,
-			User: &dto.DonationUserInfo{Username: "ivan001", Nickname: "Иван", AvatarUrl: &avatar},
-		},
-		{
-			PaymentOrderID: donationAttemptID, IsAnonymous: true, AmountMinor: 100, Currency: "RUB",
-			Status: "paid", CreatedOrPaidAt: donationTime,
-		},
-	}, got)
-}
+			pool.ExpectQuery(m.query).
+				WithArgs(
+					m.userID,
+					(*time.Time)(nil),
+					(*uuid.UUID)(nil),
+					21,
+				).
+				WillReturnRows(
+					pgxmock.NewRows(donationColumns).
+						AddRow(donationRow(
+							donationOrderID,
+							donationPayerID,
+							donationAuthorID,
+							&donationMessage,
+							false,
+						)...),
+				)
 
-func TestDonationRepository_GetSentDonations_AuthorInfo(t *testing.T) {
-	t.Parallel()
+			got, err := m.call(repo, m.userID, nil)
 
-	repo, pool := newRepository(t)
-	pool.ExpectQuery(sentQuery).WithArgs(donationPayerID, (*time.Time)(nil), (*uuid.UUID)(nil), 21).WillReturnRows(
-		pgxmock.NewRows(donationListColumns).
-			AddRow(donationOrderID, (*string)(nil), true, int64(50000), "RUB", "pending", donationTime, "author", "Автор", (*string)(nil)),
-	)
-
-	got, err := repo.GetSentDonations(context.Background(), donationPayerID, nil, 21)
-
-	require.NoError(t, err)
-	require.Equal(t, []*dto.GetDonationResponse{
-		{
-			PaymentOrderID: donationOrderID, IsAnonymous: true, AmountMinor: 50000, Currency: "RUB",
-			Status: "pending", CreatedOrPaidAt: donationTime,
-			User: &dto.DonationUserInfo{Username: "author", Nickname: "Автор"},
-		},
-	}, got)
+			require.NoError(t, err)
+			require.Equal(t, []*models.Donation{
+				{
+					PaymentOrderID: donationOrderID,
+					DonorID:        donationPayerID,
+					AuthorID:       donationAuthorID,
+					Message:        &donationMessage,
+					IsAnonymous:    false,
+					CreatedAt:      donationTime,
+					UpdatedAt:      donationUpdatedAt,
+				},
+			}, got)
+		})
+	}
 }
 
 func TestDonationRepository_ListDonations_Errors(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name   string
-		expect func(q *pgxmock.ExpectedQuery, row []any)
-	}{
-		{name: "query failure", expect: func(q *pgxmock.ExpectedQuery, _ []any) { q.WillReturnError(technicalErr) }},
-		{name: "row iteration failure", expect: func(q *pgxmock.ExpectedQuery, row []any) {
-			q.WillReturnRows(pgxmock.NewRows(donationListColumns).AddRow(row...).RowError(0, technicalErr))
-		}},
-	}
 	for _, m := range listMethods() {
-		for _, tt := range tests {
-			t.Run(m.name+"/"+tt.name, func(t *testing.T) {
-				t.Parallel()
-
-				repo, pool := newRepository(t)
-				tt.expect(pool.ExpectQuery(m.query).WithArgs(donationPayerID, (*time.Time)(nil), (*uuid.UUID)(nil), 21), m.row)
-
-				got, err := m.call(repo, donationPayerID, nil)
-
-				require.Empty(t, got)
-				require.ErrorIs(t, err, technicalErr)
-			})
-		}
-
-		t.Run(m.name+"/unexpected columns", func(t *testing.T) {
+		t.Run(m.name+"/query failure", func(t *testing.T) {
 			t.Parallel()
 
 			repo, pool := newRepository(t)
-			pool.ExpectQuery(m.query).WithArgs(donationPayerID, (*time.Time)(nil), (*uuid.UUID)(nil), 21).
-				WillReturnRows(pgxmock.NewRows([]string{"payment_order_id"}).AddRow(donationOrderID))
 
-			got, err := m.call(repo, donationPayerID, nil)
+			pool.ExpectQuery(m.query).
+				WithArgs(
+					m.userID,
+					(*time.Time)(nil),
+					(*uuid.UUID)(nil),
+					21,
+				).
+				WillReturnError(technicalErr)
+
+			got, err := m.call(repo, m.userID, nil)
+
+			require.Nil(t, got)
+			require.ErrorIs(t, err, technicalErr)
+		})
+
+		t.Run(m.name+"/row iteration failure", func(t *testing.T) {
+			t.Parallel()
+
+			repo, pool := newRepository(t)
+
+			pool.ExpectQuery(m.query).
+				WithArgs(
+					m.userID,
+					(*time.Time)(nil),
+					(*uuid.UUID)(nil),
+					21,
+				).
+				WillReturnRows(
+					pgxmock.NewRows(donationColumns).
+						AddRow(donationRow(
+							donationOrderID,
+							donationPayerID,
+							donationAuthorID,
+							&donationMessage,
+							false,
+						)...).
+						RowError(0, technicalErr),
+				)
+
+			got, err := m.call(repo, m.userID, nil)
+
+			require.Nil(t, got)
+			require.ErrorIs(t, err, technicalErr)
+		})
+
+		t.Run(m.name+"/scan failure", func(t *testing.T) {
+			t.Parallel()
+
+			repo, pool := newRepository(t)
+
+			pool.ExpectQuery(m.query).
+				WithArgs(
+					m.userID,
+					(*time.Time)(nil),
+					(*uuid.UUID)(nil),
+					21,
+				).
+				WillReturnRows(
+					pgxmock.NewRows([]string{"payment_order_id"}).
+						AddRow(donationOrderID),
+				)
+
+			got, err := m.call(repo, m.userID, nil)
 
 			require.Nil(t, got)
 			require.Error(t, err)

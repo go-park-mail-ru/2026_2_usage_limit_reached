@@ -55,7 +55,7 @@ func Run(configPath string) error {
 	defer paymentConn.Close()
 	paymentClient := paymentclient.New(paymentConn, cfg.Payment.Timeout)
 
-	monetizationUc := monetizationuc.New(donationRepo, paymentClient)
+	monetizationUc := monetizationuc.New(donationRepo, paymentClient, identityClient)
 
 	valid, err := validator.NewValidator(cfg.Validation)
 	if err != nil {

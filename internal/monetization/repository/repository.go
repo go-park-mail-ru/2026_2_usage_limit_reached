@@ -8,9 +8,8 @@ import (
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
-	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/util"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -21,292 +20,264 @@ type DonationRepository struct {
 }
 
 func NewDonationRepository(db *postgres.DBClient, logger *slog.Logger) *DonationRepository {
-	return &DonationRepository{pool: db.Pool, logger: logger}
+	return &DonationRepository{
+		pool:   db.Pool,
+		logger: logger,
+	}
 }
 
-func (r *DonationRepository) CreateDonation(ctx context.Context, payerID uuid.UUID, req *dto.CreateDonationRequest) (*dto.SentDonation, error) {
-	const insertOrder = `
-		INSERT INTO payment_order (payer_id, request_key, purpose, origin, expected_amount_minor, currency, status)
-		VALUES ($1, $2, 'donation', 'manual', $3, $4, 'pending')
-		ON CONFLICT (request_key) DO NOTHING
-		RETURNING id
-	`
-	const insertDonation = `
-		INSERT INTO donation (payment_order_id, author_id, message, is_anonymous)
-		VALUES ($1, $2, $3, $4)
-		RETURNING created_at
-	`
-	const insertAttempt = `
-		INSERT INTO payment_attempt (payment_order_id, provider, status)
-		VALUES ($1, 'mock', 'created')
-		RETURNING id
-	`
+func (r *DonationRepository) CreateDonation(ctx context.Context, paymentOrderID, donorID uuid.UUID, req *dto.CreateDonationRequest) (*models.Donation, error) {
+	if paymentOrderID == uuid.Nil || donorID == uuid.Nil || req == nil || req.AuthorID == uuid.Nil {
+		return nil, models.ErrDonationValidation
+	}
 
 	r.logger.DebugContext(ctx, "executing transaction",
 		slog.String("op", "create donation"),
-		slog.String("userID", payerID.String()),
-		slog.String("authorID", req.AuthorID.String()),
-		slog.String("request_key", req.RequestKey),
+		slog.String("payment_order_id", paymentOrderID.String()),
+		slog.String("donor_id", donorID.String()),
+		slog.String("author_id", req.AuthorID.String()),
 	)
 
-	var result *dto.SentDonation
+	const insertDonation = `
+		INSERT INTO donation (
+			payment_order_id,
+			donor_id,
+			author_id,
+			message,
+			is_anonymous
+		)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (payment_order_id) DO NOTHING
+		RETURNING created_at, updated_at
+	`
+
+	const getExistingDonation = `
+		SELECT
+			payment_order_id,
+			donor_id,
+			author_id,
+			message,
+			is_anonymous,
+			created_at,
+			updated_at
+		FROM donation
+		WHERE payment_order_id = $1
+	`
+
+	result := &models.Donation{
+		PaymentOrderID: paymentOrderID,
+		DonorID:        donorID,
+		AuthorID:       req.AuthorID,
+		Message:        req.Message,
+		IsAnonymous:    req.IsAnonymous,
+	}
+
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
-		var orderID uuid.UUID
-		err := tx.QueryRow(ctx, insertOrder, payerID, req.RequestKey, req.AmountMinor, req.Currency).Scan(&orderID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			result, err = getExistingOrder(ctx, tx, req)
-			return err // ничего не делаем для существующего заказа
-		} else if err != nil {
-			err = postgres.ParseError(err)
-			if errors.Is(err, postgres.ErrFKViolation) {
+		err := tx.QueryRow(
+			ctx,
+			insertDonation,
+			paymentOrderID,
+			donorID,
+			req.AuthorID,
+			req.Message,
+			req.IsAnonymous,
+		).Scan(&result.CreatedAt, &result.UpdatedAt)
+
+		if err == nil {
+			return nil
+		}
+
+		if !errors.Is(err, pgx.ErrNoRows) {
+			parsedErr := postgres.ParseError(err)
+			if errors.Is(parsedErr, postgres.ErrFKViolation) ||
+				errors.Is(parsedErr, postgres.ErrCheckViolation) ||
+				errors.Is(parsedErr, postgres.ErrUniqViolation) {
 				return models.ErrDonationValidation
 			}
-			return fmt.Errorf("create payment order: %w", err)
+
+			return fmt.Errorf("insert donation: %w", err)
 		}
 
-		var donationCreatedAt time.Time
-		err = tx.QueryRow(ctx, insertDonation, orderID, req.AuthorID, req.Message, req.IsAnonymous).Scan(&donationCreatedAt)
+		err = tx.QueryRow(ctx, getExistingDonation, paymentOrderID).Scan(
+			&result.PaymentOrderID,
+			&result.DonorID,
+			&result.AuthorID,
+			&result.Message,
+			&result.IsAnonymous,
+			&result.CreatedAt,
+			&result.UpdatedAt,
+		)
 		if err != nil {
-			err = postgres.ParseError(err)
-			if errors.Is(err, postgres.ErrFKViolation) {
-				return models.ErrAuthorNotFound
+			if errors.Is(err, pgx.ErrNoRows) {
+				return models.ErrDonationNotFound
 			}
-			return fmt.Errorf("create donation: %w", err)
+
+			return fmt.Errorf("get existing donation: %w", err)
 		}
 
-		var attemptID uuid.UUID
-		err = tx.QueryRow(ctx, insertAttempt, orderID).Scan(&attemptID)
-		if err != nil {
-			return fmt.Errorf("create payment attempt: %w", err)
-		}
-
-		result = &dto.SentDonation{
-			PaymentOrderID: orderID,
-			Message:        req.Message,
-			IsAnonymous:    req.IsAnonymous,
-			AmountMinor:    req.AmountMinor,
-			Currency:       req.Currency,
-			Status:         "pending",
-			CreatedAt:      donationCreatedAt,
+		if result.DonorID != donorID ||
+			result.AuthorID != req.AuthorID ||
+			!equalOptionalString(result.Message, req.Message) ||
+			result.IsAnonymous != req.IsAnonymous {
+			return models.ErrIdempotencyKeyReused
 		}
 
 		return nil
-	})
-
+	},
+	)
 	if err != nil {
-		err = postgres.ParseError(err)
-		if errors.Is(err, postgres.ErrCheckViolation) || errors.Is(err, postgres.ErrUniqViolation) {
+		parsedErr := postgres.ParseError(err)
+		if errors.Is(parsedErr, postgres.ErrFKViolation) ||
+			errors.Is(parsedErr, postgres.ErrCheckViolation) ||
+			errors.Is(parsedErr, postgres.ErrUniqViolation) {
 			return nil, models.ErrDonationValidation
 		}
+
+		if errors.Is(err, models.ErrDonationValidation) ||
+			errors.Is(err, models.ErrDonationNotFound) ||
+			errors.Is(err, models.ErrIdempotencyKeyReused) {
+			return nil, err
+		}
+
 		return nil, fmt.Errorf("create donation transaction failed: %w", err)
 	}
 
 	return result, nil
 }
 
-func getExistingOrder(ctx context.Context, tx pgx.Tx, req *dto.CreateDonationRequest) (*dto.SentDonation, error) {
-	const query = `
-		SELECT po.id, d.author_id, d.message, d.is_anonymous, 
-		po.expected_amount_minor, po.currency, po.status, d.created_at,
-	       (SELECT pa.id FROM payment_attempt pa
-	         WHERE pa.payment_order_id = po.id
-	         ORDER BY pa.created_at DESC, pa.id DESC LIMIT 1) AS attempt_id
-	  	FROM payment_order po
-		JOIN donation d ON d.payment_order_id = po.id
-		WHERE po.request_key = $1
-	`
-
-	var (
-		authorID uuid.UUID
-		donation dto.SentDonation
-	)
-	err := tx.QueryRow(ctx, query, req.RequestKey).Scan(
-		&donation.PaymentOrderID,
-		&authorID,
-		&donation.Message,
-		&donation.IsAnonymous,
-		&donation.AmountMinor,
-		&donation.Currency,
-		&donation.Status,
-		&donation.CreatedAt,
-	)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, models.ErrDonationNotFound
-		}
-		return nil, fmt.Errorf("error while get existing payment order: %w", err)
-	}
-
-	if authorID != req.AuthorID ||
-		!util.EqualPtr(donation.Message, req.Message) ||
-		donation.AmountMinor != req.AmountMinor ||
-		donation.Currency != req.Currency ||
-		donation.IsAnonymous != req.IsAnonymous {
-		return nil, models.ErrIdempotencyKeyReused
-	}
-
-	return &donation, nil
-}
-
-func (r *DonationRepository) GetReceivedDonations(ctx context.Context, authorID uuid.UUID, cursor *dto.DonationCursor, limit int) ([]*dto.GetDonationResponse, error) {
+func (r *DonationRepository) GetReceivedDonations(ctx context.Context, authorID uuid.UUID, cursor *dto.DonationCursor, limit int) ([]*models.Donation, error) {
 	const query = `
 		SELECT
-			d.payment_order_id,
-			d.message,
-			d.is_anonymous,
-			po.expected_amount_minor,
-			po.currency,
-			po.status,
-			po.paid_at,
-    		CASE WHEN d.is_anonymous THEN NULL ELSE u.username END AS donor_username,
-			CASE WHEN d.is_anonymous THEN NULL ELSE u.nickname END AS donor_nickname,
-    		CASE WHEN d.is_anonymous THEN NULL ELSE u.avatar_key END AS donor_avatar_key
-		FROM donation d
-		JOIN payment_order po ON po.id = d.payment_order_id
-		JOIN "user" u ON u.id = po.payer_id
-		WHERE d.author_id = $1
-		  AND po.status = 'paid'
-		  AND ($2::timestamptz IS NULL OR (po.paid_at, po.id) < ($2::timestamptz, $3::uuid))
-		ORDER BY po.paid_at DESC, d.payment_order_id DESC
+			payment_order_id,
+			donor_id,
+			author_id,
+			message,
+			is_anonymous,
+			created_at,
+			updated_at
+		FROM donation
+		WHERE author_id = $1
+			AND paid = TRUE
+			AND (
+					$2::timestamptz IS NULL
+					OR (created_at, payment_order_id) < ($2::timestamptz, $3::uuid)
+			)
+		ORDER BY created_at DESC, payment_order_id DESC
 		LIMIT $4
 	`
 
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "get received donations"),
-		slog.String("authorID", authorID.String()),
+		slog.String("author_id", authorID.String()),
 		slog.Int("limit", limit),
-		slog.Bool("hasCursor", cursor != nil),
+		slog.Bool("has_cursor", cursor != nil),
 	)
 
-	var (
-		ts *time.Time
-		id *uuid.UUID
-	)
-	if cursor != nil {
-		ts, id = &cursor.CreatedOrPaidAt, &cursor.DonationID
-	}
+	ts, id := donationCursorArgs(cursor)
 
 	rows, err := r.pool.Query(ctx, query, authorID, ts, id, limit)
 	if err != nil {
 		return nil, fmt.Errorf("get received donations: %w", err)
 	}
-	defer rows.Close()
 
-	return scanReceivedDonations(rows)
+	return scanDonations(rows)
 }
 
-func scanReceivedDonations(rows pgx.Rows) ([]*dto.GetDonationResponse, error) {
-	donations := make([]*dto.GetDonationResponse, 0)
-	for rows.Next() {
-		d := &dto.GetDonationResponse{}
-		var donorUsername, donorNickname, donorAvatar *string
-
-		err := rows.Scan(
-			&d.PaymentOrderID,
-			&d.Message,
-			&d.IsAnonymous,
-			&d.AmountMinor,
-			&d.Currency,
-			&d.Status,
-			&d.CreatedOrPaidAt,
-			&donorUsername,
-			&donorNickname,
-			&donorAvatar,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("scan received donation: %w", err)
-		}
-
-		if donorUsername != nil {
-			d.User = &dto.DonationUserInfo{
-				Username:  *donorUsername,
-				Nickname:  *donorNickname,
-				AvatarUrl: donorAvatar,
-			}
-		}
-		donations = append(donations, d)
-	}
-	return donations, rows.Err()
-}
-
-func (r *DonationRepository) GetSentDonations(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) ([]*dto.GetDonationResponse, error) {
+func (r *DonationRepository) GetSentDonations(ctx context.Context, donorID uuid.UUID, cursor *dto.DonationCursor, limit int) ([]*models.Donation, error) {
 	const query = `
 		SELECT
-			d.payment_order_id,
-			d.message,
-			d.is_anonymous,
-			po.expected_amount_minor,
-			po.currency,
-			po.status,
-			d.created_at,
-			u.username,
-			u.nickname,
-			u.avatar_key
-		FROM donation d
-		JOIN payment_order po ON po.id = d.payment_order_id
-		JOIN "user" u ON u.id = d.author_id
-		WHERE po.payer_id = $1
-			AND ($2::timestamptz IS NULL OR (po.created_at, po.id) < ($2::timestamptz, $3::uuid))
-		ORDER BY d.created_at DESC, d.payment_order_id DESC
+			payment_order_id,
+			donor_id,
+			author_id,
+			message,
+			is_anonymous,
+			created_at,
+			updated_at
+		FROM donation
+		WHERE donor_id = $1
+		  AND (
+				$2::timestamptz IS NULL
+				OR (created_at, payment_order_id) < ($2::timestamptz, $3::uuid)
+		  )
+		ORDER BY created_at DESC, payment_order_id DESC
 		LIMIT $4
 	`
 
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "get sent donations"),
-		slog.String("payerID", payerID.String()),
+		slog.String("donor_id", donorID.String()),
 		slog.Int("limit", limit),
-		slog.Bool("hasCursor", cursor != nil),
+		slog.Bool("has_cursor", cursor != nil),
 	)
 
-	var (
-		ts *time.Time
-		id *uuid.UUID
-	)
-	if cursor != nil {
-		ts, id = &cursor.CreatedOrPaidAt, &cursor.DonationID
-	}
+	ts, id := donationCursorArgs(cursor)
 
-	rows, err := r.pool.Query(ctx, query, payerID, ts, id, limit)
+	rows, err := r.pool.Query(ctx, query, donorID, ts, id, limit)
 	if err != nil {
 		return nil, fmt.Errorf("get sent donations: %w", err)
 	}
-	defer rows.Close()
 
-	return scanSentDonations(rows)
+	return scanDonations(rows)
 }
 
-func scanSentDonations(rows pgx.Rows) ([]*dto.GetDonationResponse, error) {
-	donations := make([]*dto.GetDonationResponse, 0)
-	for rows.Next() {
-		d := &dto.GetDonationResponse{}
-		var (
-			authorUsername string
-			authorNickname string
-			authorAvatar   *string
-		)
+func (r *DonationRepository) MarkPaid(ctx context.Context, paymentOrderID uuid.UUID) error {
+	const markDonationAsPaid = `
+		UPDATE donation
+		SET paid = TRUE
+		WHERE payment_order_id = $1
+		AND paid = FALSE
+	`
 
-		err := rows.Scan(
-			&d.PaymentOrderID,
-			&d.Message,
-			&d.IsAnonymous,
-			&d.AmountMinor,
-			&d.Currency,
-			&d.Status,
-			&d.CreatedOrPaidAt,
-			&authorUsername,
-			&authorNickname,
-			&authorAvatar,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("scan sent donation: %w", err)
-		}
-
-		d.User = &dto.DonationUserInfo{
-			Username:  authorUsername,
-			Nickname:  authorNickname,
-			AvatarUrl: authorAvatar,
-		}
-		donations = append(donations, d)
+	_, err := r.pool.Exec(ctx, markDonationAsPaid, paymentOrderID)
+	if err != nil {
+		return fmt.Errorf("mark donation as paid: %w", err)
 	}
-	return donations, rows.Err()
+
+	return nil
+}
+
+func donationCursorArgs(cursor *dto.DonationCursor) (*time.Time, *uuid.UUID) {
+	if cursor == nil {
+		return nil, nil
+	}
+
+	return &cursor.CreatedAt, &cursor.DonationID
+}
+
+func scanDonations(rows pgx.Rows) ([]*models.Donation, error) {
+	defer rows.Close()
+
+	donations := make([]*models.Donation, 0)
+
+	for rows.Next() {
+		donation := &models.Donation{}
+
+		if err := rows.Scan(
+			&donation.PaymentOrderID,
+			&donation.DonorID,
+			&donation.AuthorID,
+			&donation.Message,
+			&donation.IsAnonymous,
+			&donation.CreatedAt,
+			&donation.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan donation: %w", err)
+		}
+
+		donations = append(donations, donation)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate donations: %w", err)
+	}
+
+	return donations, nil
+}
+
+func equalOptionalString(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+
+	return *a == *b
 }

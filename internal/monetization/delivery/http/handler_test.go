@@ -186,7 +186,7 @@ func TestDonationHandler_ListDonations_Pages(t *testing.T) {
 				items := donations(2)
 				page := &dto.DonationPage{Items: items}
 				if tt.withNext {
-					page.Next = &dto.DonationCursor{CreatedOrPaidAt: items[1].CreatedOrPaidAt, DonationID: items[1].PaymentOrderID}
+					page.Next = &dto.DonationCursor{CreatedAt: items[1].CreatedAt, DonationID: items[1].PaymentOrderID}
 				}
 				router, uc := newRouter(t)
 				e.expect(uc, noCursor, defaultLimit).Return(page, nil)
@@ -211,7 +211,7 @@ func TestDonationHandler_ListDonations_Pages(t *testing.T) {
 func TestDonationHandler_ListDonations_CursorAndLimit(t *testing.T) {
 	t.Parallel()
 
-	cur := &dto.DonationCursor{CreatedOrPaidAt: donationTime, DonationID: donationOrderID}
+	cur := &dto.DonationCursor{CreatedAt: donationTime, DonationID: donationOrderID}
 	for _, e := range listEndpoints() {
 		t.Run(e.name, func(t *testing.T) {
 			t.Parallel()
@@ -249,7 +249,7 @@ func TestDonationHandler_ListDonations_InvalidCursor(t *testing.T) {
 	t.Parallel()
 
 	foreignCodec := cursor.Codec[dto.DonationCursor]{Kind: "timed_posts", Valid: func(*dto.DonationCursor) bool { return true }}
-	foreign, err := foreignCodec.Encode(&dto.DonationCursor{CreatedOrPaidAt: donationTime, DonationID: donationOrderID})
+	foreign, err := foreignCodec.Encode(&dto.DonationCursor{CreatedAt: donationTime, DonationID: donationOrderID})
 	require.NoError(t, err)
 
 	cursors := map[string]string{

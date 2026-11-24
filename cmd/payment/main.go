@@ -4,13 +4,13 @@ import (
 	"flag"
 	"log"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/app"
-	paymentconfig "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/config"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/app"
+	paymentconfig "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/config"
 )
 
-// @title Patreon Clone API
+// @title Patreon Clone Payment API
 // @version 1.0
-// @description REST API для платформы публикации контента (аналог Patreon).
+// @description Платежи.
 // @securityDefinitions.apikey CookieAuth
 // @in cookie
 // @name __Host-token

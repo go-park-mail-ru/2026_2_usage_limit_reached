@@ -1,0 +1,39 @@
+monetization:
+  http:
+    port: "8084"
+    read_header_timeout: 5s
+    shutdown_timeout: 5s
+  grpc:
+    port: "50052"
+    shutdown_timeout: 5s
+
+identity:
+  address: identity:50051
+  timeout: 1s
+
+payment:
+  address: payment:50052
+  timeout: 1s
+
+postgres:
+  host: db
+  port: 5432
+  user: patreon
+  password: database_password
+  db: patreon
+  sslmode: disable
+  min_conns: 0
+  max_conns: 10
+  max_conn_lifetime: 1h
+  max_conn_idle_time: 30m
+
+log:
+  level: debug
+  format: text
+
+csrf:
+  secret: dev-csrf-secret-string-with-at-least-32-symbols
+
+cors:
+  allowed_origins:
+    - http://localhost:3000

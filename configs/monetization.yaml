@@ -1,18 +1,14 @@
 monetization:
   http:
-    port: "8084"
+    port: "8083"
     read_header_timeout: 5s
     shutdown_timeout: 5s
-  grpc:
-    port: "50052"
-    shutdown_timeout: 5s
+  expiration_worker:
+    interval: 30s
+    batch_size: 100
 
 identity:
   address: identity:50051
-  timeout: 1s
-
-payment:
-  address: payment:50052
   timeout: 1s
 
 postgres:

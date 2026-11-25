@@ -63,7 +63,7 @@ services:
       seaweedfs:
         condition: service_healthy
     volumes:
-      - ./configs/prod.yaml:/etc/app/config.yaml:ro
+      - ./configs/identity.yaml:/etc/app/config.yaml:ro
     restart: unless-stopped
   
   content:
@@ -81,13 +81,13 @@ services:
       seaweedfs:
         condition: service_healthy
     volumes:
-      - ./configs/prod.yaml:/etc/app/config.yaml:ro
+      - ./configs/content.yaml:/etc/app/config.yaml:ro
     restart: unless-stopped
 
-  payment:
+  monetization:
     build:
       context: .
-      dockerfile: deployments/payment/Dockerfile
+      dockerfile: deployments/monetization/Dockerfile
     command: ["--config-file", "/etc/app/config.yaml"]
     ports:
       - "127.0.0.1:8083:8083"
@@ -99,48 +99,7 @@ services:
       seaweedfs:
         condition: service_healthy
     volumes:
-      - ./configs/payment.yaml:/etc/app/config.yaml:ro
-    restart: unless-stopped
-
-  monetization:
-    build:
-      context: .
-      dockerfile: deployments/monetization/Dockerfile
-    command: ["--config-file", "/etc/app/config.yaml"]
-    ports:
-      - "127.0.0.1:8084:8084"
-    env_file:
-      - .env
-    depends_on:
-      db_migrate:
-        condition: service_completed_successfully
-      seaweedfs:
-        condition: service_healthy
-    volumes:
       - ./configs/monetization.yaml:/etc/app/config.yaml:ro
-    restart: unless-stopped
-
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["--config-file", "/etc/app/config.yaml"]
-    ports:
-      - "127.0.0.1:8080:8080"
-    environment:
-      IDENTITY_ADDRESS: identity:50051
-      PAYMENT_ADDRESS: payment:50052
-    env_file:
-      - .env
-    depends_on:
-      db_migrate:
-        condition: service_completed_successfully
-      seaweedfs:
-        condition: service_healthy
-      identity:
-        condition: service_started
-    volumes:
-      - ./configs/prod.yaml:/etc/app/config.yaml:ro
     restart: unless-stopped
 
 volumes:

@@ -7,12 +7,13 @@ import (
 	"syscall"
 
 	identityclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
-	paymentclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/payment"
 	monetizationconfig "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/config"
 	monetizationhttp "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/delivery/http"
 	httprouter "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/delivery/http/router"
 	monetizationrepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/repository"
 	monetizationuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/usecase"
+	expirationworker "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_expiration_worker"
+	paymentprovider "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider/mock"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
@@ -39,7 +40,12 @@ func Run(configPath string) error {
 	}
 	defer postgresClient.Close()
 
-	donationRepo := monetizationrepo.NewDonationRepository(postgresClient, appLogger)
+	valid, err := validator.NewValidator(cfg.Validation)
+	if err != nil {
+		return fmt.Errorf("validator initialization error: %w", err)
+	}
+
+	donationRepo := monetizationrepo.NewMonetizationRepository(postgresClient, appLogger)
 
 	identityConn, err := grpc.NewClient(cfg.Identity.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -48,19 +54,13 @@ func Run(configPath string) error {
 	defer identityConn.Close()
 	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout)
 
-	paymentConn, err := grpc.NewClient(cfg.Payment.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return fmt.Errorf("payment client initialization error: %w", err)
-	}
-	defer paymentConn.Close()
-	paymentClient := paymentclient.New(paymentConn, cfg.Payment.Timeout)
-
-	monetizationUc := monetizationuc.New(donationRepo, paymentClient, identityClient)
-
-	valid, err := validator.NewValidator(cfg.Validation)
-	if err != nil {
-		return fmt.Errorf("validator initialization error: %w", err)
-	}
+	monetizationUc := monetizationuc.New(
+		donationRepo,
+		donationRepo,
+		paymentprovider.NewMockProvider(),
+		identityClient,
+		valid,
+	)
 
 	csrfManager := csrf.NewManager(cfg.CSRF)
 
@@ -89,6 +89,11 @@ func Run(configPath string) error {
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		return httpSrv.Run(gctx, router)
+	})
+
+	g.Go(func() error {
+		expirationworker.RunExpirationWorker(gctx, donationRepo, cfg.Monetization.ExpirationWorker, appLogger)
+		return nil
 	})
 
 	return g.Wait()

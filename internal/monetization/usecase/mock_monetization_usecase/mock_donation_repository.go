@@ -49,82 +49,78 @@ func (_m *MockDonationRepository) EXPECT() *MockDonationRepository_Expecter {
 	return &MockDonationRepository_Expecter{mock: &_m.Mock}
 }
 
-// CreateDonation provides a mock function for the type MockDonationRepository
-func (_mock *MockDonationRepository) CreateDonation(ctx context.Context, paymentOrderID uuid.UUID, donorID uuid.UUID, req *dto.CreateDonationRequest) (*models.Donation, error) {
-	ret := _mock.Called(ctx, paymentOrderID, donorID, req)
+// CreateDonationWithPayment provides a mock function for the type MockDonationRepository
+func (_mock *MockDonationRepository) CreateDonationWithPayment(ctx context.Context, req dto.CreateDonationWithPayment) (*models.Donation, *models.PaymentOrder, error) {
+	ret := _mock.Called(ctx, req)
 
 	if len(ret) == 0 {
-		panic("no return value specified for CreateDonation")
+		panic("no return value specified for CreateDonationWithPayment")
 	}
 
 	var r0 *models.Donation
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, *dto.CreateDonationRequest) (*models.Donation, error)); ok {
-		return returnFunc(ctx, paymentOrderID, donorID, req)
+	var r1 *models.PaymentOrder
+	var r2 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, dto.CreateDonationWithPayment) (*models.Donation, *models.PaymentOrder, error)); ok {
+		return returnFunc(ctx, req)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, *dto.CreateDonationRequest) *models.Donation); ok {
-		r0 = returnFunc(ctx, paymentOrderID, donorID, req)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, dto.CreateDonationWithPayment) *models.Donation); ok {
+		r0 = returnFunc(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Donation)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, *dto.CreateDonationRequest) error); ok {
-		r1 = returnFunc(ctx, paymentOrderID, donorID, req)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, dto.CreateDonationWithPayment) *models.PaymentOrder); ok {
+		r1 = returnFunc(ctx, req)
 	} else {
-		r1 = ret.Error(1)
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*models.PaymentOrder)
+		}
 	}
-	return r0, r1
+	if returnFunc, ok := ret.Get(2).(func(context.Context, dto.CreateDonationWithPayment) error); ok {
+		r2 = returnFunc(ctx, req)
+	} else {
+		r2 = ret.Error(2)
+	}
+	return r0, r1, r2
 }
 
-// MockDonationRepository_CreateDonation_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateDonation'
-type MockDonationRepository_CreateDonation_Call struct {
+// MockDonationRepository_CreateDonationWithPayment_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateDonationWithPayment'
+type MockDonationRepository_CreateDonationWithPayment_Call struct {
 	*mock.Call
 }
 
-// CreateDonation is a helper method to define mock.On call
+// CreateDonationWithPayment is a helper method to define mock.On call
 //   - ctx context.Context
-//   - paymentOrderID uuid.UUID
-//   - donorID uuid.UUID
-//   - req *dto.CreateDonationRequest
-func (_e *MockDonationRepository_Expecter) CreateDonation(ctx any, paymentOrderID any, donorID any, req any) *MockDonationRepository_CreateDonation_Call {
-	return &MockDonationRepository_CreateDonation_Call{Call: _e.mock.On("CreateDonation", ctx, paymentOrderID, donorID, req)}
+//   - req dto.CreateDonationWithPayment
+func (_e *MockDonationRepository_Expecter) CreateDonationWithPayment(ctx any, req any) *MockDonationRepository_CreateDonationWithPayment_Call {
+	return &MockDonationRepository_CreateDonationWithPayment_Call{Call: _e.mock.On("CreateDonationWithPayment", ctx, req)}
 }
 
-func (_c *MockDonationRepository_CreateDonation_Call) Run(run func(ctx context.Context, paymentOrderID uuid.UUID, donorID uuid.UUID, req *dto.CreateDonationRequest)) *MockDonationRepository_CreateDonation_Call {
+func (_c *MockDonationRepository_CreateDonationWithPayment_Call) Run(run func(ctx context.Context, req dto.CreateDonationWithPayment)) *MockDonationRepository_CreateDonationWithPayment_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 dto.CreateDonationWithPayment
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
-		}
-		var arg2 uuid.UUID
-		if args[2] != nil {
-			arg2 = args[2].(uuid.UUID)
-		}
-		var arg3 *dto.CreateDonationRequest
-		if args[3] != nil {
-			arg3 = args[3].(*dto.CreateDonationRequest)
+			arg1 = args[1].(dto.CreateDonationWithPayment)
 		}
 		run(
 			arg0,
 			arg1,
-			arg2,
-			arg3,
 		)
 	})
 	return _c
 }
 
-func (_c *MockDonationRepository_CreateDonation_Call) Return(donation *models.Donation, err error) *MockDonationRepository_CreateDonation_Call {
-	_c.Call.Return(donation, err)
+func (_c *MockDonationRepository_CreateDonationWithPayment_Call) Return(donation *models.Donation, paymentOrder *models.PaymentOrder, err error) *MockDonationRepository_CreateDonationWithPayment_Call {
+	_c.Call.Return(donation, paymentOrder, err)
 	return _c
 }
 
-func (_c *MockDonationRepository_CreateDonation_Call) RunAndReturn(run func(ctx context.Context, paymentOrderID uuid.UUID, donorID uuid.UUID, req *dto.CreateDonationRequest) (*models.Donation, error)) *MockDonationRepository_CreateDonation_Call {
+func (_c *MockDonationRepository_CreateDonationWithPayment_Call) RunAndReturn(run func(ctx context.Context, req dto.CreateDonationWithPayment) (*models.Donation, *models.PaymentOrder, error)) *MockDonationRepository_CreateDonationWithPayment_Call {
 	_c.Call.Return(run)
 	return _c
 }

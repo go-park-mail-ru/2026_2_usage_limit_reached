@@ -11,9 +11,6 @@ packages:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/http:
     interfaces:
       IdentityUsecase:
-  github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/usecase:
-    interfaces:
-      PaymentRepo:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider:
     interfaces:
       Provider:
@@ -28,7 +25,7 @@ packages:
     interfaces:
       DonationRepository:
       IdentityClient:
-      PaymentProcessor:
+      PaymentRepo:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/delivery/http:
     interfaces:
       DonationUsecase:

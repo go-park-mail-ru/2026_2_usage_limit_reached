@@ -72,15 +72,17 @@ externalDocs:
   description: ""
   url: ""
 info:
-  description: Донаты и подписки.
+  description: API монетизации. Сейчас доступны создание донатов с оплатой и просмотр
+    истории донатов.
   title: Patreon Clone Monetization API
   version: "1.0"
 openapi: 3.1.0
 paths:
   /authors/{author_id}/donations:
     post:
-      description: Отправляет донат указанному автору. Операция создаёт платёжную
-        попытку, заказ и возвращает ID и статус заказа.
+      description: Создаёт донат, платёжный заказ и начальную попытку в одной транзакции,
+        затем выполняет оплату через провайдера. Возвращает ID и актуальный статус
+        заказа.
       parameters:
       - description: ID автора
         in: path
@@ -104,7 +106,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/dto.CreateDonationResponse'
-          description: Заказ создан
+          description: Донат создан, возвращён статус оплаты
         "400":
           content:
             application/json:

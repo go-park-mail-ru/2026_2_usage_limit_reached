@@ -8,9 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/dto"
-	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/models"
-	paymentmodels "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -26,6 +25,7 @@ var (
 	repoTestSecondAttemptID = uuid.MustParse("20000000-0000-4000-8000-000000000002")
 	repoTestCreditedAttempt = uuid.MustParse("20000000-0000-4000-8000-000000000003")
 	repoTestPayerID         = uuid.MustParse("30000000-0000-4000-8000-000000000001")
+	repoTestAuthorID        = uuid.MustParse("30000000-0000-4000-8000-000000000002")
 	repoTestTime            = time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
 	repoTestDBErr           = errors.New("database connection lost")
 	repoTestExternalID      = "external-transaction-1"
@@ -42,7 +42,7 @@ var repoTestAttemptColumns = []string{
 	"charged_amount_minor", "charged_currency", "failure_reason", "completed_at", "created_at", "updated_at",
 }
 
-func newPaymentRepositoryTest(t *testing.T) (*PaymentRepository, pgxmock.PgxPoolIface) {
+func newPaymentRepositoryTest(t *testing.T) (*MonetizationRepository, pgxmock.PgxPoolIface) {
 	t.Helper()
 
 	pool, err := pgxmock.NewPool()
@@ -50,7 +50,7 @@ func newPaymentRepositoryTest(t *testing.T) (*PaymentRepository, pgxmock.PgxPool
 	t.Cleanup(pool.Close)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return &PaymentRepository{pool: pool, logger: logger}, pool
+	return &MonetizationRepository{pool: pool, logger: logger}, pool
 }
 
 func repoExpectBegin(pool pgxmock.PgxPoolIface) {
@@ -69,26 +69,13 @@ func repoExpectRollback(pool pgxmock.PgxPoolIface) {
 	pool.ExpectRollback().Times(2)
 }
 
-func repoCreatePaymentRequest() dto.CreatePayment {
-	expiresAt := repoTestTime.Add(time.Hour)
-	return dto.CreatePayment{
-		PayerID:     repoTestPayerID,
-		RequestKey:  "payment-request-key",
-		Purpose:     string(models.PurposeDonation),
-		Origin:      string(models.OriginManual),
-		AmountMinor: 15000,
-		Currency:    "RUB",
-		ExpiresAt:   &expiresAt,
-	}
-}
-
-func repoExpectedOrder(req dto.CreatePayment, expiresAt *time.Time) *models.PaymentOrder {
+func repoExpectedOrder(req dto.CreateDonationWithPayment, expiresAt *time.Time) *models.PaymentOrder {
 	return &models.PaymentOrder{
 		ID:                  repoTestOrderID,
-		PayerID:             req.PayerID,
+		PayerID:             req.DonorID,
 		RequestKey:          req.RequestKey,
-		Purpose:             paymentmodels.PaymentOrderPurpose(req.Purpose),
-		Origin:              paymentmodels.PaymentOrderOrigin(req.Origin),
+		Purpose:             models.PurposeDonation,
+		Origin:              models.OriginManual,
 		ExpectedAmountMinor: req.AmountMinor,
 		Currency:            req.Currency,
 		Status:              models.StatusPending,
@@ -99,13 +86,6 @@ func repoExpectedOrder(req dto.CreatePayment, expiresAt *time.Time) *models.Paym
 		CreatedAt:           repoTestTime,
 		UpdatedAt:           repoTestTime,
 	}
-}
-
-func repoExpectInsertOrder(pool pgxmock.PgxPoolIface, req dto.CreatePayment) *pgxmock.ExpectedQuery {
-	return pool.ExpectQuery("INSERT INTO payment_order").WithArgs(
-		req.PayerID, req.RequestKey, req.Purpose, req.Origin,
-		req.AmountMinor, req.Currency, req.ExpiresAt,
-	)
 }
 
 func repoOrderRow(id uuid.UUID, status models.PaymentOrderStatus, creditedAttemptID *uuid.UUID) *pgxmock.Rows {
@@ -127,10 +107,10 @@ func repoOrderRow(id uuid.UUID, status models.PaymentOrderStatus, creditedAttemp
 	)
 }
 
-func repoOrderRowForRequest(req dto.CreatePayment, expiresAt *time.Time) *pgxmock.Rows {
+func repoOrderRowForRequest(req dto.CreateDonationWithPayment, expiresAt *time.Time) *pgxmock.Rows {
 	return pgxmock.NewRows(repoTestOrderColumns).AddRow(
 		repoTestOrderID,
-		req.PayerID,
+		req.DonorID,
 		req.RequestKey,
 		models.PurposeDonation,
 		models.OriginManual,
@@ -174,467 +154,119 @@ func repoExpectStartAttemptLocks(
 		WillReturnRows(repoAttemptRow(repoTestAttemptID, repoTestOrderID, attemptStatus))
 }
 
-func TestPaymentRepositoryFull_NewPaymentRepository(t *testing.T) {
+func TestMonetizationRepository_New(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	repo := NewPaymentRepository(&postgres.DBClient{}, logger)
+	repo := NewMonetizationRepository(&postgres.DBClient{}, logger)
 	require.NotNil(t, repo)
 	require.Same(t, logger, repo.logger)
 }
 
-func TestPaymentRepositoryFull_CreateOrGetOrder(t *testing.T) {
-	tests := []struct {
-		name string
-		run  func(t *testing.T)
-	}{
-		{
-			name: "creates order and initial attempt in one transaction",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-				req := repoCreatePaymentRequest()
-
-				repoExpectBegin(pool)
-				repoExpectInsertOrder(pool, req).
-					WillReturnRows(repoOrderRowForRequest(req, req.ExpiresAt))
-
-				pool.ExpectExec("INSERT INTO payment_attempt").
-					WithArgs(repoTestOrderID, defaultPaymentProvider).
-					WillReturnResult(pgxmock.NewResult("INSERT", 1))
-
-				repoExpectCommit(pool)
-
-				got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-				require.NoError(t, err)
-				require.Equal(t, repoExpectedOrder(req, req.ExpiresAt), got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
-		{
-			name: "returns existing matching order and checks that it has an attempt",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-				req := repoCreatePaymentRequest()
-
-				repoExpectBegin(pool)
-				repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
-
-				pool.ExpectQuery("FROM payment_order").
-					WithArgs(req.PayerID, req.RequestKey).
-					WillReturnRows(repoOrderRowForRequest(req, req.ExpiresAt))
-
-				pool.ExpectQuery("FROM payment_attempt").
-					WithArgs(repoTestOrderID).
-					WillReturnRows(
-						pgxmock.NewRows([]string{"id"}).AddRow(repoTestAttemptID),
-					)
-
-				repoExpectCommit(pool)
-
-				got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-				require.NoError(t, err)
-				require.Equal(t, repoExpectedOrder(req, req.ExpiresAt), got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
-		{
-			name: "rejects reused key when any immutable order field differs",
-			run: func(t *testing.T) {
-				fields := []struct {
-					name   string
-					mutate func(*dto.CreatePayment)
-				}{
-					{
-						name: "purpose",
-						mutate: func(req *dto.CreatePayment) {
-							req.Purpose = "subscription"
-						},
-					},
-					{
-						name: "origin",
-						mutate: func(req *dto.CreatePayment) {
-							req.Origin = "auto_renewal"
-						},
-					},
-					{
-						name: "amount",
-						mutate: func(req *dto.CreatePayment) {
-							req.AmountMinor++
-						},
-					},
-					{
-						name: "currency",
-						mutate: func(req *dto.CreatePayment) {
-							req.Currency = "USD"
-						},
-					},
-				}
-
-				for _, field := range fields {
-					t.Run(field.name, func(t *testing.T) {
-						repo, pool := newPaymentRepositoryTest(t)
-
-						storedReq := repoCreatePaymentRequest()
-						req := storedReq
-						field.mutate(&req)
-
-						repoExpectBegin(pool)
-						repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
-
-						pool.ExpectQuery("FROM payment_order").
-							WithArgs(req.PayerID, req.RequestKey).
-							WillReturnRows(
-								repoOrderRowForRequest(storedReq, storedReq.ExpiresAt),
-							)
-
-						repoExpectRollback(pool)
-
-						got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-						require.ErrorIs(t, err, models.ErrPaymentOrderValidation)
-						require.Nil(t, got)
-						require.NoError(t, pool.ExpectationsWereMet())
-					})
-				}
-			},
-		},
-		{
-			name: "scopes request key to payer",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-				req := repoCreatePaymentRequest()
-				req.PayerID = uuid.New()
-
-				repoExpectBegin(pool)
-				repoExpectInsertOrder(pool, req).
-					WillReturnRows(repoOrderRowForRequest(req, req.ExpiresAt))
-
-				pool.ExpectExec("INSERT INTO payment_attempt").
-					WithArgs(repoTestOrderID, defaultPaymentProvider).
-					WillReturnResult(pgxmock.NewResult("INSERT", 1))
-
-				repoExpectCommit(pool)
-
-				got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-				require.NoError(t, err)
-				require.Equal(t, repoExpectedOrder(req, req.ExpiresAt), got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
-		{
-			name: "matches nil expirations",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-				req := repoCreatePaymentRequest()
-				req.ExpiresAt = nil
-
-				repoExpectBegin(pool)
-				repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
-
-				pool.ExpectQuery("FROM payment_order").
-					WithArgs(req.PayerID, req.RequestKey).
-					WillReturnRows(repoOrderRowForRequest(req, nil))
-
-				pool.ExpectQuery("FROM payment_attempt").
-					WithArgs(repoTestOrderID).
-					WillReturnRows(
-						pgxmock.NewRows([]string{"id"}).AddRow(repoTestAttemptID),
-					)
-
-				repoExpectCommit(pool)
-
-				got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-				require.NoError(t, err)
-				require.Equal(t, repoExpectedOrder(req, nil), got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
-		{
-			name: "returns not found if conflicting order cannot be read",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-				req := repoCreatePaymentRequest()
-
-				repoExpectBegin(pool)
-				repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
-
-				pool.ExpectQuery("FROM payment_order").
-					WithArgs(req.PayerID, req.RequestKey).
-					WillReturnError(pgx.ErrNoRows)
-
-				repoExpectRollback(pool)
-
-				got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-				require.ErrorIs(t, err, models.ErrPaymentOrderNotFound)
-				require.Nil(t, got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
-		{
-			name: "wraps error while reading conflicting order",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-				req := repoCreatePaymentRequest()
-
-				repoExpectBegin(pool)
-				repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
-
-				pool.ExpectQuery("FROM payment_order").
-					WithArgs(req.PayerID, req.RequestKey).
-					WillReturnError(repoTestDBErr)
-
-				repoExpectRollback(pool)
-
-				got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-				require.ErrorIs(t, err, repoTestDBErr)
-				require.Contains(t, err.Error(), "get existing payment order")
-				require.Nil(t, got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
-		{
-			name: "returns not found if existing order has no attempts",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-				req := repoCreatePaymentRequest()
-
-				repoExpectBegin(pool)
-				repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
-
-				pool.ExpectQuery("FROM payment_order").
-					WithArgs(req.PayerID, req.RequestKey).
-					WillReturnRows(repoOrderRowForRequest(req, req.ExpiresAt))
-
-				pool.ExpectQuery("FROM payment_attempt").
-					WithArgs(repoTestOrderID).
-					WillReturnError(pgx.ErrNoRows)
-
-				repoExpectRollback(pool)
-
-				got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-				require.ErrorIs(t, err, models.ErrPaymentAttemptNotFound)
-				require.Nil(t, got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
-		{
-			name: "wraps error while reading latest attempt",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-				req := repoCreatePaymentRequest()
-
-				repoExpectBegin(pool)
-				repoExpectInsertOrder(pool, req).WillReturnError(pgx.ErrNoRows)
-
-				pool.ExpectQuery("FROM payment_order").
-					WithArgs(req.PayerID, req.RequestKey).
-					WillReturnRows(repoOrderRowForRequest(req, req.ExpiresAt))
-
-				pool.ExpectQuery("FROM payment_attempt").
-					WithArgs(repoTestOrderID).
-					WillReturnError(repoTestDBErr)
-
-				repoExpectRollback(pool)
-
-				got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-				require.ErrorIs(t, err, repoTestDBErr)
-				require.Contains(t, err.Error(), "get latest payment attempt")
-				require.Nil(t, got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
-		{
-			name: "maps order constraint violations",
-			run: func(t *testing.T) {
-				for _, code := range []string{"23503", "23514", "23505"} {
-					t.Run(code, func(t *testing.T) {
-						repo, pool := newPaymentRepositoryTest(t)
-						req := repoCreatePaymentRequest()
-
-						repoExpectBegin(pool)
-						repoExpectInsertOrder(pool, req).
-							WillReturnError(&pgconn.PgError{Code: code})
-
-						repoExpectRollback(pool)
-
-						got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-						require.ErrorIs(t, err, models.ErrPaymentOrderValidation)
-						require.Nil(t, got)
-						require.NoError(t, pool.ExpectationsWereMet())
-					})
-				}
-			},
-		},
-		{
-			name: "returns error when inserted order row cannot be scanned",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-				req := repoCreatePaymentRequest()
-
-				repoExpectBegin(pool)
-
-				pool.ExpectQuery("INSERT INTO payment_order").
-					WithArgs(
-						req.PayerID,
-						req.RequestKey,
-						req.Purpose,
-						req.Origin,
-						req.AmountMinor,
-						req.Currency,
-						req.ExpiresAt,
-					).
-					WillReturnRows(
-						pgxmock.NewRows(repoTestOrderColumns).
-							AddRow(
-								"invalid-uuid",
-								req.PayerID,
-								req.RequestKey,
-								req.Purpose,
-								req.Origin,
-								req.AmountMinor,
-								req.Currency,
-								models.StatusPending,
-								nil,
-								req.ExpiresAt,
-								nil,
-								nil,
-								repoTestTime,
-								repoTestTime,
-							),
-					)
-
-				repoExpectRollback(pool)
-
-				got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-				require.Error(t, err)
-				require.Nil(t, got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
-		{
-			name: "maps initial attempt constraint violation",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-				req := repoCreatePaymentRequest()
-
-				repoExpectBegin(pool)
-				repoExpectInsertOrder(pool, req).
-					WillReturnRows(repoOrderRowForRequest(req, req.ExpiresAt))
-
-				pool.ExpectExec("INSERT INTO payment_attempt").
-					WithArgs(repoTestOrderID, defaultPaymentProvider).
-					WillReturnError(&pgconn.PgError{Code: "23514"})
-
-				repoExpectRollback(pool)
-
-				got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-				require.ErrorIs(t, err, models.ErrPaymentAttemptValidation)
-				require.Nil(t, got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
-		{
-			name: "wraps generic initial attempt error",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-				req := repoCreatePaymentRequest()
-
-				repoExpectBegin(pool)
-				repoExpectInsertOrder(pool, req).
-					WillReturnRows(repoOrderRowForRequest(req, req.ExpiresAt))
-
-				pool.ExpectExec("INSERT INTO payment_attempt").
-					WithArgs(repoTestOrderID, defaultPaymentProvider).
-					WillReturnError(repoTestDBErr)
-
-				repoExpectRollback(pool)
-
-				got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-				require.ErrorIs(t, err, repoTestDBErr)
-				require.Contains(t, err.Error(), "create initial payment attempt")
-				require.Nil(t, got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
-		{
-			name: "wraps generic order insert error",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-				req := repoCreatePaymentRequest()
-
-				repoExpectBegin(pool)
-				repoExpectInsertOrder(pool, req).WillReturnError(repoTestDBErr)
-
-				repoExpectRollback(pool)
-
-				got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-				require.ErrorIs(t, err, repoTestDBErr)
-				require.Contains(t, err.Error(), "create payment transaction")
-				require.Nil(t, got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
-		{
-			name: "does not return order if transaction commit fails",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-				req := repoCreatePaymentRequest()
-
-				repoExpectBegin(pool)
-				repoExpectInsertOrder(pool, req).
-					WillReturnRows(repoOrderRowForRequest(req, req.ExpiresAt))
-
-				pool.ExpectExec("INSERT INTO payment_attempt").
-					WithArgs(repoTestOrderID, defaultPaymentProvider).
-					WillReturnResult(pgxmock.NewResult("INSERT", 1))
-
-				pool.ExpectCommit().WillReturnError(repoTestDBErr)
-				pool.ExpectRollback()
-
-				got, err := repo.CreateOrGetOrder(context.Background(), req)
-
-				require.ErrorIs(t, err, repoTestDBErr)
-				require.Nil(t, got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
-		{
-			name: "returns transaction begin error",
-			run: func(t *testing.T) {
-				repo, pool := newPaymentRepositoryTest(t)
-
-				pool.ExpectBeginTx(pgx.TxOptions{
-					IsoLevel: pgx.ReadCommitted,
-				}).WillReturnError(repoTestDBErr)
-
-				got, err := repo.CreateOrGetOrder(
-					context.Background(),
-					repoCreatePaymentRequest(),
-				)
-
-				require.ErrorIs(t, err, repoTestDBErr)
-				require.Nil(t, got)
-				require.NoError(t, pool.ExpectationsWereMet())
-			},
-		},
+func TestMonetizationRepository_CreateDonationWithPayment_Atomic(t *testing.T) {
+	t.Parallel()
+
+	repo, pool := newPaymentRepositoryTest(t)
+	expiresAt := repoTestTime.Add(time.Minute * 15)
+	message := "thank you"
+	req := dto.CreateDonationWithPayment{
+		DonorID:     repoTestPayerID,
+		AuthorID:    repoTestAuthorID,
+		RequestKey:  "atomic-donation-key",
+		Message:     &message,
+		IsAnonymous: true,
+		AmountMinor: 15000,
+		Currency:    "RUB",
+		ExpiresAt:   &expiresAt,
 	}
+	repoExpectBegin(pool)
+	pool.ExpectQuery("INSERT INTO payment_order").WithArgs(
+		req.DonorID, req.RequestKey, models.PurposeDonation, models.OriginManual,
+		req.AmountMinor, req.Currency, req.ExpiresAt,
+	).WillReturnRows(repoOrderRowForRequest(req, req.ExpiresAt))
+	pool.ExpectExec("INSERT INTO payment_attempt").WithArgs(repoTestOrderID, defaultPaymentProvider).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	pool.ExpectQuery("INSERT INTO donation").WithArgs(
+		repoTestOrderID, req.DonorID, req.AuthorID, req.Message, req.IsAnonymous,
+	).WillReturnRows(pgxmock.NewRows([]string{"created_at", "updated_at"}).AddRow(repoTestTime, repoTestTime))
+	repoExpectCommit(pool)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.run(t)
-		})
+	donation, order, err := repo.CreateDonationWithPayment(context.Background(), req)
+
+	require.NoError(t, err)
+	require.Equal(t, repoTestOrderID, donation.PaymentOrderID)
+	require.Equal(t, req.DonorID, donation.DonorID)
+	require.Equal(t, req.AuthorID, donation.AuthorID)
+	require.Equal(t, req.Message, donation.Message)
+	require.True(t, donation.IsAnonymous)
+	require.Equal(t, repoTestTime, donation.CreatedAt)
+	require.Equal(t, repoExpectedOrder(req, req.ExpiresAt), order)
+	require.NoError(t, pool.ExpectationsWereMet())
+}
+
+func TestMonetizationRepository_CreateDonationWithPayment_RollsBackOnDonationFailure(t *testing.T) {
+	t.Parallel()
+
+	repo, pool := newPaymentRepositoryTest(t)
+	req := dto.CreateDonationWithPayment{
+		DonorID: repoTestPayerID, AuthorID: repoTestAuthorID, RequestKey: "atomic-donation-key",
+		AmountMinor: 15000, Currency: "RUB",
 	}
+	repoExpectBegin(pool)
+	pool.ExpectQuery("INSERT INTO payment_order").WithArgs(
+		req.DonorID, req.RequestKey, models.PurposeDonation, models.OriginManual,
+		req.AmountMinor, req.Currency, (*time.Time)(nil),
+	).WillReturnRows(repoOrderRowForRequest(req, nil))
+	pool.ExpectExec("INSERT INTO payment_attempt").WithArgs(repoTestOrderID, defaultPaymentProvider).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	pool.ExpectQuery("INSERT INTO donation").WithArgs(
+		repoTestOrderID, req.DonorID, req.AuthorID, req.Message, req.IsAnonymous,
+	).WillReturnError(&pgconn.PgError{Code: "23503"})
+	repoExpectRollback(pool)
+
+	donation, order, err := repo.CreateDonationWithPayment(context.Background(), req)
+
+	require.Nil(t, donation)
+	require.Nil(t, order)
+	require.ErrorIs(t, err, models.ErrDonationValidation)
+	require.NoError(t, pool.ExpectationsWereMet())
+}
+
+func TestMonetizationRepository_CreateDonationWithPayment_IdempotentRetry(t *testing.T) {
+	t.Parallel()
+
+	repo, pool := newPaymentRepositoryTest(t)
+	message := "thank you"
+	req := dto.CreateDonationWithPayment{
+		DonorID: repoTestPayerID, AuthorID: repoTestAuthorID, RequestKey: "atomic-donation-key",
+		Message: &message, IsAnonymous: true, AmountMinor: 15000, Currency: "RUB",
+	}
+	repoExpectBegin(pool)
+	pool.ExpectQuery("INSERT INTO payment_order").WithArgs(
+		req.DonorID, req.RequestKey, models.PurposeDonation, models.OriginManual,
+		req.AmountMinor, req.Currency, (*time.Time)(nil),
+	).WillReturnError(pgx.ErrNoRows)
+	pool.ExpectQuery("FROM payment_order").WithArgs(req.DonorID, req.RequestKey).
+		WillReturnRows(repoOrderRowForRequest(req, nil))
+	pool.ExpectQuery("FROM payment_attempt").WithArgs(repoTestOrderID).
+		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(repoTestAttemptID))
+	pool.ExpectQuery("INSERT INTO donation").WithArgs(
+		repoTestOrderID, req.DonorID, req.AuthorID, req.Message, req.IsAnonymous,
+	).WillReturnError(pgx.ErrNoRows)
+	pool.ExpectQuery("FROM donation").WithArgs(repoTestOrderID).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"donor_id", "author_id", "message", "is_anonymous", "created_at", "updated_at",
+		}).AddRow(req.DonorID, req.AuthorID, &message, req.IsAnonymous, repoTestTime, repoTestTime))
+	repoExpectCommit(pool)
+
+	donation, order, err := repo.CreateDonationWithPayment(context.Background(), req)
+
+	require.NoError(t, err)
+	require.Equal(t, repoTestOrderID, donation.PaymentOrderID)
+	require.Equal(t, req.DonorID, donation.DonorID)
+	require.Equal(t, req.AuthorID, donation.AuthorID)
+	require.Equal(t, req.Message, donation.Message)
+	require.True(t, donation.IsAnonymous)
+	require.Equal(t, repoExpectedOrder(req, nil), order)
+	require.NoError(t, pool.ExpectationsWereMet())
 }
 
 func TestPaymentRepositoryFull_StartAttempt(t *testing.T) {
@@ -1674,229 +1306,6 @@ func TestPaymentRepositoryFull_FailAttempt(t *testing.T) {
 					require.NoError(t, pool.ExpectationsWereMet())
 				})
 			}
-		}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.run(t)
-		})
-	}
-}
-
-func repoExpectCancelOrderLock(pool pgxmock.PgxPoolIface, status models.PaymentOrderStatus) {
-	repoExpectBegin(pool)
-	pool.ExpectQuery("FROM payment_order").WithArgs(repoTestOrderID).
-		WillReturnRows(repoOrderRow(repoTestOrderID, status, nil))
-}
-
-func repoExpectActiveAttempts(pool pgxmock.PgxPoolIface, ids ...uuid.UUID) {
-	rows := pgxmock.NewRows([]string{"id"})
-	for _, id := range ids {
-		rows.AddRow(id)
-	}
-	pool.ExpectQuery("FROM payment_attempt").WithArgs(repoTestOrderID).WillReturnRows(rows)
-}
-
-func repoExpectCanceledOrderUpdate(pool pgxmock.PgxPoolIface) {
-	pool.ExpectQuery("UPDATE payment_order").WithArgs(repoTestOrderID).
-		WillReturnRows(pgxmock.NewRows([]string{"canceled_at", "updated_at"}).AddRow(&repoTestTime, repoTestTime))
-}
-
-func repoExpectCancelAttempt(pool pgxmock.PgxPoolIface, attemptID uuid.UUID, reason string) {
-	pool.ExpectExec("UPDATE payment_attempt").WithArgs(attemptID, repoTestOrderID, reason).
-		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-}
-
-func TestPaymentRepositoryFull_CancelOrder(t *testing.T) {
-	tests := []struct {
-		name string
-		run  func(t *testing.T)
-	}{
-		{name: "cancels pending order and all active attempts", run: func(t *testing.T) {
-			repo, pool := newPaymentRepositoryTest(t)
-			repoExpectCancelOrderLock(pool, models.StatusPending)
-			repoExpectActiveAttempts(pool, repoTestAttemptID, repoTestSecondAttemptID)
-			repoExpectCanceledOrderUpdate(pool)
-			repoExpectCancelAttempt(pool, repoTestAttemptID, reasonOrderCanceled)
-			repoExpectCancelAttempt(pool, repoTestSecondAttemptID, reasonOrderCanceled)
-			repoExpectCommit(pool)
-
-			got, err := repo.CancelOrder(context.Background(), repoTestOrderID)
-
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			require.Equal(t, models.StatusCanceled, got.Status)
-			require.Equal(t, repoTestTime, *got.CanceledAt)
-			require.Equal(t, repoTestTime, got.UpdatedAt)
-			require.NoError(t, pool.ExpectationsWereMet())
-		}},
-
-		{name: "cancels processing order without active attempts", run: func(t *testing.T) {
-			repo, pool := newPaymentRepositoryTest(t)
-			repoExpectCancelOrderLock(pool, models.StatusProcessing)
-			repoExpectActiveAttempts(pool)
-			repoExpectCanceledOrderUpdate(pool)
-			repoExpectCommit(pool)
-
-			got, err := repo.CancelOrder(context.Background(), repoTestOrderID)
-
-			require.NoError(t, err)
-			require.Equal(t, models.StatusCanceled, got.Status)
-			require.NoError(t, pool.ExpectationsWereMet())
-		}},
-
-		{name: "returns current order for already canceled order", run: func(t *testing.T) {
-			repo, pool := newPaymentRepositoryTest(t)
-			canceledAt := repoTestTime.Add(-time.Minute)
-			rows := pgxmock.NewRows(repoTestOrderColumns).AddRow(
-				repoTestOrderID, repoTestPayerID, "request-key", models.PurposeDonation, models.OriginManual,
-				int64(15000), "RUB", models.StatusCanceled, nil, nil, nil, &canceledAt, repoTestTime, repoTestTime,
-			)
-			repoExpectBegin(pool)
-			pool.ExpectQuery("FROM payment_order").WithArgs(repoTestOrderID).WillReturnRows(rows)
-			repoExpectCommit(pool)
-
-			got, err := repo.CancelOrder(context.Background(), repoTestOrderID)
-
-			require.NoError(t, err)
-			require.NotNil(t, got, "idempotent cancellation should return the already canceled order")
-			require.Equal(t, models.StatusCanceled, got.Status)
-			require.Equal(t, &canceledAt, got.CanceledAt)
-			require.NoError(t, pool.ExpectationsWereMet())
-		}},
-
-		{name: "rejects paid order", run: func(t *testing.T) {
-			repo, pool := newPaymentRepositoryTest(t)
-			repoExpectCancelOrderLock(pool, models.StatusPaid)
-			repoExpectRollback(pool)
-
-			got, err := repo.CancelOrder(context.Background(), repoTestOrderID)
-
-			require.ErrorIs(t, err, models.ErrForbiddenUpdate)
-			require.Nil(t, got)
-			require.NoError(t, pool.ExpectationsWereMet())
-		}},
-
-		{name: "rejects failed order", run: func(t *testing.T) {
-			repo, pool := newPaymentRepositoryTest(t)
-			repoExpectCancelOrderLock(pool, models.StatusFailed)
-			repoExpectRollback(pool)
-
-			got, err := repo.CancelOrder(context.Background(), repoTestOrderID)
-
-			require.ErrorIs(t, err, models.ErrForbiddenUpdate)
-			require.Nil(t, got)
-			require.NoError(t, pool.ExpectationsWereMet())
-		}},
-
-		{name: "rejects unknown order status", run: func(t *testing.T) {
-			repo, pool := newPaymentRepositoryTest(t)
-			repoExpectCancelOrderLock(pool, models.PaymentOrderStatus("unknown"))
-			repoExpectRollback(pool)
-
-			got, err := repo.CancelOrder(context.Background(), repoTestOrderID)
-
-			require.ErrorIs(t, err, models.ErrPaymentOrderValidation)
-			require.Nil(t, got)
-			require.NoError(t, pool.ExpectationsWereMet())
-		}},
-
-		{name: "maps missing order", run: func(t *testing.T) {
-			repo, pool := newPaymentRepositoryTest(t)
-			repoExpectBegin(pool)
-			pool.ExpectQuery("FROM payment_order").WithArgs(repoTestOrderID).WillReturnError(pgx.ErrNoRows)
-			repoExpectRollback(pool)
-
-			got, err := repo.CancelOrder(context.Background(), repoTestOrderID)
-
-			require.ErrorIs(t, err, models.ErrPaymentOrderNotFound)
-			require.Nil(t, got)
-			require.NoError(t, pool.ExpectationsWereMet())
-		}},
-
-		{name: "wraps order lock error", run: func(t *testing.T) {
-			repo, pool := newPaymentRepositoryTest(t)
-			repoExpectBegin(pool)
-			pool.ExpectQuery("FROM payment_order").WithArgs(repoTestOrderID).WillReturnError(repoTestDBErr)
-			repoExpectRollback(pool)
-
-			_, err := repo.CancelOrder(context.Background(), repoTestOrderID)
-
-			require.ErrorIs(t, err, repoTestDBErr)
-			require.Contains(t, err.Error(), "lock payment order")
-			require.NoError(t, pool.ExpectationsWereMet())
-		}},
-
-		{name: "wraps active attempts query error", run: func(t *testing.T) {
-			repo, pool := newPaymentRepositoryTest(t)
-			repoExpectCancelOrderLock(pool, models.StatusPending)
-			pool.ExpectQuery("FROM payment_attempt").WithArgs(repoTestOrderID).WillReturnError(repoTestDBErr)
-			repoExpectRollback(pool)
-
-			_, err := repo.CancelOrder(context.Background(), repoTestOrderID)
-
-			require.ErrorIs(t, err, repoTestDBErr)
-			require.Contains(t, err.Error(), "get active payment attempts")
-			require.NoError(t, pool.ExpectationsWereMet())
-		}},
-
-		{name: "returns error when an active attempt row cannot be scanned", run: func(t *testing.T) {
-			repo, pool := newPaymentRepositoryTest(t)
-			repoExpectCancelOrderLock(pool, models.StatusPending)
-			pool.ExpectQuery("FROM payment_attempt").WithArgs(repoTestOrderID).
-				WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow("not-a-uuid"))
-			repoExpectRollback(pool)
-
-			_, err := repo.CancelOrder(context.Background(), repoTestOrderID)
-
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "scan payment attempt ID")
-			require.NoError(t, pool.ExpectationsWereMet())
-		}},
-
-		{name: "returns active attempts iteration error", run: func(t *testing.T) {
-			repo, pool := newPaymentRepositoryTest(t)
-			rows := pgxmock.NewRows([]string{"id"}).AddRow(repoTestAttemptID).CloseError(repoTestDBErr)
-			repoExpectCancelOrderLock(pool, models.StatusPending)
-			pool.ExpectQuery("FROM payment_attempt").WithArgs(repoTestOrderID).WillReturnRows(rows)
-			repoExpectRollback(pool)
-
-			_, err := repo.CancelOrder(context.Background(), repoTestOrderID)
-
-			require.ErrorIs(t, err, repoTestDBErr)
-			require.Contains(t, err.Error(), "iterate payment attempts")
-			require.NoError(t, pool.ExpectationsWereMet())
-		}},
-
-		{name: "wraps canceled order update error", run: func(t *testing.T) {
-			repo, pool := newPaymentRepositoryTest(t)
-			repoExpectCancelOrderLock(pool, models.StatusPending)
-			repoExpectActiveAttempts(pool)
-			pool.ExpectQuery("UPDATE payment_order").WithArgs(repoTestOrderID).WillReturnError(repoTestDBErr)
-			repoExpectRollback(pool)
-
-			_, err := repo.CancelOrder(context.Background(), repoTestOrderID)
-
-			require.ErrorIs(t, err, repoTestDBErr)
-			require.Contains(t, err.Error(), "update payment order status")
-			require.NoError(t, pool.ExpectationsWereMet())
-		}},
-
-		{name: "rolls back if any attempt cannot be canceled", run: func(t *testing.T) {
-			repo, pool := newPaymentRepositoryTest(t)
-			repoExpectCancelOrderLock(pool, models.StatusProcessing)
-			repoExpectActiveAttempts(pool, repoTestAttemptID)
-			repoExpectCanceledOrderUpdate(pool)
-			pool.ExpectExec("UPDATE payment_attempt").WithArgs(repoTestAttemptID, repoTestOrderID, reasonOrderCanceled).
-				WillReturnError(repoTestDBErr)
-			repoExpectRollback(pool)
-
-			_, err := repo.CancelOrder(context.Background(), repoTestOrderID)
-
-			require.ErrorIs(t, err, repoTestDBErr)
-			require.Contains(t, err.Error(), "change payment attempt status")
-			require.NoError(t, pool.ExpectationsWereMet())
 		}},
 	}
 

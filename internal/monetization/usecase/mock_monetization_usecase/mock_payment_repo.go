@@ -2,13 +2,13 @@
 // github.com/vektra/mockery
 // template: testify
 
-package mock_payments_usecase
+package mock_monetization_usecase
 
 import (
 	"context"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/dto"
-	paymentmodels "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/models"
 	"github.com/google/uuid"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -47,74 +47,6 @@ type MockPaymentRepo_Expecter struct {
 
 func (_m *MockPaymentRepo) EXPECT() *MockPaymentRepo_Expecter {
 	return &MockPaymentRepo_Expecter{mock: &_m.Mock}
-}
-
-// CancelOrder provides a mock function for the type MockPaymentRepo
-func (_mock *MockPaymentRepo) CancelOrder(ctx context.Context, orderID uuid.UUID) (*paymentmodels.PaymentOrder, error) {
-	ret := _mock.Called(ctx, orderID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for CancelOrder")
-	}
-
-	var r0 *paymentmodels.PaymentOrder
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*paymentmodels.PaymentOrder, error)); ok {
-		return returnFunc(ctx, orderID)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) *paymentmodels.PaymentOrder); ok {
-		r0 = returnFunc(ctx, orderID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*paymentmodels.PaymentOrder)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
-		r1 = returnFunc(ctx, orderID)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// MockPaymentRepo_CancelOrder_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelOrder'
-type MockPaymentRepo_CancelOrder_Call struct {
-	*mock.Call
-}
-
-// CancelOrder is a helper method to define mock.On call
-//   - ctx context.Context
-//   - orderID uuid.UUID
-func (_e *MockPaymentRepo_Expecter) CancelOrder(ctx any, orderID any) *MockPaymentRepo_CancelOrder_Call {
-	return &MockPaymentRepo_CancelOrder_Call{Call: _e.mock.On("CancelOrder", ctx, orderID)}
-}
-
-func (_c *MockPaymentRepo_CancelOrder_Call) Run(run func(ctx context.Context, orderID uuid.UUID)) *MockPaymentRepo_CancelOrder_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 uuid.UUID
-		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *MockPaymentRepo_CancelOrder_Call) Return(paymentOrder *paymentmodels.PaymentOrder, err error) *MockPaymentRepo_CancelOrder_Call {
-	_c.Call.Return(paymentOrder, err)
-	return _c
-}
-
-func (_c *MockPaymentRepo_CancelOrder_Call) RunAndReturn(run func(ctx context.Context, orderID uuid.UUID) (*paymentmodels.PaymentOrder, error)) *MockPaymentRepo_CancelOrder_Call {
-	_c.Call.Return(run)
-	return _c
 }
 
 // CompleteSuccessfulAttempt provides a mock function for the type MockPaymentRepo
@@ -179,74 +111,6 @@ func (_c *MockPaymentRepo_CompleteSuccessfulAttempt_Call) Return(b bool, err err
 }
 
 func (_c *MockPaymentRepo_CompleteSuccessfulAttempt_Call) RunAndReturn(run func(ctx context.Context, attempt dto.AttemptToComplete) (bool, error)) *MockPaymentRepo_CompleteSuccessfulAttempt_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// CreateOrGetOrder provides a mock function for the type MockPaymentRepo
-func (_mock *MockPaymentRepo) CreateOrGetOrder(ctx context.Context, req dto.CreatePayment) (*paymentmodels.PaymentOrder, error) {
-	ret := _mock.Called(ctx, req)
-
-	if len(ret) == 0 {
-		panic("no return value specified for CreateOrGetOrder")
-	}
-
-	var r0 *paymentmodels.PaymentOrder
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, dto.CreatePayment) (*paymentmodels.PaymentOrder, error)); ok {
-		return returnFunc(ctx, req)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, dto.CreatePayment) *paymentmodels.PaymentOrder); ok {
-		r0 = returnFunc(ctx, req)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*paymentmodels.PaymentOrder)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, dto.CreatePayment) error); ok {
-		r1 = returnFunc(ctx, req)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// MockPaymentRepo_CreateOrGetOrder_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateOrGetOrder'
-type MockPaymentRepo_CreateOrGetOrder_Call struct {
-	*mock.Call
-}
-
-// CreateOrGetOrder is a helper method to define mock.On call
-//   - ctx context.Context
-//   - req dto.CreatePayment
-func (_e *MockPaymentRepo_Expecter) CreateOrGetOrder(ctx any, req any) *MockPaymentRepo_CreateOrGetOrder_Call {
-	return &MockPaymentRepo_CreateOrGetOrder_Call{Call: _e.mock.On("CreateOrGetOrder", ctx, req)}
-}
-
-func (_c *MockPaymentRepo_CreateOrGetOrder_Call) Run(run func(ctx context.Context, req dto.CreatePayment)) *MockPaymentRepo_CreateOrGetOrder_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 dto.CreatePayment
-		if args[1] != nil {
-			arg1 = args[1].(dto.CreatePayment)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *MockPaymentRepo_CreateOrGetOrder_Call) Return(paymentOrder *paymentmodels.PaymentOrder, err error) *MockPaymentRepo_CreateOrGetOrder_Call {
-	_c.Call.Return(paymentOrder, err)
-	return _c
-}
-
-func (_c *MockPaymentRepo_CreateOrGetOrder_Call) RunAndReturn(run func(ctx context.Context, req dto.CreatePayment) (*paymentmodels.PaymentOrder, error)) *MockPaymentRepo_CreateOrGetOrder_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -321,23 +185,23 @@ func (_c *MockPaymentRepo_FailAttempt_Call) RunAndReturn(run func(ctx context.Co
 }
 
 // GetOrderByID provides a mock function for the type MockPaymentRepo
-func (_mock *MockPaymentRepo) GetOrderByID(ctx context.Context, id uuid.UUID) (*paymentmodels.PaymentOrder, error) {
+func (_mock *MockPaymentRepo) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.PaymentOrder, error) {
 	ret := _mock.Called(ctx, id)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetOrderByID")
 	}
 
-	var r0 *paymentmodels.PaymentOrder
+	var r0 *models.PaymentOrder
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*paymentmodels.PaymentOrder, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*models.PaymentOrder, error)); ok {
 		return returnFunc(ctx, id)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) *paymentmodels.PaymentOrder); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) *models.PaymentOrder); ok {
 		r0 = returnFunc(ctx, id)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*paymentmodels.PaymentOrder)
+			r0 = ret.Get(0).(*models.PaymentOrder)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
@@ -378,34 +242,34 @@ func (_c *MockPaymentRepo_GetOrderByID_Call) Run(run func(ctx context.Context, i
 	return _c
 }
 
-func (_c *MockPaymentRepo_GetOrderByID_Call) Return(paymentOrder *paymentmodels.PaymentOrder, err error) *MockPaymentRepo_GetOrderByID_Call {
+func (_c *MockPaymentRepo_GetOrderByID_Call) Return(paymentOrder *models.PaymentOrder, err error) *MockPaymentRepo_GetOrderByID_Call {
 	_c.Call.Return(paymentOrder, err)
 	return _c
 }
 
-func (_c *MockPaymentRepo_GetOrderByID_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID) (*paymentmodels.PaymentOrder, error)) *MockPaymentRepo_GetOrderByID_Call {
+func (_c *MockPaymentRepo_GetOrderByID_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID) (*models.PaymentOrder, error)) *MockPaymentRepo_GetOrderByID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetOrdersByIDs provides a mock function for the type MockPaymentRepo
-func (_mock *MockPaymentRepo) GetOrdersByIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*paymentmodels.PaymentOrder, error) {
+func (_mock *MockPaymentRepo) GetOrdersByIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*models.PaymentOrder, error) {
 	ret := _mock.Called(ctx, orderIDs)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetOrdersByIDs")
 	}
 
-	var r0 map[uuid.UUID]*paymentmodels.PaymentOrder
+	var r0 map[uuid.UUID]*models.PaymentOrder
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) (map[uuid.UUID]*paymentmodels.PaymentOrder, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) (map[uuid.UUID]*models.PaymentOrder, error)); ok {
 		return returnFunc(ctx, orderIDs)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) map[uuid.UUID]*paymentmodels.PaymentOrder); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) map[uuid.UUID]*models.PaymentOrder); ok {
 		r0 = returnFunc(ctx, orderIDs)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(map[uuid.UUID]*paymentmodels.PaymentOrder)
+			r0 = ret.Get(0).(map[uuid.UUID]*models.PaymentOrder)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, []uuid.UUID) error); ok {
@@ -446,43 +310,43 @@ func (_c *MockPaymentRepo_GetOrdersByIDs_Call) Run(run func(ctx context.Context,
 	return _c
 }
 
-func (_c *MockPaymentRepo_GetOrdersByIDs_Call) Return(uUIDToPaymentOrder map[uuid.UUID]*paymentmodels.PaymentOrder, err error) *MockPaymentRepo_GetOrdersByIDs_Call {
+func (_c *MockPaymentRepo_GetOrdersByIDs_Call) Return(uUIDToPaymentOrder map[uuid.UUID]*models.PaymentOrder, err error) *MockPaymentRepo_GetOrdersByIDs_Call {
 	_c.Call.Return(uUIDToPaymentOrder, err)
 	return _c
 }
 
-func (_c *MockPaymentRepo_GetOrdersByIDs_Call) RunAndReturn(run func(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*paymentmodels.PaymentOrder, error)) *MockPaymentRepo_GetOrdersByIDs_Call {
+func (_c *MockPaymentRepo_GetOrdersByIDs_Call) RunAndReturn(run func(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*models.PaymentOrder, error)) *MockPaymentRepo_GetOrdersByIDs_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // StartAttempt provides a mock function for the type MockPaymentRepo
-func (_mock *MockPaymentRepo) StartAttempt(ctx context.Context, orderID uuid.UUID) (*paymentmodels.PaymentOrder, *paymentmodels.PaymentAttempt, bool, error) {
+func (_mock *MockPaymentRepo) StartAttempt(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, *models.PaymentAttempt, bool, error) {
 	ret := _mock.Called(ctx, orderID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for StartAttempt")
 	}
 
-	var r0 *paymentmodels.PaymentOrder
-	var r1 *paymentmodels.PaymentAttempt
+	var r0 *models.PaymentOrder
+	var r1 *models.PaymentAttempt
 	var r2 bool
 	var r3 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*paymentmodels.PaymentOrder, *paymentmodels.PaymentAttempt, bool, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*models.PaymentOrder, *models.PaymentAttempt, bool, error)); ok {
 		return returnFunc(ctx, orderID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) *paymentmodels.PaymentOrder); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) *models.PaymentOrder); ok {
 		r0 = returnFunc(ctx, orderID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*paymentmodels.PaymentOrder)
+			r0 = ret.Get(0).(*models.PaymentOrder)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) *paymentmodels.PaymentAttempt); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) *models.PaymentAttempt); ok {
 		r1 = returnFunc(ctx, orderID)
 	} else {
 		if ret.Get(1) != nil {
-			r1 = ret.Get(1).(*paymentmodels.PaymentAttempt)
+			r1 = ret.Get(1).(*models.PaymentAttempt)
 		}
 	}
 	if returnFunc, ok := ret.Get(2).(func(context.Context, uuid.UUID) bool); ok {
@@ -528,12 +392,12 @@ func (_c *MockPaymentRepo_StartAttempt_Call) Run(run func(ctx context.Context, o
 	return _c
 }
 
-func (_c *MockPaymentRepo_StartAttempt_Call) Return(paymentOrder *paymentmodels.PaymentOrder, paymentAttempt *paymentmodels.PaymentAttempt, b bool, err error) *MockPaymentRepo_StartAttempt_Call {
+func (_c *MockPaymentRepo_StartAttempt_Call) Return(paymentOrder *models.PaymentOrder, paymentAttempt *models.PaymentAttempt, b bool, err error) *MockPaymentRepo_StartAttempt_Call {
 	_c.Call.Return(paymentOrder, paymentAttempt, b, err)
 	return _c
 }
 
-func (_c *MockPaymentRepo_StartAttempt_Call) RunAndReturn(run func(ctx context.Context, orderID uuid.UUID) (*paymentmodels.PaymentOrder, *paymentmodels.PaymentAttempt, bool, error)) *MockPaymentRepo_StartAttempt_Call {
+func (_c *MockPaymentRepo_StartAttempt_Call) RunAndReturn(run func(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, *models.PaymentAttempt, bool, error)) *MockPaymentRepo_StartAttempt_Call {
 	_c.Call.Return(run)
 	return _c
 }

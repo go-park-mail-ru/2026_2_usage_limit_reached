@@ -1,4 +1,4 @@
-package paymentmodels
+package models
 
 import (
 	"errors"
@@ -11,7 +11,6 @@ var (
 	ErrPaymentOrderNotFound   = errors.New("payment order not found")
 	ErrPaymentOrderValidation = errors.New("payment order validation error")
 	ErrForbiddenUpdate        = errors.New("payment order update forbidden")
-	ErrDuplicateRequestKey    = errors.New("duplicate request key")
 )
 
 type PaymentOrderPurpose string

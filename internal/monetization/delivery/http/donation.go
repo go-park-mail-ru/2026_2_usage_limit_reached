@@ -39,14 +39,14 @@ type getDonationsFunc func(ctx context.Context, payerID uuid.UUID, cursor *dto.D
 
 // SendDonation отправляет донат автору
 // @Summary Отправка доната
-// @Description Отправляет донат указанному автору. Операция создаёт платёжную попытку, заказ и возвращает ID и статус заказа.
+// @Description Создаёт донат, платёжный заказ и начальную попытку в одной транзакции, затем выполняет оплату через провайдера. Возвращает ID и актуальный статус заказа.
 // @Tags donations
 // @Accept json
 // @Produce json
 // @Security CookieAuth
 // @Param author_id path string true "ID автора" Format(uuid)
 // @Param request body dto.CreateDonationRequest true "Данные доната"
-// @Success 200 {object} dto.CreateDonationResponse "Заказ создан"
+// @Success 200 {object} dto.CreateDonationResponse "Донат создан, возвращён статус оплаты"
 // @Failure 400 {object} response.ErrorResponse "Ошибка валидации или некорректный ID автора"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
 // @Failure 404 {object} response.ErrorResponse "Автор не найден"

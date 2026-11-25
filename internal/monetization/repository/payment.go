@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/dto"
-	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -24,90 +24,58 @@ const (
 	defaultExpiredOrdersLimit = 100
 )
 
-type PaymentRepository struct {
-	pool   postgres.DB
-	logger *slog.Logger
-}
-
-func NewPaymentRepository(db *postgres.DBClient, logger *slog.Logger) *PaymentRepository {
-	return &PaymentRepository{pool: db.Pool, logger: logger}
-}
-
-func (r *PaymentRepository) CreateOrGetOrder(ctx context.Context, req dto.CreatePayment) (*models.PaymentOrder, error) {
-	r.logger.DebugContext(ctx, "executing transaction",
-		slog.String("op", "create or get payment order"),
-		slog.String("payerID", req.PayerID.String()),
-		slog.String("requestKey", req.RequestKey),
-		slog.String("purpose", req.Purpose),
-	)
+func (r *MonetizationRepository) CreateDonationWithPayment(ctx context.Context, req dto.CreateDonationWithPayment) (*models.Donation, *models.PaymentOrder, error) {
+	if req.DonorID == uuid.Nil || req.AuthorID == uuid.Nil ||
+		req.RequestKey == "" || req.AmountMinor <= 0 || req.Currency == "" {
+		return nil, nil, models.ErrDonationValidation
+	}
 
 	order := &models.PaymentOrder{}
+	donation := &models.Donation{
+		DonorID:     req.DonorID,
+		AuthorID:    req.AuthorID,
+		Message:     req.Message,
+		IsAnonymous: req.IsAnonymous,
+	}
+
+	r.logger.DebugContext(ctx, "executing donation and payment transaction",
+		slog.String("op", "create donation with payment"),
+		slog.String("donor_id", req.DonorID.String()),
+		slog.String("author_id", req.AuthorID.String()),
+		slog.String("request_key", req.RequestKey),
+	)
 
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
 		const insertOrder = `
 			INSERT INTO payment_order (
-				payer_id,
-				request_key,
-				purpose,
-				origin,
-				expected_amount_minor,
-				currency,
-				status,
-				expires_at
+				payer_id, request_key, purpose, origin, expected_amount_minor, currency, status, expires_at
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)
 			ON CONFLICT (payer_id, request_key) DO NOTHING
-			RETURNING 
-				id,
-				payer_id,
-				request_key,
-				purpose,
-				origin,
-				expected_amount_minor,
-				currency,
-				status,
-				credited_attempt_id,
-				expires_at,
-				paid_at,
-				canceled_at,
-				created_at,
-				updated_at
+			RETURNING
+				id, payer_id, request_key, purpose, origin, expected_amount_minor, currency, status,
+				credited_attempt_id, expires_at, paid_at, canceled_at, created_at, updated_at
 		`
 
-		err := tx.QueryRow(
-			ctx,
-			insertOrder,
-			req.PayerID,
-			req.RequestKey,
-			req.Purpose,
-			req.Origin,
-			req.AmountMinor,
-			req.Currency,
-			req.ExpiresAt,
+		err := tx.QueryRow(ctx, insertOrder,
+			req.DonorID, req.RequestKey, models.PurposeDonation, models.OriginManual,
+			req.AmountMinor, req.Currency, req.ExpiresAt,
 		).Scan(
-			&order.ID,
-			&order.PayerID,
-			&order.RequestKey,
-			&order.Purpose,
-			&order.Origin,
-			&order.ExpectedAmountMinor,
-			&order.Currency,
-			&order.Status,
-			&order.CreditedAttemptID,
-			&order.ExpiresAt,
-			&order.PaidAt,
-			&order.CanceledAt,
-			&order.CreatedAt,
-			&order.UpdatedAt,
+			&order.ID, &order.PayerID, &order.RequestKey, &order.Purpose, &order.Origin,
+			&order.ExpectedAmountMinor, &order.Currency, &order.Status, &order.CreditedAttemptID,
+			&order.ExpiresAt, &order.PaidAt, &order.CanceledAt, &order.CreatedAt, &order.UpdatedAt,
 		)
 
 		switch {
 		case err == nil:
-			err = createInitialAttempt(ctx, tx, order.ID)
-			return err
+			if err := createInitialAttempt(ctx, tx, order.ID); err != nil {
+				return err
+			}
 		case errors.Is(err, pgx.ErrNoRows):
 			order, err = getExistingOrder(ctx, tx, req)
-			return err
+			if err != nil {
+				return err
+			}
 		default:
 			parsedErr := postgres.ParseError(err)
 			if errors.Is(parsedErr, postgres.ErrFKViolation) ||
@@ -115,23 +83,74 @@ func (r *PaymentRepository) CreateOrGetOrder(ctx context.Context, req dto.Create
 				errors.Is(parsedErr, postgres.ErrUniqViolation) {
 				return fmt.Errorf("%w: %w", models.ErrPaymentOrderValidation, parsedErr)
 			}
-
 			return fmt.Errorf("insert payment order: %w", err)
 		}
-	})
 
+		donation.PaymentOrderID = order.ID
+		const insertDonation = `
+			INSERT INTO donation (
+				payment_order_id, donor_id, author_id, message, is_anonymous
+			)
+			VALUES ($1, $2, $3, $4, $5)
+			ON CONFLICT (payment_order_id) DO NOTHING
+			RETURNING created_at, updated_at
+		`
+		err = tx.QueryRow(ctx, insertDonation,
+			order.ID, req.DonorID, req.AuthorID, req.Message, req.IsAnonymous,
+		).Scan(&donation.CreatedAt, &donation.UpdatedAt)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			parsedErr := postgres.ParseError(err)
+			if errors.Is(parsedErr, postgres.ErrFKViolation) ||
+				errors.Is(parsedErr, postgres.ErrCheckViolation) ||
+				errors.Is(parsedErr, postgres.ErrUniqViolation) {
+				return models.ErrDonationValidation
+			}
+			return fmt.Errorf("insert donation: %w", err)
+		}
+
+		const getExistingDonation = `
+			SELECT donor_id, author_id, message, is_anonymous, created_at, updated_at
+			FROM donation
+			WHERE payment_order_id = $1
+		`
+		err = tx.QueryRow(ctx, getExistingDonation, order.ID).Scan(
+			&donation.DonorID, &donation.AuthorID, &donation.Message, &donation.IsAnonymous,
+			&donation.CreatedAt, &donation.UpdatedAt,
+		)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return models.ErrDonationNotFound
+			}
+			return fmt.Errorf("get existing donation: %w", err)
+		}
+		if donation.DonorID != req.DonorID ||
+			donation.AuthorID != req.AuthorID ||
+			!equalOptionalString(donation.Message, req.Message) ||
+			donation.IsAnonymous != req.IsAnonymous {
+			return models.ErrIdempotencyKeyReused
+		}
+		return nil
+	})
 	if err != nil {
 		parsedErr := postgres.ParseError(err)
 		if errors.Is(parsedErr, postgres.ErrFKViolation) ||
 			errors.Is(parsedErr, postgres.ErrCheckViolation) ||
 			errors.Is(parsedErr, postgres.ErrUniqViolation) {
-			return nil, fmt.Errorf("%w: %w", models.ErrPaymentOrderValidation, parsedErr)
+			return nil, nil, models.ErrDonationValidation
 		}
-
-		return nil, fmt.Errorf("create payment transaction: %w", err)
+		if errors.Is(err, models.ErrDonationValidation) ||
+			errors.Is(err, models.ErrDonationNotFound) ||
+			errors.Is(err, models.ErrIdempotencyKeyReused) ||
+			errors.Is(err, models.ErrPaymentOrderValidation) {
+			return nil, nil, err
+		}
+		return nil, nil, fmt.Errorf("create donation and payment transaction: %w", err)
 	}
 
-	return order, nil
+	return donation, order, nil
 }
 
 func createInitialAttempt(ctx context.Context, tx pgx.Tx, orderID uuid.UUID) error {
@@ -155,44 +174,21 @@ func createInitialAttempt(ctx context.Context, tx pgx.Tx, orderID uuid.UUID) err
 	return nil
 }
 
-func getExistingOrder(ctx context.Context, tx pgx.Tx, req dto.CreatePayment) (*models.PaymentOrder, error) {
+func getExistingOrder(ctx context.Context, tx pgx.Tx, req dto.CreateDonationWithPayment) (*models.PaymentOrder, error) {
 	const getOrder = `
 		SELECT
-			id,
-			payer_id,
-			request_key,
-			purpose,
-			origin,
-			expected_amount_minor,
-			currency,
-			status,
-			credited_attempt_id,
-			expires_at,
-			paid_at,
-			canceled_at,
-			created_at,
-			updated_at
+			id, payer_id, request_key, purpose, origin, expected_amount_minor, currency, status,
+			credited_attempt_id, expires_at, paid_at, canceled_at, created_at, updated_at
 		FROM payment_order
 		WHERE payer_id = $1 AND request_key = $2
 		FOR UPDATE
 	`
 
 	order := &models.PaymentOrder{}
-	err := tx.QueryRow(ctx, getOrder, req.PayerID, req.RequestKey).Scan(
-		&order.ID,
-		&order.PayerID,
-		&order.RequestKey,
-		&order.Purpose,
-		&order.Origin,
-		&order.ExpectedAmountMinor,
-		&order.Currency,
-		&order.Status,
-		&order.CreditedAttemptID,
-		&order.ExpiresAt,
-		&order.PaidAt,
-		&order.CanceledAt,
-		&order.CreatedAt,
-		&order.UpdatedAt,
+	err := tx.QueryRow(ctx, getOrder, req.DonorID, req.RequestKey).Scan(
+		&order.ID, &order.PayerID, &order.RequestKey, &order.Purpose, &order.Origin,
+		&order.ExpectedAmountMinor, &order.Currency, &order.Status, &order.CreditedAttemptID,
+		&order.ExpiresAt, &order.PaidAt, &order.CanceledAt, &order.CreatedAt, &order.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -201,9 +197,9 @@ func getExistingOrder(ctx context.Context, tx pgx.Tx, req dto.CreatePayment) (*m
 		return nil, fmt.Errorf("get existing payment order: %w", err)
 	}
 
-	if order.PayerID != req.PayerID ||
-		string(order.Purpose) != req.Purpose ||
-		string(order.Origin) != req.Origin ||
+	if order.PayerID != req.DonorID ||
+		order.Purpose != models.PurposeDonation ||
+		order.Origin != models.OriginManual ||
 		order.ExpectedAmountMinor != req.AmountMinor ||
 		order.Currency != req.Currency {
 		return nil, models.ErrPaymentOrderValidation
@@ -229,7 +225,7 @@ func getExistingOrder(ctx context.Context, tx pgx.Tx, req dto.CreatePayment) (*m
 	return order, nil
 }
 
-func (r *PaymentRepository) StartAttempt(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, *models.PaymentAttempt, bool, error) {
+func (r *MonetizationRepository) StartAttempt(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, *models.PaymentAttempt, bool, error) {
 	r.logger.DebugContext(ctx, "executing transaction",
 		slog.String("op", "start payment attempt"),
 		slog.String("order_id", orderID.String()),
@@ -378,7 +374,7 @@ func (r *PaymentRepository) StartAttempt(ctx context.Context, orderID uuid.UUID)
 	return order, attempt, started, nil
 }
 
-func (r *PaymentRepository) GetOrdersByIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*models.PaymentOrder, error) {
+func (r *MonetizationRepository) GetOrdersByIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*models.PaymentOrder, error) {
 	orderIDs = uniqueUUIDs(orderIDs)
 
 	if len(orderIDs) == 0 {
@@ -457,7 +453,7 @@ func (r *PaymentRepository) GetOrdersByIDs(ctx context.Context, orderIDs []uuid.
 	return orders, nil
 }
 
-func (r *PaymentRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.PaymentOrder, error) {
+func (r *MonetizationRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.PaymentOrder, error) {
 	const query = `
 		SELECT
 			id, payer_id, request_key, purpose, origin, expected_amount_minor, currency, status, 
@@ -498,7 +494,7 @@ func (r *PaymentRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*mo
 	return order, nil
 }
 
-func (r *PaymentRepository) CompleteSuccessfulAttempt(ctx context.Context, attempt dto.AttemptToComplete) (bool, error) {
+func (r *MonetizationRepository) CompleteSuccessfulAttempt(ctx context.Context, attempt dto.AttemptToComplete) (bool, error) {
 	const lockOrder = `
 		SELECT status, expected_amount_minor, currency, credited_attempt_id
 		FROM payment_order
@@ -694,7 +690,7 @@ func markOrderPaid(ctx context.Context, tx pgx.Tx, attempt dto.AttemptToComplete
 	return nil
 }
 
-func (r *PaymentRepository) makeRefund(ctx context.Context, tx pgx.Tx, attemptID uuid.UUID, amount int64, reason string) error {
+func (r *MonetizationRepository) makeRefund(ctx context.Context, tx pgx.Tx, attemptID uuid.UUID, amount int64, reason string) error {
 	const query = `
 		INSERT INTO refund (payment_attempt_id, amount_minor, kind, reason)
 		VALUES ($1, $2, 'excess_charge', $3)
@@ -714,7 +710,7 @@ func (r *PaymentRepository) makeRefund(ctx context.Context, tx pgx.Tx, attemptID
 	return nil
 }
 
-func (r *PaymentRepository) FailAttempt(ctx context.Context, orderID, attemptID uuid.UUID, reason string) error {
+func (r *MonetizationRepository) FailAttempt(ctx context.Context, orderID, attemptID uuid.UUID, reason string) error {
 	const lockOrder = `SELECT status FROM payment_order WHERE id = $1 FOR UPDATE`
 	const hasActiveQuery = `
 		SELECT EXISTS (
@@ -777,27 +773,7 @@ func markAttemptFailed(ctx context.Context, tx pgx.Tx, orderID, attemptID uuid.U
 	return changeAttemptStatus(ctx, tx, orderID, attemptID, models.AttemptStatusFailed, reason)
 }
 
-func (r *PaymentRepository) CancelOrder(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, error) {
-	r.logger.DebugContext(ctx, "executing transaction",
-		slog.String("op", "cancel payment order"),
-		slog.String("order_id", orderID.String()),
-	)
-
-	var order *models.PaymentOrder
-	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
-		var err error
-		order, err = cancelOrderTx(ctx, tx, orderID, reasonOrderCanceled)
-		return err
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("cancel payment order: %w", err)
-	}
-
-	return order, nil
-}
-
-func (r *PaymentRepository) CancelExpiredOrders(ctx context.Context, limit int) (int, error) {
+func (r *MonetizationRepository) CancelExpiredOrders(ctx context.Context, limit int) (int, error) {
 	if limit <= 0 {
 		limit = defaultExpiredOrdersLimit
 	}

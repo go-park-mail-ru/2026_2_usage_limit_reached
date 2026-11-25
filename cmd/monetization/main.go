@@ -10,7 +10,7 @@ import (
 
 // @title Patreon Clone Monetization API
 // @version 1.0
-// @description Донаты и подписки.
+// @description API монетизации. Сейчас доступны создание донатов с оплатой и просмотр истории донатов.
 // @securityDefinitions.apikey CookieAuth
 // @in cookie
 // @name __Host-token

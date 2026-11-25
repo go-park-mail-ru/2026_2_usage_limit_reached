@@ -6,10 +6,9 @@ import (
 	"strings"
 
 	identityclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
-	paymentclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/payment"
+	expirationworker "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_expiration_worker"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/grpcserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
@@ -22,7 +21,6 @@ const DefaultConfigPath = "configs/monetization.yaml"
 type Config struct {
 	Monetization ServiceConfig              `mapstructure:"monetization"`
 	Identity     identityclient.Config      `mapstructure:"identity"`
-	Payment      paymentclient.Config       `mapstructure:"payment"`
 	Postgres     postgres.PostgresConfig    `mapstructure:"postgres"`
 	Log          logger.LoggerConfig        `mapstructure:"log"`
 	CSRF         csrf.CSRFConfig            `mapstructure:"csrf"`
@@ -31,32 +29,33 @@ type Config struct {
 }
 
 type ServiceConfig struct {
-	HTTP httpserver.HTTPConfig `mapstructure:"http"`
-	GRPC grpcserver.GRPCConfig `mapstructure:"grpc"`
+	HTTP             httpserver.HTTPConfig   `mapstructure:"http"`
+	ExpirationWorker expirationworker.Config `mapstructure:"expiration_worker"`
 }
 
 func DefaultConfig() Config {
 	httpCfg := httpserver.DefaultConfig()
-	httpCfg.Port = "8084"
+	httpCfg.Port = "8083"
 
 	return Config{
-		Monetization: ServiceConfig{HTTP: httpCfg, GRPC: grpcserver.DefaultConfig()},
-		Identity:     identityclient.DefaultConfig(),
-		Payment:      paymentclient.DefaultConfig(),
-		Postgres:     postgres.DefaultConfig(),
-		Log:          logger.DefaultConfig(),
-		CSRF:         csrf.DefaultConfig(),
-		CORS:         middleware.DefaultCORSConfig(),
-		Validation:   validator.DefaultConfig(),
+		Monetization: ServiceConfig{
+			HTTP:             httpCfg,
+			ExpirationWorker: expirationworker.DefaultConfig(),
+		},
+		Identity:   identityclient.DefaultConfig(),
+		Postgres:   postgres.DefaultConfig(),
+		Log:        logger.DefaultConfig(),
+		CSRF:       csrf.DefaultConfig(),
+		CORS:       middleware.DefaultCORSConfig(),
+		Validation: validator.DefaultConfig(),
 	}
 }
 
 func (c Config) Validate() error {
 	return errors.Join(
 		c.Monetization.HTTP.Validate(),
-		c.Monetization.GRPC.Validate(),
+		c.Monetization.ExpirationWorker.Validate(),
 		c.Identity.Validate(),
-		c.Payment.Validate(),
 		c.Postgres.Validate(),
 		c.Log.Validate(),
 		c.CSRF.Validate(),

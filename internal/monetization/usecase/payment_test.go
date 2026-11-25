@@ -1,20 +1,36 @@
-package paymentsusecase_test
+package usecase_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/dto"
-	models "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/models"
-	paymentsusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/usecase"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payment/usecase/mock_payments_usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/models"
+	paymentsusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/usecase"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/usecase/mock_monetization_usecase"
+	mock_payments_usecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/usecase/mock_monetization_usecase"
 	paymentprovider "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider/mock_pkg_payment_provider"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+func newPaymentUsecase(
+	t *testing.T,
+	repo *mock_payments_usecase.MockPaymentRepo,
+	provider *mock_pkg_payment_provider.MockProvider,
+) *paymentsusecase.MonetizationUsecase {
+	return paymentsusecase.New(
+		mock_monetization_usecase.NewMockDonationRepository(t),
+		repo,
+		provider,
+		mock_monetization_usecase.NewMockIdentityClient(t),
+		testutils.SetupValidator(),
+	)
+}
 
 var (
 	orderID   = uuid.MustParse("00000000-0000-4000-8000-000000000001")
@@ -256,10 +272,10 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 			provider := mock_pkg_payment_provider.NewMockProvider(t)
 			tt.mockBehavior(repo, provider)
 
-			uc := paymentsusecase.NewPaymentUsecase(repo, provider)
+			uc := newPaymentUsecase(t, repo, provider)
 			status, err := uc.Pay(context.Background(), orderID)
 
-			require.Equal(t, tt.expectedStatus, status)
+			require.Equal(t, string(tt.expectedStatus), status)
 			if tt.expectedErr != nil {
 				require.ErrorIs(t, err, tt.expectedErr)
 				return
@@ -282,7 +298,6 @@ func TestPaymentUsecase_Pay_RepoErrorMapping(t *testing.T) {
 		{name: "Forbidden update", repoErr: models.ErrForbiddenUpdate, expected: paymentsusecase.ErrForbidden},
 		{name: "Order validation", repoErr: models.ErrPaymentOrderValidation, expected: paymentsusecase.ErrValidation},
 		{name: "Attempt validation", repoErr: models.ErrPaymentAttemptValidation, expected: paymentsusecase.ErrValidation},
-		{name: "Duplicate request key", repoErr: models.ErrDuplicateRequestKey, expected: paymentsusecase.ErrIdempotencyKeyReused},
 		{name: "Unmapped error passes through", repoErr: unmapped, expected: unmapped},
 	}
 
@@ -293,105 +308,11 @@ func TestPaymentUsecase_Pay_RepoErrorMapping(t *testing.T) {
 			repo.EXPECT().StartAttempt(mock.Anything, orderID).
 				Return(nil, nil, false, tt.repoErr)
 
-			uc := paymentsusecase.NewPaymentUsecase(repo, provider)
+			uc := newPaymentUsecase(t, repo, provider)
 			status, err := uc.Pay(context.Background(), orderID)
 
 			require.ErrorIs(t, err, tt.expected)
 			require.Empty(t, status)
-		})
-	}
-}
-
-func TestPaymentUsecase_CancelPayment(t *testing.T) {
-	dbErr := errors.New("db down")
-	canceledOrder := order(models.StatusCanceled)
-
-	tests := []struct {
-		name         string
-		orderID      uuid.UUID
-		mockBehavior func(repo *mock_payments_usecase.MockPaymentRepo)
-		wantOrder    *models.PaymentOrder
-		wantErr      error
-	}{
-		{
-			name:    "Cancel returns order from repository",
-			orderID: orderID,
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo) {
-				repo.EXPECT().CancelOrder(mock.Anything, orderID).Return(canceledOrder, nil).Once()
-			},
-			wantOrder: canceledOrder,
-		},
-		{
-			name:    "Already canceled order is returned idempotently",
-			orderID: orderID,
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo) {
-				// Идемпотентность реализована в репозитории: он возвращает текущую запись
-				repo.EXPECT().CancelOrder(mock.Anything, orderID).Return(canceledOrder, nil).Once()
-			},
-			wantOrder: canceledOrder,
-		},
-		{
-			name:    "Order not found",
-			orderID: orderID,
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo) {
-				repo.EXPECT().CancelOrder(mock.Anything, orderID).
-					Return(nil, models.ErrPaymentOrderNotFound)
-			},
-			wantErr: paymentsusecase.ErrNotFound,
-		},
-		{
-			name:    "Paid or otherwise non-cancelable order is forbidden",
-			orderID: orderID,
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo) {
-				repo.EXPECT().CancelOrder(mock.Anything, orderID).
-					Return(nil, models.ErrForbiddenUpdate)
-			},
-			wantErr: paymentsusecase.ErrForbidden,
-		},
-		{
-			name:    "Repository validation error is mapped",
-			orderID: orderID,
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo) {
-				repo.EXPECT().CancelOrder(mock.Anything, orderID).
-					Return(nil, models.ErrPaymentOrderValidation)
-			},
-			wantErr: paymentsusecase.ErrValidation,
-		},
-		{
-			name:    "Unmapped repository error passes through",
-			orderID: orderID,
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo) {
-				repo.EXPECT().CancelOrder(mock.Anything, orderID).Return(nil, dbErr)
-			},
-			wantErr: dbErr,
-		},
-		{
-			name:    "Nil order ID is rejected before repository call",
-			orderID: uuid.Nil,
-			mockBehavior: func(_ *mock_payments_usecase.MockPaymentRepo) {
-				// Вызова репозитория быть не должно
-			},
-			wantErr: paymentsusecase.ErrValidation,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			repo := mock_payments_usecase.NewMockPaymentRepo(t)
-			provider := mock_pkg_payment_provider.NewMockProvider(t)
-			tt.mockBehavior(repo)
-
-			uc := paymentsusecase.NewPaymentUsecase(repo, provider)
-			gotOrder, err := uc.CancelPayment(context.Background(), tt.orderID)
-
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-				require.Nil(t, gotOrder)
-				return
-			}
-
-			require.NoError(t, err)
-			require.Same(t, tt.wantOrder, gotOrder)
 		})
 	}
 }

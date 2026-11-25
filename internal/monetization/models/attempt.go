@@ -1,4 +1,4 @@
-package paymentmodels
+package models
 
 import (
 	"errors"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -16,10 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var (
-	ErrUnavailable  = errors.New("identity service unavailable")
-	ErrUserNotFound = errors.New("user not found")
-)
+var ErrEmptyGetUsersResponse = errors.New("identity returned empty get users response")
 
 type Config struct {
 	Address string        `mapstructure:"address"`
@@ -49,10 +47,11 @@ func (c Config) Validate() error {
 type Client struct {
 	client  identitypb.IdentityServiceClient
 	timeout time.Duration
+	logger  *slog.Logger
 }
 
-func New(conn grpc.ClientConnInterface, timeout time.Duration) *Client {
-	return &Client{client: identitypb.NewIdentityServiceClient(conn), timeout: timeout}
+func New(conn grpc.ClientConnInterface, timeout time.Duration, logger *slog.Logger) *Client {
+	return &Client{client: identitypb.NewIdentityServiceClient(conn), timeout: timeout, logger: logger}
 }
 
 func (c *Client) VerifyToken(ctx context.Context, token string) (*authn.User, error) {
@@ -85,9 +84,9 @@ func (c *Client) GetUserByUsername(ctx context.Context, username string) (*ident
 	if err != nil {
 		switch status.Code(err) {
 		case codes.NotFound:
-			return nil, ErrUserNotFound
+			return nil, identitycontracts.ErrUserNotFound
 		case codes.InvalidArgument:
-			return nil, fmt.Errorf("identity client: invalid username: %w", err)
+			return nil, identitycontracts.ErrInvalidUsername
 		default:
 			return nil, fmt.Errorf("%w: %w", authn.ErrUnavailable, err)
 		}
@@ -95,7 +94,7 @@ func (c *Client) GetUserByUsername(ctx context.Context, username string) (*ident
 
 	userID, err := uuid.Parse(resp.GetId())
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid user id: %w", authn.ErrUnavailable, err)
+		return nil, fmt.Errorf("identity client: invalid user id: %w", err)
 	}
 
 	info := &identitycontracts.UserInfo{
@@ -114,10 +113,7 @@ func (c *Client) GetUserByUsername(ctx context.Context, username string) (*ident
 }
 
 func (c *Client) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*identitycontracts.UserInfo, error) {
-	requestIDs, err := toProtoIDs(ids)
-	if err != nil {
-		return nil, err
-	}
+	requestIDs := UUIDstoUniqStrings(ids)
 
 	result := make(map[uuid.UUID]*identitycontracts.UserInfo, len(requestIDs))
 	if len(requestIDs) == 0 {
@@ -132,23 +128,26 @@ func (c *Client) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*
 		return nil, c.wrapRPCError("get users", err)
 	}
 	if resp == nil {
-		return nil, errors.New("identity returned empty get users response")
+		return nil, ErrEmptyGetUsersResponse
 	}
 
 	for _, user := range resp.GetUsers() {
 		if user == nil {
-			return nil, errors.New("identity returned nil user")
+			c.logger.WarnContext(ctx, "identity client: nil user in get users response")
+			continue
 		}
 
 		id, err := uuid.Parse(user.GetId())
 		if err != nil {
-			return nil, fmt.Errorf("parse user id: %w", err)
+			c.logger.WarnContext(ctx, "identity client: invalid user id", "user_id", user.GetId())
+			continue
 		}
 
 		var createdAt *time.Time
 		if timestamp := user.GetCreatedAt(); timestamp != nil {
 			if err := timestamp.CheckValid(); err != nil {
-				return nil, fmt.Errorf("invalid user created_at: %w", err)
+				c.logger.WarnContext(ctx, "identity client: invalid user created_at", "user_id", user.GetId())
+				continue
 			}
 
 			t := timestamp.AsTime()
@@ -168,13 +167,13 @@ func (c *Client) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*
 	return result, nil
 }
 
-func toProtoIDs(ids []uuid.UUID) ([]string, error) {
+func UUIDstoUniqStrings(ids []uuid.UUID) []string {
 	seen := make(map[uuid.UUID]struct{}, len(ids))
 	result := make([]string, 0, len(ids))
 
 	for _, id := range ids {
 		if id == uuid.Nil {
-			return nil, errors.New("identity client: empty UUID in request")
+			continue
 		}
 
 		if _, exists := seen[id]; exists {
@@ -185,18 +184,13 @@ func toProtoIDs(ids []uuid.UUID) ([]string, error) {
 		result = append(result, id.String())
 	}
 
-	return result, nil
+	return result
 }
 
 func (c *Client) wrapRPCError(operation string, err error) error {
 	switch status.Code(err) {
 	case codes.Unavailable, codes.DeadlineExceeded:
-		return fmt.Errorf(
-			"%w: %s: %v",
-			ErrUnavailable,
-			operation,
-			err,
-		)
+		return fmt.Errorf("%w: %s: %v", authn.ErrUnavailable, operation, err)
 	default:
 		return fmt.Errorf("identity %s: %w", operation, err)
 	}

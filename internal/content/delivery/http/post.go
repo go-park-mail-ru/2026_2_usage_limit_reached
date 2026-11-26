@@ -34,12 +34,12 @@ type (
 )
 
 type PostHandler struct {
-	uc        PostUsecase
+	uc        ContentUsecase
 	validator *validator.Validator
 	logger    *slog.Logger
 }
 
-func NewPostHandler(uc PostUsecase, v *validator.Validator, logger *slog.Logger) *PostHandler {
+func NewPostHandler(uc ContentUsecase, v *validator.Validator, logger *slog.Logger) *PostHandler {
 	return &PostHandler{uc: uc, validator: v, logger: logger}
 }
 

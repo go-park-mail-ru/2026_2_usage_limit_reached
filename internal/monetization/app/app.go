@@ -52,7 +52,7 @@ func Run(configPath string) error {
 		return fmt.Errorf("identity client initialization error: %w", err)
 	}
 	defer identityConn.Close()
-	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout)
+	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout, appLogger)
 
 	monetizationUc := monetizationuc.New(
 		donationRepo,

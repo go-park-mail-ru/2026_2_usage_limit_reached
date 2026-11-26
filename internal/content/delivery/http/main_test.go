@@ -18,10 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newRouter(t *testing.T) (*mux.Router, *mock_delivery_http.MockPostUsecase) {
+func newRouter(t *testing.T) (*mux.Router, *mock_delivery_http.MockContentUsecase) {
 	t.Helper()
 
-	uc := mock_delivery_http.NewMockPostUsecase(t)
+	uc := mock_delivery_http.NewMockContentUsecase(t)
 	postHandler := handlers.NewPostHandler(uc, testutils.SetupValidator(), testutils.SetupLogger())
 	router := mux.NewRouter()
 	httprouter.RegisterRoutes(router, router, httprouter.Handlers{

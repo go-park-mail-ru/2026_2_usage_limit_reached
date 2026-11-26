@@ -43,74 +43,74 @@ type listEndpoint struct {
 	name   string
 	target string
 	kind   cursorKind
-	expect func(uc *mock_delivery_http.MockPostUsecase, userID *uuid.UUID, rawCursor string, limit int) *mock.Call
+	expect func(uc *mock_delivery_http.MockContentUsecase, userID *uuid.UUID, rawCursor string, limit int) *mock.Call
 }
 
 func listEndpoints() []listEndpoint {
 	return []listEndpoint{
 		{
 			name: "feed new", target: "/feed?sort=new", kind: timedKind,
-			expect: func(uc *mock_delivery_http.MockPostUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
 				return uc.EXPECT().GetNewPosts(mock.Anything, u, timed(raw), limit).Call
 			},
 		},
 		{
 			name: "feed old", target: "/feed?sort=old", kind: timedKind,
-			expect: func(uc *mock_delivery_http.MockPostUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
 				return uc.EXPECT().GetOldPosts(mock.Anything, u, timed(raw), limit).Call
 			},
 		},
 		{
 			name: "feed popular", target: "/feed?sort=popular", kind: popularKind,
-			expect: func(uc *mock_delivery_http.MockPostUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
 				return uc.EXPECT().GetPopularPosts(mock.Anything, u, popular(raw), limit).Call
 			},
 		},
 		{
 			name: "user new", target: "/users/" + authorUsername + "/posts?sort=new", kind: timedKind,
-			expect: func(uc *mock_delivery_http.MockPostUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
 				return uc.EXPECT().GetUserNewPosts(mock.Anything, u, authorUsername, timed(raw), limit).Call
 			},
 		},
 		{
 			name: "user old", target: "/users/" + authorUsername + "/posts?sort=old", kind: timedKind,
-			expect: func(uc *mock_delivery_http.MockPostUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
 				return uc.EXPECT().GetUserOldPosts(mock.Anything, u, authorUsername, timed(raw), limit).Call
 			},
 		},
 		{
 			name: "user popular", target: "/users/" + authorUsername + "/posts?sort=popular", kind: popularKind,
-			expect: func(uc *mock_delivery_http.MockPostUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
 				return uc.EXPECT().GetUserPopularPosts(mock.Anything, u, authorUsername, popular(raw), limit).Call
 			},
 		},
 		{
 			name: "my new posts", target: "/profile/me/posts?sort=new", kind: timedKind,
-			expect: func(uc *mock_delivery_http.MockPostUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
 				return uc.EXPECT().GetMyNewPosts(mock.Anything, u, timed(raw), limit).Call
 			},
 		},
 		{
 			name: "my old posts", target: "/profile/me/posts?sort=old", kind: timedKind,
-			expect: func(uc *mock_delivery_http.MockPostUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
 				return uc.EXPECT().GetMyOldPosts(mock.Anything, u, timed(raw), limit).Call
 			},
 		},
 		{
 			name: "my popular posts", target: "/profile/me/posts?sort=popular", kind: popularKind,
-			expect: func(uc *mock_delivery_http.MockPostUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
 				return uc.EXPECT().GetMyPopularPosts(mock.Anything, u, popular(raw), limit).Call
 			},
 		},
 		{
 			name: "my new drafts", target: "/profile/me/drafts?sort=new", kind: timedKind,
-			expect: func(uc *mock_delivery_http.MockPostUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
 				return uc.EXPECT().GetMyNewDrafts(mock.Anything, u, timed(raw), limit).Call
 			},
 		},
 		{
 			name: "my old drafts", target: "/profile/me/drafts?sort=old", kind: timedKind,
-			expect: func(uc *mock_delivery_http.MockPostUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
 				return uc.EXPECT().GetMyOldDrafts(mock.Anything, u, timed(raw), limit).Call
 			},
 		},
@@ -307,7 +307,7 @@ func TestPostHandler_List_InvalidSort(t *testing.T) {
 func TestPostHandler_UserPosts_EmptyUsername(t *testing.T) {
 	t.Parallel()
 
-	h := handlers.NewPostHandler(mock_delivery_http.NewMockPostUsecase(t), testutils.SetupValidator(), testutils.SetupLogger())
+	h := handlers.NewPostHandler(mock_delivery_http.NewMockContentUsecase(t), testutils.SetupValidator(), testutils.SetupLogger())
 	rec := httptest.NewRecorder()
 
 	h.UserPosts(rec, httptest.NewRequest(http.MethodGet, "/users//posts?sort=new", nil))
@@ -564,20 +564,20 @@ type likeEndpoint struct {
 	name      string
 	method    string
 	likedByMe bool
-	expect    func(uc *mock_delivery_http.MockPostUsecase, userID *uuid.UUID) *mock.Call
+	expect    func(uc *mock_delivery_http.MockContentUsecase, userID *uuid.UUID) *mock.Call
 }
 
 func likeEndpoints() []likeEndpoint {
 	return []likeEndpoint{
 		{
 			name: "like", method: http.MethodPost, likedByMe: true,
-			expect: func(uc *mock_delivery_http.MockPostUsecase, u *uuid.UUID) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID) *mock.Call {
 				return uc.EXPECT().LikePost(mock.Anything, u, postID).Call
 			},
 		},
 		{
 			name: "unlike", method: http.MethodDelete,
-			expect: func(uc *mock_delivery_http.MockPostUsecase, u *uuid.UUID) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID) *mock.Call {
 				return uc.EXPECT().DeletePostLike(mock.Anything, u, postID).Call
 			},
 		},

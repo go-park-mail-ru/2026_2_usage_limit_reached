@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,7 +40,7 @@ func mapRepoError(op string, err error) error {
 	return fmt.Errorf("%s: %w", op, err)
 }
 
-type PostRepository interface {
+type Repository interface {
 	CreatePost(ctx context.Context, userID *uuid.UUID, p models.Post) (uuid.UUID, error)
 	GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error)
 	GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
@@ -70,14 +71,15 @@ type SanitizedBodyValidator interface {
 	IsValidSanitizedPostBody(raw, sanitized string) bool
 }
 
-type PostUsecase struct {
-	repo           PostRepository
+type ContentUsecase struct {
+	repo           Repository
 	identity       IdentityClient
 	sanitizer      *sanitizer.Sanitizer
 	bodyCheck      SanitizedBodyValidator
 	avatarBasePath string
+	logger         *slog.Logger
 }
 
-func New(r PostRepository, ic IdentityClient, s *sanitizer.Sanitizer, v SanitizedBodyValidator, abp string) *PostUsecase {
-	return &PostUsecase{repo: r, identity: ic, sanitizer: s, bodyCheck: v, avatarBasePath: abp}
+func New(r Repository, ic IdentityClient, s *sanitizer.Sanitizer, v SanitizedBodyValidator, abp string, logger *slog.Logger) *ContentUsecase {
+	return &ContentUsecase{repo: r, identity: ic, sanitizer: s, bodyCheck: v, avatarBasePath: abp, logger: logger}
 }

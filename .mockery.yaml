@@ -16,11 +16,11 @@ packages:
       Provider:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/usecase:
     interfaces:
-      PostRepository:
+      Repository:
       IdentityClient:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http:
     interfaces:
-      PostUsecase:
+      ContentUsecase:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/usecase:
     interfaces:
       DonationRepository:

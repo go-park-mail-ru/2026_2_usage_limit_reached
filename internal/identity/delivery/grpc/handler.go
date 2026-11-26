@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/dto"
@@ -32,10 +33,7 @@ func NewHandler(identity IdentityUsecase, logger *slog.Logger) *Handler {
 }
 
 func (h *Handler) GetUsers(ctx context.Context, req *identitypb.GetUsersRequest) (*identitypb.GetUsersResponse, error) {
-	ids, err := parseIDs(req.GetIds())
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid user id")
-	}
+	ids := h.parseIDs(ctx, req.GetIds()) // если отфильтрованы все id, то h.identity.GetUsers вернет пустой слайс
 
 	users, err := h.identity.GetUsers(ctx, ids)
 	if err != nil {
@@ -95,16 +93,17 @@ func (h *Handler) logError(ctx context.Context, action string, err error) {
 	)
 }
 
-func parseIDs(raw []string) ([]uuid.UUID, error) {
+func (h *Handler) parseIDs(ctx context.Context, raw []string) []uuid.UUID {
 	ids := make([]uuid.UUID, 0, len(raw))
 	for _, value := range raw {
 		id, err := uuid.Parse(value)
 		if err != nil {
-			return nil, err
+			h.logError(ctx, "identity grpc: invalid user id", fmt.Errorf("invalid user id: %s", value))
+			continue
 		}
 
 		ids = append(ids, id)
 	}
 
-	return ids, nil
+	return ids
 }

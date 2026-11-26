@@ -19,11 +19,11 @@ type PostHandler interface {
 	UnlikePost(w http.ResponseWriter, r *http.Request)
 }
 
-type Handlers struct {
+type Router struct {
 	Post PostHandler
 }
 
-func RegisterRoutes(public *mux.Router, private *mux.Router, deps Handlers) {
+func RegisterRoutes(public *mux.Router, private *mux.Router, deps Router) {
 	public.HandleFunc("/feed", deps.Post.Feed).Methods(http.MethodGet, http.MethodOptions)
 	public.HandleFunc("/posts/{id}", deps.Post.ViewPost).Methods(http.MethodGet, http.MethodOptions)
 	public.HandleFunc("/users/{username}/posts", deps.Post.UserPosts).Methods(http.MethodGet, http.MethodOptions)

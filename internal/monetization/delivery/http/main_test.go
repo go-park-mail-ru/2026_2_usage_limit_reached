@@ -24,7 +24,7 @@ func newRouter(t *testing.T) (*mux.Router, *mock_delivery_http.MockDonationUseca
 	uc := mock_delivery_http.NewMockDonationUsecase(t)
 	h := donationhandlers.NewDonationHandler(uc, testutils.SetupValidator(), testutils.SetupLogger())
 	router := mux.NewRouter()
-	httprouter.RegisterRoutes(router, httprouter.Handlers{Donation: h})
+	httprouter.RegisterRoutes(router, httprouter.Router{Donation: h})
 	return router, uc
 }
 

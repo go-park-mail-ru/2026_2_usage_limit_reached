@@ -89,7 +89,7 @@ func Run(configPath string) error {
 	private := router.NewRoute().Subrouter()
 	private.Use(middleware.AuthMiddleware(identityUc), middleware.CSRFMiddleware(csrfManager))
 
-	httprouter.RegisterRoutes(public, private, httprouter.Handlers{
+	httprouter.RegisterRoutes(public, private, httprouter.Router{
 		Auth:    identityhttp.NewAuthHandler(identityUc, valid, appLogger),
 		Profile: identityhttp.NewProfileHandler(identityUc, valid, appLogger),
 		CSRF:    identityhttp.NewCSRFHandler(csrfManager, appLogger),

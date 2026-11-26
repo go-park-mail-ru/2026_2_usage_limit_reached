@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -76,8 +77,9 @@ type ContentUsecase struct {
 	sanitizer      *sanitizer.Sanitizer
 	bodyCheck      SanitizedBodyValidator
 	avatarBasePath string
+	logger         *slog.Logger
 }
 
-func New(r Repository, ic IdentityClient, s *sanitizer.Sanitizer, v SanitizedBodyValidator, abp string) *ContentUsecase {
-	return &ContentUsecase{repo: r, identity: ic, sanitizer: s, bodyCheck: v, avatarBasePath: abp}
+func New(r Repository, ic IdentityClient, s *sanitizer.Sanitizer, v SanitizedBodyValidator, abp string, logger *slog.Logger) *ContentUsecase {
+	return &ContentUsecase{repo: r, identity: ic, sanitizer: s, bodyCheck: v, avatarBasePath: abp, logger: logger}
 }

@@ -8,7 +8,8 @@ import (
 )
 
 var (
-	ErrUserNotFound = errors.New("user not found")
+	ErrUserNotFound    = errors.New("user not found")
+	ErrInvalidUsername = errors.New("invalid username")
 )
 
 type UserInfo struct {
@@ -19,4 +20,3 @@ type UserInfo struct {
 	CreatedAt *time.Time
 	Status    string
 }
-

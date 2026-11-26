@@ -53,7 +53,10 @@ func (uc *ContentUsecase) GetPost(ctx context.Context, userID *uuid.UUID, postID
 	if err != nil {
 		return nil, err
 	}
-	author := authors[post.Author.ID]
+	author, ok := authors[post.Author.ID]
+	if !ok {
+		return nil, fmt.Errorf("%w: author user %s not found", ErrNotFound, post.Author.ID)
+	}
 	author.AvatarUrl = mediaurl.PublicPtr(uc.avatarBasePath, author.AvatarUrl)
 	post.Author = *author
 	return post, nil
@@ -207,20 +210,27 @@ func (uc *ContentUsecase) getUserTimedPosts(ctx context.Context, method getUserT
 		return nil, err
 	}
 
-	if err := uc.enrichPostsAuthorsInfo(ctx, posts); err != nil {
+	filteredPosts, err := uc.enrichPostsAuthorsInfo(ctx, posts)
+	if err != nil {
 		return nil, err
 	}
 
+	cursorOf := func(p *dto.PostPreview) dto.TimedPostsCursor {
+		return dto.TimedPostsCursor{
+			PublishedOrUpdatedAt: *p.PublishedOrUpdatedAt,
+			PostID:               p.ID,
+		}
+	}
+
 	page := feed.Paginate(
-		posts,
+		filteredPosts,
 		limit,
-		func(p *dto.PostPreview) dto.TimedPostsCursor {
-			return dto.TimedPostsCursor{
-				PublishedOrUpdatedAt: *p.PublishedOrUpdatedAt,
-				PostID:               p.ID,
-			}
-		},
+		cursorOf,
 	)
+	if len(posts) > limit && len(filteredPosts) <= limit {
+		next := cursorOf(posts[len(posts)-1])
+		page.Next = &next
+	}
 
 	return (*dto.TimedPostsPage)(page), nil
 }
@@ -231,21 +241,28 @@ func (uc *ContentUsecase) getUserPopularPosts(ctx context.Context, method getUse
 		return nil, err
 	}
 
-	if err := uc.enrichPostsAuthorsInfo(ctx, posts); err != nil {
+	filteredPosts, err := uc.enrichPostsAuthorsInfo(ctx, posts)
+	if err != nil {
 		return nil, err
 	}
 
+	cursorOf := func(p *dto.PostPreview) dto.PopularPostsCursor {
+		return dto.PopularPostsCursor{
+			Likes:       p.LikesCount,
+			PublishedAt: *p.PublishedOrUpdatedAt,
+			PostID:      p.ID,
+		}
+	}
+
 	page := feed.Paginate(
-		posts,
+		filteredPosts,
 		limit,
-		func(p *dto.PostPreview) dto.PopularPostsCursor {
-			return dto.PopularPostsCursor{
-				Likes:       p.LikesCount,
-				PublishedAt: *p.PublishedOrUpdatedAt,
-				PostID:      p.ID,
-			}
-		},
+		cursorOf,
 	)
+	if len(posts) > limit && len(filteredPosts) <= limit {
+		next := cursorOf(posts[len(posts)-1])
+		page.Next = &next
+	}
 
 	return (*dto.PopularPostsPage)(page), nil
 }
@@ -256,20 +273,27 @@ func (uc *ContentUsecase) getTimedPosts(ctx context.Context, method getTimedPost
 		return nil, err
 	}
 
-	if err := uc.enrichPostsAuthorsInfo(ctx, posts); err != nil {
+	filteredPosts, err := uc.enrichPostsAuthorsInfo(ctx, posts)
+	if err != nil {
 		return nil, err
 	}
 
+	cursorOf := func(p *dto.PostPreview) dto.TimedPostsCursor {
+		return dto.TimedPostsCursor{
+			PublishedOrUpdatedAt: *p.PublishedOrUpdatedAt,
+			PostID:               p.ID,
+		}
+	}
+
 	page := feed.Paginate(
-		posts,
+		filteredPosts,
 		limit,
-		func(p *dto.PostPreview) dto.TimedPostsCursor {
-			return dto.TimedPostsCursor{
-				PublishedOrUpdatedAt: *p.PublishedOrUpdatedAt,
-				PostID:               p.ID,
-			}
-		},
+		cursorOf,
 	)
+	if len(posts) > limit && len(filteredPosts) <= limit {
+		next := cursorOf(posts[len(posts)-1])
+		page.Next = &next
+	}
 
 	return (*dto.TimedPostsPage)(page), nil
 }
@@ -280,21 +304,28 @@ func (uc *ContentUsecase) getPopularPosts(ctx context.Context, method getPopular
 		return nil, err
 	}
 
-	if err := uc.enrichPostsAuthorsInfo(ctx, posts); err != nil {
+	filteredPosts, err := uc.enrichPostsAuthorsInfo(ctx, posts)
+	if err != nil {
 		return nil, err
 	}
 
+	cursorOf := func(p *dto.PostPreview) dto.PopularPostsCursor {
+		return dto.PopularPostsCursor{
+			Likes:       p.LikesCount,
+			PublishedAt: *p.PublishedOrUpdatedAt,
+			PostID:      p.ID,
+		}
+	}
+
 	page := feed.Paginate(
-		posts,
+		filteredPosts,
 		limit,
-		func(p *dto.PostPreview) dto.PopularPostsCursor {
-			return dto.PopularPostsCursor{
-				Likes:       p.LikesCount,
-				PublishedAt: *p.PublishedOrUpdatedAt,
-				PostID:      p.ID,
-			}
-		},
+		cursorOf,
 	)
+	if len(posts) > limit && len(filteredPosts) <= limit {
+		next := cursorOf(posts[len(posts)-1])
+		page.Next = &next
+	}
 
 	return (*dto.PopularPostsPage)(page), nil
 }
@@ -370,24 +401,29 @@ func (uc *ContentUsecase) sanitizeBody(body string) (string, error) {
 	return clean, nil
 }
 
-func (uc *ContentUsecase) enrichPostsAuthorsInfo(ctx context.Context, posts []*dto.PostPreview) error {
+func (uc *ContentUsecase) enrichPostsAuthorsInfo(ctx context.Context, posts []*dto.PostPreview) ([]*dto.PostPreview, error) {
 	if len(posts) == 0 {
-		return nil
+		return []*dto.PostPreview{}, nil
 	}
 
 	authorIDs := make([]uuid.UUID, 0, len(posts))
+	filteredPosts := make([]*dto.PostPreview, 0, len(posts))
 	seen := make(map[uuid.UUID]struct{}, len(posts))
 
 	for _, post := range posts {
 		if post == nil {
-			return fmt.Errorf("enrich posts authors: nil post")
+			uc.logger.WarnContext(ctx, "enrich posts authors: nil post")
+			continue
 		}
 
 		authorID := post.Author.ID
 
 		if authorID == uuid.Nil {
-			return fmt.Errorf("enrich posts authors: empty author ID for post %s", post.ID)
+			uc.logger.WarnContext(ctx, "enrich posts authors: empty author ID", "post_id", post.ID)
+			continue
 		}
+
+		filteredPosts = append(filteredPosts, post)
 
 		if _, exists := seen[authorID]; exists {
 			continue
@@ -399,19 +435,22 @@ func (uc *ContentUsecase) enrichPostsAuthorsInfo(ctx context.Context, posts []*d
 
 	authors, err := uc.getPostAuthorsInfo(ctx, authorIDs...)
 	if err != nil {
-		return fmt.Errorf("enrich posts authors: %w", err)
+		return nil, fmt.Errorf("enrich posts authors: %w", err)
 	}
 
-	for _, post := range posts {
+	result := make([]*dto.PostPreview, 0, len(filteredPosts))
+	for _, post := range filteredPosts {
 		author, ok := authors[post.Author.ID]
 		if !ok {
-			return fmt.Errorf("%w: author %s not found", ErrNotFound, post.Author.ID)
+			uc.logger.WarnContext(ctx, "enrich posts authors: author not found", "author_id", post.Author.ID)
+			continue
 		}
 
 		post.Author = *author
+		result = append(result, post)
 	}
 
-	return nil
+	return result, nil
 }
 
 func (uc *ContentUsecase) getPostAuthorsInfo(ctx context.Context, ids ...uuid.UUID) (map[uuid.UUID]*dto.AuthorResponse, error) {
@@ -428,7 +467,7 @@ func (uc *ContentUsecase) getPostAuthorsInfo(ctx context.Context, ids ...uuid.UU
 	for _, id := range ids {
 		user, ok := users[id]
 		if !ok {
-			return nil, fmt.Errorf("%w: author user %s not found", ErrNotFound, id)
+			continue
 		}
 
 		result[id] = &dto.AuthorResponse{
@@ -451,12 +490,15 @@ func (uc *ContentUsecase) getAuthorIDByUsername(ctx context.Context, username st
 		if errors.Is(err, identitycontracts.ErrUserNotFound) {
 			return uuid.Nil, fmt.Errorf("get user by username: %w", ErrNotFound)
 		}
+		if errors.Is(err, identitycontracts.ErrInvalidUsername) {
+			return uuid.Nil, fmt.Errorf("get user by username: %w", ErrValidation)
+		}
 
 		return uuid.Nil, fmt.Errorf("get user by username: %w", err)
 	}
 
 	if user.ID == uuid.Nil {
-		return uuid.Nil, fmt.Errorf("get user by username: identity returned empty user ID")
+		return uuid.Nil, fmt.Errorf("get user by username: identity returned empty user ID for username %s", username)
 	}
 
 	return user.ID, nil

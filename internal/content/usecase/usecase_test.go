@@ -194,6 +194,64 @@ func TestContentUsecase_ListPosts_Pagination(t *testing.T) {
 	}
 }
 
+func TestContentUsecase_ListPosts_FilteredPostsContinuePagination(t *testing.T) {
+	t.Parallel()
+
+	for _, m := range listMethods() {
+		for _, allFiltered := range []bool{false, true} {
+			name := "some filtered"
+			if allFiltered {
+				name = "all filtered"
+			}
+
+			t.Run(m.name+"/"+name, func(t *testing.T) {
+				t.Parallel()
+
+				repo := mock_content_usecase.NewMockRepository(t)
+				identity := mock_content_usecase.NewMockIdentityClient(t)
+				items := previews(pageLimit + 1)
+				missingAuthorID := uuid.New()
+				for i := range items {
+					if allFiltered || i == len(items)-1 {
+						items[i].Author.ID = missingAuthorID
+					}
+				}
+
+				m.expect(repo, &postUserID, items, nil)
+				if m.lookupAuthor {
+					identity.EXPECT().
+						GetUserByUsername(mock.Anything, authorUsername).
+						Return(identityUser(postAuthorIDForItems(items)), nil).
+						Once()
+				}
+
+				users := map[uuid.UUID]*identitycontracts.UserInfo{}
+				authorIDs := []uuid.UUID{postAuthorID, missingAuthorID}
+				if allFiltered {
+					authorIDs = []uuid.UUID{missingAuthorID}
+				} else {
+					users[postAuthorID] = identityUser(postAuthorID)
+				}
+				identity.EXPECT().
+					GetUsers(mock.Anything, authorIDs).
+					Return(users, nil).
+					Once()
+
+				uc := newTestContentUsecase(repo, identity)
+				got, err := m.call(uc, &postUserID)
+
+				require.NoError(t, err)
+				if allFiltered {
+					require.Empty(t, got.items)
+				} else {
+					require.Equal(t, enrichedPreviews(items[:pageLimit]), got.items)
+				}
+				require.Equal(t, m.nextCursor(items[len(items)-1]), got.next)
+			})
+		}
+	}
+}
+
 func TestContentUsecase_ListPosts_Anonymous(t *testing.T) {
 	t.Parallel()
 
@@ -593,5 +651,5 @@ func newTestContentUsecase(repo postusecase.Repository, identities ...postusecas
 		identity = identities[0]
 	}
 
-	return postusecase.New(repo, identity, s, testutils.SetupValidator(), "/media")
+	return postusecase.New(repo, identity, s, testutils.SetupValidator(), "/media", testutils.SetupLogger())
 }

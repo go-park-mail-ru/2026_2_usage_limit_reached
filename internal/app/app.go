@@ -39,7 +39,7 @@ func Run(configPath string) error {
 	}
 	defer identityConn.Close()
 
-	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout)
+	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout, appLogger)
 
 	postgresClient, err := postgres.NewClient(cfg.Postgres)
 	if err != nil {

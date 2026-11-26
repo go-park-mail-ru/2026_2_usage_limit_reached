@@ -24,7 +24,7 @@ func newRouter(t *testing.T) (*mux.Router, *mock_delivery_http.MockContentUsecas
 	uc := mock_delivery_http.NewMockContentUsecase(t)
 	postHandler := handlers.NewPostHandler(uc, testutils.SetupValidator(), testutils.SetupLogger())
 	router := mux.NewRouter()
-	httprouter.RegisterRoutes(router, router, httprouter.Handlers{
+	httprouter.RegisterRoutes(router, router, httprouter.Router{
 		Post: postHandler,
 	})
 	return router, uc

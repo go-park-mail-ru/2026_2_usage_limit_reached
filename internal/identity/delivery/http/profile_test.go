@@ -54,7 +54,7 @@ func newRouter(t *testing.T, uc handlers.IdentityUsecase, userID uuid.UUID) *mux
 	private := router.NewRoute().Subrouter()
 	private.Use(middleware.AuthMiddleware(staticVerifier{userID: userID}))
 
-	httprouter.RegisterRoutes(public, private, httprouter.Handlers{
+	httprouter.RegisterRoutes(public, private, httprouter.Router{
 		Auth:    authHandler,
 		Profile: profileHandler,
 		CSRF:    csrfHandler,

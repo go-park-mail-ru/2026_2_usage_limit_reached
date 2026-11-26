@@ -74,7 +74,7 @@ func Run(configPath string) error {
 	private := router.NewRoute().Subrouter()
 	private.Use(middleware.AuthMiddleware(identityClient), middleware.CSRFMiddleware(csrfManager))
 
-	httprouter.RegisterRoutes(public, private, httprouter.Handlers{
+	httprouter.RegisterRoutes(public, private, httprouter.Router{
 		Post: contenthttp.NewPostHandler(contentUc, valid, appLogger),
 	})
 

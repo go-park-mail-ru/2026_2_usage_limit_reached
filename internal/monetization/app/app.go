@@ -74,7 +74,7 @@ func Run(configPath string) error {
 	private := router.NewRoute().Subrouter()
 	private.Use(middleware.AuthMiddleware(identityClient), middleware.CSRFMiddleware(csrfManager))
 
-	httprouter.RegisterRoutes(private, httprouter.Handlers{
+	httprouter.RegisterRoutes(private, httprouter.Router{
 		Donation: monetizationhttp.NewDonationHandler(monetizationUc, valid, appLogger),
 	})
 

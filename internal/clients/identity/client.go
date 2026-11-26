@@ -113,7 +113,7 @@ func (c *Client) GetUserByUsername(ctx context.Context, username string) (*ident
 }
 
 func (c *Client) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*identitycontracts.UserInfo, error) {
-	requestIDs := toProtoIDs(ids)
+	requestIDs := UUIDstoUniqStrings(ids)
 
 	result := make(map[uuid.UUID]*identitycontracts.UserInfo, len(requestIDs))
 	if len(requestIDs) == 0 {
@@ -167,7 +167,7 @@ func (c *Client) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*
 	return result, nil
 }
 
-func toProtoIDs(ids []uuid.UUID) []string {
+func UUIDstoUniqStrings(ids []uuid.UUID) []string {
 	seen := make(map[uuid.UUID]struct{}, len(ids))
 	result := make([]string, 0, len(ids))
 

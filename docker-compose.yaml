@@ -63,7 +63,7 @@ services:
       seaweedfs:
         condition: service_healthy
     volumes:
-      - ./configs/prod.yaml:/etc/app/config.yaml:ro
+      - ./configs/identity.yaml:/etc/app/config.yaml:ro
     restart: unless-stopped
   
   content:
@@ -81,7 +81,7 @@ services:
       seaweedfs:
         condition: service_healthy
     volumes:
-      - ./configs/prod.yaml:/etc/app/config.yaml:ro
+      - ./configs/content.yaml:/etc/app/config.yaml:ro
     restart: unless-stopped
 
   app:

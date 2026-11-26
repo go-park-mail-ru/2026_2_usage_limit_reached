@@ -4,8 +4,12 @@ content:
     read_header_timeout: 5s
     shutdown_timeout: 5s
 
+identity:
+  address: identity:50051
+  timeout: 1s
+
 postgres:
-  host: 127.0.0.1
+  host: db
   port: 5432
   user: patreon
   password: database_password
@@ -17,7 +21,7 @@ postgres:
   max_conn_idle_time: 30m
 
 s3:
-  endpoint: http://127.0.0.1:8333
+  endpoint: http://seaweedfs:8333
   access_key: s3_access_key
   secret_key: s3_secret_key
   bucket: media

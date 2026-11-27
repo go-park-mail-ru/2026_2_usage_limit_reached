@@ -10,7 +10,6 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/models"
 	identitycontracts "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/contracts/identity"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/feed"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/mediaurl"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
 	"github.com/google/uuid"
 )
@@ -57,7 +56,6 @@ func (uc *ContentUsecase) GetPost(ctx context.Context, userID *uuid.UUID, postID
 	if !ok {
 		return nil, fmt.Errorf("%w: author user %s not found", ErrNotFound, post.Author.ID)
 	}
-	author.AvatarUrl = mediaurl.PublicPtr(uc.avatarBasePath, author.AvatarUrl)
 	post.Author = *author
 	return post, nil
 }
@@ -471,13 +469,10 @@ func (uc *ContentUsecase) getPostAuthorsInfo(ctx context.Context, ids ...uuid.UU
 		}
 
 		result[id] = &dto.AuthorResponse{
-			ID:       user.ID,
-			Username: user.Username,
-			Nickname: user.Nickname,
-			AvatarUrl: mediaurl.PublicPtr(
-				uc.avatarBasePath,
-				emptyStringToNil(user.AvatarURL),
-			),
+			ID:        user.ID,
+			Username:  user.Username,
+			Nickname:  user.Nickname,
+			AvatarUrl: emptyStringToNil(user.AvatarURL),
 		}
 	}
 

@@ -31,10 +31,16 @@ func (uc *ContentUsecase) CreatePost(ctx context.Context, userID *uuid.UUID, p d
 		return uuid.Nil, fmt.Errorf("%s: %w", "create post", err)
 	}
 
+	attachments, err := uc.extractAttachmentIDs(body)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("%s: %w", "create post", err)
+	}
+
 	post := models.Post{
-		Title:  p.Title,
-		Body:   body,
-		Status: p.Status,
+		Title:       p.Title,
+		Body:        body,
+		Status:      p.Status,
+		Attachments: attachments,
 	}
 	postID, err := uc.repo.CreatePost(ctx, userID, post)
 	if err != nil {
@@ -57,6 +63,8 @@ func (uc *ContentUsecase) GetPost(ctx context.Context, userID *uuid.UUID, postID
 		return nil, fmt.Errorf("%w: author user %s not found", ErrNotFound, post.Author.ID)
 	}
 	post.Author = *author
+	applyAttachmentURLs(post.Attachments)
+
 	return post, nil
 }
 
@@ -338,15 +346,24 @@ func (uc *ContentUsecase) UpdatePost(ctx context.Context, userID *uuid.UUID, pos
 		return fmt.Errorf("%s: %w", "update post", err)
 	}
 
-	post := models.Post{
-		ID:     postID,
-		Title:  p.Title,
-		Body:   body,
-		Status: p.Status,
+	attachments, err := uc.extractAttachmentIDs(body)
+	if err != nil {
+		return fmt.Errorf("%s: %w", "update post", err)
 	}
-	if err := uc.repo.UpdatePost(ctx, userID, post, lastUpdatedAt); err != nil {
+
+	post := models.Post{
+		ID:          postID,
+		Title:       p.Title,
+		Body:        body,
+		Status:      p.Status,
+		Attachments: attachments,
+	}
+	keys, err := uc.repo.UpdatePost(ctx, userID, post, lastUpdatedAt)
+	if err != nil {
 		return mapRepoError("update post", err)
 	}
+	uc.deleteDetachedMedia(ctx, keys)
+
 	return nil
 }
 
@@ -354,9 +371,12 @@ func (uc *ContentUsecase) DeletePost(ctx context.Context, userID *uuid.UUID, pos
 	if userID == nil {
 		return fmt.Errorf("%s: %w", "delete post (unauthorized)", ErrUnauthorized)
 	}
-	if err := uc.repo.DeletePost(ctx, userID, postID); err != nil {
+	keys, err := uc.repo.DeletePost(ctx, userID, postID)
+	if err != nil {
 		return mapRepoError("delete post", err)
 	}
+	uc.deleteDetachedMedia(ctx, keys)
+
 	return nil
 }
 
@@ -397,6 +417,27 @@ func (uc *ContentUsecase) sanitizeBody(body string) (string, error) {
 	}
 
 	return clean, nil
+}
+
+// extractAttachmentIDs вынимает id вложений из маркеров санитизированного body
+func (uc *ContentUsecase) extractAttachmentIDs(body string) ([]uuid.UUID, error) {
+	attachments, err := uc.sanitizer.AttachmentIDs(body)
+	if err != nil {
+		return nil, fmt.Errorf("extract attachments: %w: %w", ErrValidation, err)
+	}
+
+	if len(attachments) > uc.attLimits.MaxPostAttachments() {
+		return nil, fmt.Errorf("extract attachments: %w: too many attachments", ErrValidation)
+	}
+
+	return attachments, nil
+}
+
+// applyAttachmentURLs проставляет вложениям маршрут выдачи файла
+func applyAttachmentURLs(attachments []*dto.Attachment) {
+	for _, attachment := range attachments {
+		attachment.URL = attachmentURLPrefix + "/" + attachment.ID.String()
+	}
 }
 
 func (uc *ContentUsecase) enrichPostsAuthorsInfo(ctx context.Context, posts []*dto.PostPreview) ([]*dto.PostPreview, error) {

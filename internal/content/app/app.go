@@ -18,6 +18,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/logger"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/middleware"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/s3"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/sanitizer"
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/errgroup"
@@ -50,6 +51,11 @@ func Run(configPath string) error {
 		return fmt.Errorf("sanitizer initialization error: %w", err)
 	}
 
+	s3Client, err := s3.NewClient(cfg.S3)
+	if err != nil {
+		return fmt.Errorf("s3 client initialization error: %w", err)
+	}
+
 	identityConn, err := grpc.NewClient(cfg.Identity.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("identity client initialization error: %w", err)
@@ -57,7 +63,7 @@ func Run(configPath string) error {
 	defer identityConn.Close()
 
 	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout, appLogger)
-	contentUc := contentuc.New(postRepo, identityClient, postSanitizer, valid, cfg.S3.PublicPath, appLogger)
+	contentUc := contentuc.New(postRepo, identityClient, postSanitizer, valid, cfg.S3.PublicPath, valid, s3Client, appLogger)
 
 	csrfManager := csrf.NewManager(cfg.CSRF)
 
@@ -75,7 +81,8 @@ func Run(configPath string) error {
 	private.Use(middleware.AuthMiddleware(identityClient), middleware.CSRFMiddleware(csrfManager))
 
 	httprouter.RegisterRoutes(public, private, httprouter.Handlers{
-		Post: contenthttp.NewPostHandler(contentUc, valid, appLogger),
+		Post:        contenthttp.NewPostHandler(contentUc, valid, appLogger),
+		Attachments: contenthttp.NewAttachmentsHandler(contentUc, valid, appLogger),
 	})
 
 	httpSrv, err := httpserver.New(cfg.Content.HTTP, appLogger)

@@ -29,6 +29,7 @@ var repoErrors = []struct{ from, to error }{
 	{models.ErrUnauthorized, ErrUnauthorized},
 	{models.ErrPostValidation, ErrValidation},
 	{models.ErrPostConflict, ErrConflict},
+	{models.ErrMediaNotFound, ErrNotFound},
 }
 
 func mapRepoError(op string, err error) error {
@@ -54,8 +55,12 @@ type Repository interface {
 	GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
 	GetUserOldPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
 	GetUserPopularPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
-	UpdatePost(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) error
-	DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error
+	UpdatePost(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) ([]string, error)
+	DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) ([]string, error)
+
+	CreateMedia(ctx context.Context, m models.Media) (models.Media, error)
+	CountPendingMedia(ctx context.Context, authorID uuid.UUID) (int64, error)
+	GetMediaForAccess(ctx context.Context, userID *uuid.UUID, mediaID uuid.UUID) (models.Media, error)
 
 	LikePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error)
 	DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error)
@@ -71,15 +76,45 @@ type SanitizedBodyValidator interface {
 	IsValidSanitizedPostBody(raw, sanitized string) bool
 }
 
+// Лимиты вложений. Интерфейс определён здесь, чтобы usecase не зависел от пакета validator целиком
+type AttachmentLimiter interface {
+	MaxImageSize() int64
+	MaxVideoSize() int64
+	MaxAudioSize() int64
+	MaxFileSize() int64
+	MaxPostAttachments() int
+	MaxPendingMedia() int
+}
+
 type ContentUsecase struct {
 	repo           Repository
 	identity       IdentityClient
 	sanitizer      *sanitizer.Sanitizer
 	bodyCheck      SanitizedBodyValidator
+	attLimits      AttachmentLimiter
+	media          MediaStorage
 	avatarBasePath string
 	logger         *slog.Logger
 }
 
-func New(r Repository, ic IdentityClient, s *sanitizer.Sanitizer, v SanitizedBodyValidator, abp string, logger *slog.Logger) *ContentUsecase {
-	return &ContentUsecase{repo: r, identity: ic, sanitizer: s, bodyCheck: v, avatarBasePath: abp, logger: logger}
+func New(
+	r Repository,
+	ic IdentityClient,
+	s *sanitizer.Sanitizer,
+	v SanitizedBodyValidator,
+	abp string,
+	limits AttachmentLimiter,
+	media MediaStorage,
+	logger *slog.Logger,
+) *ContentUsecase {
+	return &ContentUsecase{
+		repo:           r,
+		identity:       ic,
+		sanitizer:      s,
+		bodyCheck:      v,
+		attLimits:      limits,
+		media:          media,
+		avatarBasePath: abp,
+		logger:         logger,
+	}
 }

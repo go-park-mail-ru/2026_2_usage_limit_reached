@@ -6,9 +6,11 @@ package mock_delivery_http
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/usecase"
 	"github.com/google/uuid"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -1302,6 +1304,94 @@ func (_c *MockContentUsecase_LikePost_Call) RunAndReturn(run func(ctx context.Co
 	return _c
 }
 
+// OpenAttachment provides a mock function for the type MockContentUsecase
+func (_mock *MockContentUsecase) OpenAttachment(ctx context.Context, userID *uuid.UUID, id uuid.UUID, rng *usecase.AttachmentRange) (*dto.Attachment, io.ReadCloser, error) {
+	ret := _mock.Called(ctx, userID, id, rng)
+
+	if len(ret) == 0 {
+		panic("no return value specified for OpenAttachment")
+	}
+
+	var r0 *dto.Attachment
+	var r1 io.ReadCloser
+	var r2 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, uuid.UUID, *usecase.AttachmentRange) (*dto.Attachment, io.ReadCloser, error)); ok {
+		return returnFunc(ctx, userID, id, rng)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, uuid.UUID, *usecase.AttachmentRange) *dto.Attachment); ok {
+		r0 = returnFunc(ctx, userID, id, rng)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dto.Attachment)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, uuid.UUID, *usecase.AttachmentRange) io.ReadCloser); ok {
+		r1 = returnFunc(ctx, userID, id, rng)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(io.ReadCloser)
+		}
+	}
+	if returnFunc, ok := ret.Get(2).(func(context.Context, *uuid.UUID, uuid.UUID, *usecase.AttachmentRange) error); ok {
+		r2 = returnFunc(ctx, userID, id, rng)
+	} else {
+		r2 = ret.Error(2)
+	}
+	return r0, r1, r2
+}
+
+// MockContentUsecase_OpenAttachment_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'OpenAttachment'
+type MockContentUsecase_OpenAttachment_Call struct {
+	*mock.Call
+}
+
+// OpenAttachment is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID *uuid.UUID
+//   - id uuid.UUID
+//   - rng *usecase.AttachmentRange
+func (_e *MockContentUsecase_Expecter) OpenAttachment(ctx any, userID any, id any, rng any) *MockContentUsecase_OpenAttachment_Call {
+	return &MockContentUsecase_OpenAttachment_Call{Call: _e.mock.On("OpenAttachment", ctx, userID, id, rng)}
+}
+
+func (_c *MockContentUsecase_OpenAttachment_Call) Run(run func(ctx context.Context, userID *uuid.UUID, id uuid.UUID, rng *usecase.AttachmentRange)) *MockContentUsecase_OpenAttachment_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(*uuid.UUID)
+		}
+		var arg2 uuid.UUID
+		if args[2] != nil {
+			arg2 = args[2].(uuid.UUID)
+		}
+		var arg3 *usecase.AttachmentRange
+		if args[3] != nil {
+			arg3 = args[3].(*usecase.AttachmentRange)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockContentUsecase_OpenAttachment_Call) Return(attachment *dto.Attachment, readCloser io.ReadCloser, err error) *MockContentUsecase_OpenAttachment_Call {
+	_c.Call.Return(attachment, readCloser, err)
+	return _c
+}
+
+func (_c *MockContentUsecase_OpenAttachment_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, id uuid.UUID, rng *usecase.AttachmentRange) (*dto.Attachment, io.ReadCloser, error)) *MockContentUsecase_OpenAttachment_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdatePost provides a mock function for the type MockContentUsecase
 func (_mock *MockContentUsecase) UpdatePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID, p dto.PostRequest, lastUpdatedAt time.Time) error {
 	ret := _mock.Called(ctx, userID, postID, p, lastUpdatedAt)
@@ -1373,6 +1463,92 @@ func (_c *MockContentUsecase_UpdatePost_Call) Return(err error) *MockContentUsec
 }
 
 func (_c *MockContentUsecase_UpdatePost_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, postID uuid.UUID, p dto.PostRequest, lastUpdatedAt time.Time) error) *MockContentUsecase_UpdatePost_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UploadAttachment provides a mock function for the type MockContentUsecase
+func (_mock *MockContentUsecase) UploadAttachment(ctx context.Context, userID *uuid.UUID, file io.ReadSeeker, size int64, filename string) (*dto.Attachment, error) {
+	ret := _mock.Called(ctx, userID, file, size, filename)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UploadAttachment")
+	}
+
+	var r0 *dto.Attachment
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, io.ReadSeeker, int64, string) (*dto.Attachment, error)); ok {
+		return returnFunc(ctx, userID, file, size, filename)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, io.ReadSeeker, int64, string) *dto.Attachment); ok {
+		r0 = returnFunc(ctx, userID, file, size, filename)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dto.Attachment)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, io.ReadSeeker, int64, string) error); ok {
+		r1 = returnFunc(ctx, userID, file, size, filename)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockContentUsecase_UploadAttachment_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UploadAttachment'
+type MockContentUsecase_UploadAttachment_Call struct {
+	*mock.Call
+}
+
+// UploadAttachment is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID *uuid.UUID
+//   - file io.ReadSeeker
+//   - size int64
+//   - filename string
+func (_e *MockContentUsecase_Expecter) UploadAttachment(ctx any, userID any, file any, size any, filename any) *MockContentUsecase_UploadAttachment_Call {
+	return &MockContentUsecase_UploadAttachment_Call{Call: _e.mock.On("UploadAttachment", ctx, userID, file, size, filename)}
+}
+
+func (_c *MockContentUsecase_UploadAttachment_Call) Run(run func(ctx context.Context, userID *uuid.UUID, file io.ReadSeeker, size int64, filename string)) *MockContentUsecase_UploadAttachment_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(*uuid.UUID)
+		}
+		var arg2 io.ReadSeeker
+		if args[2] != nil {
+			arg2 = args[2].(io.ReadSeeker)
+		}
+		var arg3 int64
+		if args[3] != nil {
+			arg3 = args[3].(int64)
+		}
+		var arg4 string
+		if args[4] != nil {
+			arg4 = args[4].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+			arg4,
+		)
+	})
+	return _c
+}
+
+func (_c *MockContentUsecase_UploadAttachment_Call) Return(attachment *dto.Attachment, err error) *MockContentUsecase_UploadAttachment_Call {
+	_c.Call.Return(attachment, err)
+	return _c
+}
+
+func (_c *MockContentUsecase_UploadAttachment_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, file io.ReadSeeker, size int64, filename string) (*dto.Attachment, error)) *MockContentUsecase_UploadAttachment_Call {
 	_c.Call.Return(run)
 	return _c
 }

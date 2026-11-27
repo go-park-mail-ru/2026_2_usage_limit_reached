@@ -47,6 +47,23 @@ var (
 	likeIDColumn        = []string{"id"}
 	likesCountColumn    = []string{"likes_count"}
 	createdPostIDColumn = []string{"id"}
+	mediaIDColumn       = []string{"id"}
+	countColumn         = []string{"count"}
+	mediaKeyColumn      = []string{"media_key"}
+	attachmentColumns   = []string{"id", "media_type", "mime_type", "filename", "size_bytes"}
+	mediaColumns        = []string{"id", "author_id", "media_type", "mime_type", "media_key", "filename", "size_bytes"}
+
+	postTxOptions = pgx.TxOptions{IsoLevel: pgx.ReadCommitted}
+
+	countOwnedMediaMatch   = testutils.SQLInOrder("SELECT count(DISTINCT id) FROM media", "AND author_id = $2")
+	insertPostBlockMatch   = testutils.SQLInOrder("INSERT INTO post_block (post_id, media_id, position)", "FROM unnest($2::uuid[]) WITH ORDINALITY")
+	selectPostMediaQuery   = testutils.SQLInOrder("SELECT DISTINCT media_id FROM post_block WHERE post_id = $1")
+	deletePostBlocksQuery  = testutils.SQLInOrder("DELETE FROM post_block WHERE post_id = $1")
+	deleteDetachedQuery    = testutils.SQLInOrder("DELETE FROM media m", "NOT EXISTS (SELECT 1 FROM post_block pb", "RETURNING m.media_key")
+	postAttachmentsMatch   = testutils.SQLInOrder("FROM post_block pb", "JOIN media m ON m.id = pb.media_id", "ORDER BY pb.position")
+	createMediaQuery       = testutils.SQLInOrder("INSERT INTO media (author_id, media_type, mime_type, media_key, filename, size_bytes)", "RETURNING id")
+	countPendingMediaQuery = testutils.SQLInOrder("SELECT count(*)", "FROM media m", "NOT EXISTS (SELECT 1 FROM post_block pb")
+	getMediaQuery          = testutils.SQLInOrder("SELECT m.id, m.author_id, m.media_type", "m.media_key", "m.author_id = $2")
 )
 
 func previews() []*dto.PostPreview {
@@ -172,13 +189,67 @@ func TestRepository_CreatePost_Success(t *testing.T) {
 
 	post := models.Post{Title: "Мой первый пост", Body: "Текст поста", Status: "published"}
 	repo, pool := newRepository(t)
+	pool.ExpectBeginTx(postTxOptions)
 	pool.ExpectQuery(createPostQuery).WithArgs(&postUserID, post.Title, post.Body, post.Status).
 		WillReturnRows(pgxmock.NewRows(createdPostIDColumn).AddRow(postID))
+	testutils.ExpectTxCommitted(pool)
 
 	got, err := repo.CreatePost(context.Background(), &postUserID, post)
 
 	require.NoError(t, err)
 	require.Equal(t, postID, got)
+}
+
+func TestRepository_CreatePost_WithAttachments(t *testing.T) {
+	t.Parallel()
+
+	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000301")
+	post := models.Post{
+		Title:       "Мой первый пост",
+		Body:        "Текст поста",
+		Status:      "draft",
+		Attachments: []uuid.UUID{mediaID},
+	}
+
+	repo, pool := newRepository(t)
+	pool.ExpectBeginTx(postTxOptions)
+	pool.ExpectQuery(createPostQuery).WithArgs(&postUserID, post.Title, post.Body, post.Status).
+		WillReturnRows(pgxmock.NewRows(createdPostIDColumn).AddRow(postID))
+	pool.ExpectQuery(countOwnedMediaMatch).WithArgs([]uuid.UUID{mediaID}, postUserID).
+		WillReturnRows(pgxmock.NewRows(countColumn).AddRow(int64(1)))
+	pool.ExpectExec(insertPostBlockMatch).WithArgs(postID, []uuid.UUID{mediaID}).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	testutils.ExpectTxCommitted(pool)
+
+	got, err := repo.CreatePost(context.Background(), &postUserID, post)
+
+	require.NoError(t, err)
+	require.Equal(t, postID, got)
+}
+
+func TestRepository_CreatePost_ForeignMedia(t *testing.T) {
+	t.Parallel()
+
+	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000301")
+	post := models.Post{
+		Title:       "Мой первый пост",
+		Body:        "Текст поста",
+		Status:      "draft",
+		Attachments: []uuid.UUID{mediaID},
+	}
+
+	repo, pool := newRepository(t)
+	pool.ExpectBeginTx(postTxOptions)
+	pool.ExpectQuery(createPostQuery).WithArgs(&postUserID, post.Title, post.Body, post.Status).
+		WillReturnRows(pgxmock.NewRows(createdPostIDColumn).AddRow(postID))
+	pool.ExpectQuery(countOwnedMediaMatch).WithArgs([]uuid.UUID{mediaID}, postUserID).
+		WillReturnRows(pgxmock.NewRows(countColumn).AddRow(int64(0)))
+	testutils.ExpectTxRolledBack(pool)
+
+	got, err := repo.CreatePost(context.Background(), &postUserID, post)
+
+	require.Equal(t, uuid.Nil, got)
+	require.ErrorIs(t, err, models.ErrPostValidation)
 }
 
 func TestRepository_CreatePost_Errors(t *testing.T) {
@@ -199,7 +270,9 @@ func TestRepository_CreatePost_Errors(t *testing.T) {
 
 			post := models.Post{Title: "Мой первый пост", Body: "Текст поста", Status: "draft"}
 			repo, pool := newRepository(t)
+			pool.ExpectBeginTx(postTxOptions)
 			pool.ExpectQuery(createPostQuery).WithArgs(&postUserID, post.Title, post.Body, post.Status).WillReturnError(tt.dbErr)
+			testutils.ExpectTxRolledBack(pool)
 
 			got, err := repo.CreatePost(context.Background(), &postUserID, post)
 
@@ -222,6 +295,7 @@ func TestRepository_GetPost(t *testing.T) {
 		UpdatedAt:   postTime,
 		Locked:      true,
 		LikesCount:  3,
+		Attachments: []*dto.Attachment{},
 	}
 
 	postRow := []any{
@@ -353,9 +427,18 @@ func TestRepository_UpdatePost(t *testing.T) {
 	t.Parallel()
 
 	post := models.Post{ID: postID, Title: "Новый заголовок", Body: "Новый текст", Status: "published"}
+	updateAttempt := func(pool pgxmock.PgxPoolIface) *pgxmock.ExpectedExec {
+		return pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime)
+	}
+	updated := func(pool pgxmock.PgxPoolIface) {
+		updateAttempt(pool).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	}
+	noPreviousMedia := func(pool pgxmock.PgxPoolIface) {
+		pool.ExpectQuery(selectPostMediaQuery).WithArgs(post.ID).WillReturnRows(pgxmock.NewRows(mediaIDColumn))
+		pool.ExpectExec(deletePostBlocksQuery).WithArgs(post.ID).WillReturnResult(pgxmock.NewResult("DELETE", 0))
+	}
 	notUpdated := func(pool pgxmock.PgxPoolIface) {
-		pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime).
-			WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+		updateAttempt(pool).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 	}
 	currentVersion := func(pool pgxmock.PgxPoolIface, authorID uuid.UUID, updatedAt time.Time) {
 		notUpdated(pool)
@@ -370,23 +453,21 @@ func TestRepository_UpdatePost(t *testing.T) {
 		{
 			name: "actual version",
 			expect: func(pool pgxmock.PgxPoolIface) {
-				pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime).
-					WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+				updated(pool)
+				noPreviousMedia(pool)
 			},
 		},
 		{
 			name: "check constraint",
 			expect: func(pool pgxmock.PgxPoolIface) {
-				pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime).
-					WillReturnError(testutils.PgError("23514"))
+				updateAttempt(pool).WillReturnError(testutils.PgError("23514"))
 			},
 			wantErr: models.ErrPostValidation,
 		},
 		{
 			name: "update storage failure",
 			expect: func(pool pgxmock.PgxPoolIface) {
-				pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime).
-					WillReturnError(technicalErr)
+				updateAttempt(pool).WillReturnError(technicalErr)
 			},
 			wantErr: technicalErr,
 		},
@@ -427,18 +508,63 @@ func TestRepository_UpdatePost(t *testing.T) {
 			t.Parallel()
 
 			repo, pool := newRepository(t)
+			pool.ExpectBeginTx(postTxOptions)
 			tt.expect(pool)
+			if tt.wantErr != nil {
+				testutils.ExpectTxRolledBack(pool)
+			} else {
+				testutils.ExpectTxCommitted(pool)
+			}
 
-			err := repo.UpdatePost(context.Background(), &postUserID, post, postTime)
+			keys, err := repo.UpdatePost(context.Background(), &postUserID, post, postTime)
 
 			if tt.wantErr != nil {
+				require.Nil(t, keys)
 				require.ErrorIs(t, err, tt.wantErr)
 
 				return
 			}
 			require.NoError(t, err)
+			require.Equal(t, []string{}, keys)
 		})
 	}
+}
+
+func TestRepository_UpdatePost_RebuildsAttachments(t *testing.T) {
+	t.Parallel()
+
+	var (
+		oldMediaID = uuid.MustParse("00000000-0000-4000-8000-000000000301")
+		newMediaID = uuid.MustParse("00000000-0000-4000-8000-000000000302")
+		oldKey     = "posts/author/old.png"
+	)
+	post := models.Post{
+		ID:          postID,
+		Title:       "Новый заголовок",
+		Body:        "Новый текст",
+		Status:      "published",
+		Attachments: []uuid.UUID{newMediaID},
+	}
+
+	repo, pool := newRepository(t)
+	pool.ExpectBeginTx(postTxOptions)
+	pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	pool.ExpectQuery(countOwnedMediaMatch).WithArgs([]uuid.UUID{newMediaID}, postUserID).
+		WillReturnRows(pgxmock.NewRows(countColumn).AddRow(int64(1)))
+	pool.ExpectQuery(selectPostMediaQuery).WithArgs(post.ID).
+		WillReturnRows(pgxmock.NewRows(mediaIDColumn).AddRow(oldMediaID))
+	pool.ExpectExec(deletePostBlocksQuery).WithArgs(post.ID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	pool.ExpectExec(insertPostBlockMatch).WithArgs(post.ID, []uuid.UUID{newMediaID}).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	pool.ExpectQuery(deleteDetachedQuery).WithArgs([]uuid.UUID{oldMediaID}, postUserID).
+		WillReturnRows(pgxmock.NewRows(mediaKeyColumn).AddRow(oldKey))
+	testutils.ExpectTxCommitted(pool)
+
+	keys, err := repo.UpdatePost(context.Background(), &postUserID, post, postTime)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{oldKey}, keys)
 }
 
 func TestRepository_DeletePost(t *testing.T) {
@@ -459,6 +585,9 @@ func TestRepository_DeletePost(t *testing.T) {
 			t.Parallel()
 
 			repo, pool := newRepository(t)
+			pool.ExpectBeginTx(postTxOptions)
+			pool.ExpectQuery(selectPostMediaQuery).WithArgs(postID).WillReturnRows(pgxmock.NewRows(mediaIDColumn))
+
 			exec := pool.ExpectExec(deletePostQuery).WithArgs(postID, &postUserID)
 			if tt.dbErr != nil {
 				exec.WillReturnError(tt.dbErr)
@@ -466,16 +595,48 @@ func TestRepository_DeletePost(t *testing.T) {
 				exec.WillReturnResult(pgxmock.NewResult("DELETE", tt.deleted))
 			}
 
-			err := repo.DeletePost(context.Background(), &postUserID, postID)
+			if tt.wantErr != nil {
+				testutils.ExpectTxRolledBack(pool)
+			} else {
+				testutils.ExpectTxCommitted(pool)
+			}
+
+			keys, err := repo.DeletePost(context.Background(), &postUserID, postID)
 
 			if tt.wantErr != nil {
+				require.Nil(t, keys)
 				require.ErrorIs(t, err, tt.wantErr)
 
 				return
 			}
 			require.NoError(t, err)
+			require.Equal(t, []string{}, keys)
 		})
 	}
+}
+
+func TestRepository_DeletePost_DetachedMedia(t *testing.T) {
+	t.Parallel()
+
+	var (
+		mediaID = uuid.MustParse("00000000-0000-4000-8000-000000000301")
+		key     = "posts/author/file.pdf"
+	)
+
+	repo, pool := newRepository(t)
+	pool.ExpectBeginTx(postTxOptions)
+	pool.ExpectQuery(selectPostMediaQuery).WithArgs(postID).
+		WillReturnRows(pgxmock.NewRows(mediaIDColumn).AddRow(mediaID))
+	pool.ExpectExec(deletePostQuery).WithArgs(postID, &postUserID).
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	pool.ExpectQuery(deleteDetachedQuery).WithArgs([]uuid.UUID{mediaID}, postUserID).
+		WillReturnRows(pgxmock.NewRows(mediaKeyColumn).AddRow(key))
+	testutils.ExpectTxCommitted(pool)
+
+	keys, err := repo.DeletePost(context.Background(), &postUserID, postID)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{key}, keys)
 }
 
 func TestRepository_LikePost_Success(t *testing.T) {

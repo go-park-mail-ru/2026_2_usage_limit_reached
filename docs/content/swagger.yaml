@@ -1,5 +1,38 @@
 components:
   schemas:
+    dto.Attachment:
+      properties:
+        id:
+          example: 00000000-0000-4000-8000-000000000301
+          type: string
+        media_type:
+          $ref: '#/components/schemas/dto.AttachmentType'
+          example: image
+        mime_type:
+          example: image/jpeg
+          type: string
+        name:
+          example: Студия.jpg
+          type: string
+        size_bytes:
+          example: 430080
+          type: integer
+        url:
+          example: /attachments/00000000-0000-4000-8000-000000000301
+          type: string
+      type: object
+    dto.AttachmentType:
+      enum:
+      - image
+      - video
+      - audio
+      - file
+      type: string
+      x-enum-varnames:
+      - AttachmentTypeImage
+      - AttachmentTypeVideo
+      - AttachmentTypeAudio
+      - AttachmentTypeFile
     dto.AuthorResponse:
       properties:
         avatar_url:
@@ -81,6 +114,13 @@ components:
       type: object
     dto.PostInfo:
       properties:
+        attachments:
+          description: Attachments — вложения в порядке позиций в body; пустой срез,
+            если вложений нет или пост закрыт.
+          items:
+            $ref: '#/components/schemas/dto.Attachment'
+          type: array
+          uniqueItems: false
         author:
           $ref: '#/components/schemas/dto.AuthorResponse'
         body:
@@ -197,6 +237,143 @@ info:
   version: "1.0"
 openapi: 3.1.0
 paths:
+  /attachments:
+    post:
+      description: 'Принимает файл в поле file multipart/form-data. Файл сохраняется
+        в S3 и реестре media; ответ содержит id для маркера <figure data-attachment-id="...">.
+        Тип определяется по содержимому: изображения jpeg/png/webp до 25 МиБ; видео
+        mp4 (кодеки H.264, аудио AAC при наличии) до 1 ГиБ; аудио mp3 до 100 МиБ;
+        файлы pdf и zip-семейство (docx, pptx, xlsx, zip) до 100 МиБ. Загружать могут
+        только авторы.'
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  description: Файл вложения
+                  format: binary
+                  type: string
+              required:
+              - file
+              type: object
+        description: Файл вложения
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.Attachment'
+          description: Вложение загружено
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Запрос не multipart/form-data, нет поля file, пустое имя файла,
+            или превышен лимит непривязанных файлов
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не является автором, либо неверный CSRF-токен
+            или его отсутствие
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Файл больше лимита для своего типа
+        "415":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неподдерживаемый формат или кодек
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Загрузка вложения поста
+      tags:
+      - posts
+  /attachments/{id}:
+    get:
+      description: Отдаёт файл вложения. Файл доступен автору, а также всем, кому
+        доступен опубликованный пост с этим вложением. Для закрытых постов и непривязанных
+        файлов остальным возвращается 404. Поддерживаются Range (206) и HEAD.
+      parameters:
+      - description: ID вложения
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - description: Диапазон байт
+        in: header
+        name: Range
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/octet-stream:
+              schema:
+                type: file
+          description: Файл
+        "206":
+          content:
+            application/octet-stream:
+              schema:
+                type: file
+          description: Часть файла
+        "400":
+          content:
+            application/octet-stream:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Некорректный ID вложения
+        "404":
+          content:
+            application/octet-stream:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Вложение не найдено или недоступно
+        "416":
+          content:
+            application/octet-stream:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Диапазон вне файла
+        "500":
+          content:
+            application/octet-stream:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Выдача вложения
+      tags:
+      - posts
   /authors/{author_id}/donations:
     post:
       description: Отправляет донат указанному автору. Операция создаёт платёжную

@@ -487,7 +487,7 @@ func TestContentUsecase_UpdatePost(t *testing.T) {
 			t.Parallel()
 
 			repo := mock_content_usecase.NewMockRepository(t)
-			repo.EXPECT().UpdatePost(mock.Anything, &postUserID, updated, postTime).Return(tt.repoErr)
+			repo.EXPECT().UpdatePost(mock.Anything, &postUserID, updated, postTime).Return(nil, tt.repoErr)
 
 			uc := newTestContentUsecase(repo)
 			err := uc.UpdatePost(context.Background(), &postUserID, postID, postRequest, postTime)
@@ -530,7 +530,7 @@ func TestContentUsecase_DeletePost(t *testing.T) {
 			t.Parallel()
 
 			repo := mock_content_usecase.NewMockRepository(t)
-			repo.EXPECT().DeletePost(mock.Anything, &postUserID, postID).Return(tt.repoErr)
+			repo.EXPECT().DeletePost(mock.Anything, &postUserID, postID).Return(nil, tt.repoErr)
 
 			uc := newTestContentUsecase(repo)
 			err := uc.DeletePost(context.Background(), &postUserID, postID)
@@ -641,6 +641,14 @@ func TestContentUsecase_Likes_Anonymous(t *testing.T) {
 }
 
 func newTestContentUsecase(repo postusecase.Repository, identities ...postusecase.IdentityClient) *postusecase.ContentUsecase {
+	return newTestContentUsecaseWithMedia(repo, nil, identities...)
+}
+
+func newTestContentUsecaseWithMedia(
+	repo postusecase.Repository,
+	media postusecase.MediaStorage,
+	identities ...postusecase.IdentityClient,
+) *postusecase.ContentUsecase {
 	s, err := sanitizer.NewSanitizer(sanitizer.DefaultConfig())
 	if err != nil {
 		panic(err)
@@ -651,5 +659,14 @@ func newTestContentUsecase(repo postusecase.Repository, identities ...postusecas
 		identity = identities[0]
 	}
 
-	return postusecase.New(repo, identity, s, testutils.SetupValidator(), "/media", testutils.SetupLogger())
+	return postusecase.New(
+		repo,
+		identity,
+		s,
+		testutils.SetupValidator(),
+		"/media",
+		testutils.SetupValidator(),
+		media,
+		testutils.SetupLogger(),
+	)
 }

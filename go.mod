@@ -35,6 +35,7 @@ require (
 )
 
 require (
+	github.com/abema/go-mp4 v1.7.4 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

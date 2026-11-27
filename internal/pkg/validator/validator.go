@@ -58,6 +58,15 @@ type PostRules struct {
 	AllowedPostStatus    map[string]bool `mapstructure:"allowed_post_status"`
 }
 
+type MediaRules struct {
+	MaxImageSize       int64 `mapstructure:"max_image_size"`
+	MaxVideoSize       int64 `mapstructure:"max_video_size"`
+	MaxAudioSize       int64 `mapstructure:"max_audio_size"`
+	MaxFileSize        int64 `mapstructure:"max_file_size"`
+	MaxPostAttachments int   `mapstructure:"max_post_attachments"`
+	MaxPendingMedia    int   `mapstructure:"max_pending_media"`
+}
+
 type PaymentRules struct {
 	RequestKeyLen   int                    `mapstructure:"request_key_len"`
 	MinAmountMinor  int                    `mapstructure:"min_amount_minor"`
@@ -76,6 +85,7 @@ type ValidationConfig struct {
 	Password PasswordRules `mapstructure:"password"`
 	Email    EmailRules    `mapstructure:"email"`
 	Post     PostRules     `mapstructure:"post"`
+	Media    MediaRules    `mapstructure:"media"`
 	Payment  PaymentRules  `mapstructure:"payment"`
 	Donation DonationRules `mapstructure:"donation"`
 }
@@ -101,6 +111,14 @@ func DefaultConfig() ValidationConfig {
 			MaxSanitizedBodyLen:  200000,
 			MaxSanitizeExpansion: 10,
 			AllowedPostStatus:    map[string]bool{postPublishedStatus: true, postDraftStatus: true, postArchivedStatus: true},
+		},
+		Media: MediaRules{
+			MaxImageSize:       25 << 20, // 25 МиБ
+			MaxVideoSize:       1 << 30,  // 1 ГиБ
+			MaxAudioSize:       100 << 20,
+			MaxFileSize:        100 << 20,
+			MaxPostAttachments: 20,
+			MaxPendingMedia:    20,
 		},
 		Payment: PaymentRules{
 			RequestKeyLen:   36,
@@ -135,10 +153,27 @@ func (c ValidationConfig) Validate() error {
 		{"payment.request_key_len", c.Payment.RequestKeyLen},
 		{"payment.min_amount_minor", c.Payment.MinAmountMinor},
 		{"donation.max_message_len", c.Donation.MaxMessageLen},
+		{"media.max_post_attachments", c.Media.MaxPostAttachments},
+		{"media.max_pending_media", c.Media.MaxPendingMedia},
 	}
 	for _, p := range positive {
 		if p.value <= 0 {
 			errs = append(errs, fmt.Errorf("validator: %s must be positive, got %d", p.name, p.value))
+		}
+	}
+
+	maxSizes := []struct {
+		name  string
+		value int64
+	}{
+		{"media.max_image_size", c.Media.MaxImageSize},
+		{"media.max_video_size", c.Media.MaxVideoSize},
+		{"media.max_audio_size", c.Media.MaxAudioSize},
+		{"media.max_file_size", c.Media.MaxFileSize},
+	}
+	for _, m := range maxSizes {
+		if m.value <= 0 {
+			errs = append(errs, fmt.Errorf("validator: %s must be positive, got %d", m.name, m.value))
 		}
 	}
 
@@ -277,4 +312,28 @@ func (v Validator) IsValidPaymentCurrency(cur string) bool {
 
 func (v Validator) IsValidDonationMessage(mes string) bool {
 	return len([]rune(strings.TrimSpace(mes))) < v.cfg.Donation.MaxMessageLen
+}
+
+func (v Validator) MaxImageSize() int64 {
+	return v.cfg.Media.MaxImageSize
+}
+
+func (v Validator) MaxVideoSize() int64 {
+	return v.cfg.Media.MaxVideoSize
+}
+
+func (v Validator) MaxAudioSize() int64 {
+	return v.cfg.Media.MaxAudioSize
+}
+
+func (v Validator) MaxFileSize() int64 {
+	return v.cfg.Media.MaxFileSize
+}
+
+func (v Validator) MaxPostAttachments() int {
+	return v.cfg.Media.MaxPostAttachments
+}
+
+func (v Validator) MaxPendingMedia() int {
+	return v.cfg.Media.MaxPendingMedia
 }

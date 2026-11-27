@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 )
@@ -15,6 +16,7 @@ import (
 // — Разрешены теги: p, h3, strong, em, u, s, ul, ol, li, a, br.
 // — b заменяется на strong, i на em, del и strike на s, div на p.
 // — Все переданные атрибуты удаляются, кроме проверенного href у ссылки. То есть style, class, id, onclick и прочее не сохраняются.
+// — Тег figure разрешён только как маркер вложения с data-attachment-id (UUID); остальные атрибуты удаляются.
 // — Ссылки разрешены только с полным https-адресом. Относительные ссылки и адреса с http:, javascript:, data: не разрешены.
 // — Ссылкам добавляются target="_blank" и rel="noopener noreferrer nofollow".
 // — Если адрес ссылки недопустимый, сам тег ссылки убирается, но её текст остается.
@@ -22,7 +24,10 @@ import (
 // — У остальных неразрешенных тегов убирается сам тег, а допустимое содержимое сохраняется.
 // — HTML-комментарии удаляются. Картинки через img не поддерживаются.
 
-const linkRel = "noopener noreferrer nofollow"
+const (
+	linkRel        = "noopener noreferrer nofollow"
+	attachmentAttr = "data-attachment-id"
+)
 
 type SanitizerConfig struct {
 	AllowedTags        []string          `mapstructure:"allowed_tags"`
@@ -32,7 +37,7 @@ type SanitizerConfig struct {
 
 func DefaultConfig() SanitizerConfig {
 	return SanitizerConfig{
-		AllowedTags: []string{"p", "h3", "strong", "em", "u", "s", "ul", "ol", "li", "a", "br"},
+		AllowedTags: []string{"p", "h3", "strong", "em", "u", "s", "ul", "ol", "li", "a", "br", "figure"},
 		TagAliases: map[string]string{
 			"b": "strong", "i": "em", "del": "s", "strike": "s", "div": "p",
 		},
@@ -125,6 +130,41 @@ func (s *Sanitizer) Sanitize(input string) (string, error) {
 	return output.String(), nil
 }
 
+// AttachmentIDs возвращает id маркеров вложений (<figure data-attachment-id>)
+// в порядке их следования в разметке. Маркеры с некорректным id пропускаются.
+// Вызывается только для санитизированного body.
+func (s *Sanitizer) AttachmentIDs(input string) ([]uuid.UUID, error) {
+	nodes, err := html.ParseFragment(strings.NewReader(input), bodyContext)
+	if err != nil {
+		return nil, fmt.Errorf("parse html: %w", err)
+	}
+
+	var ids []uuid.UUID
+	for _, node := range nodes {
+		s.collectAttachmentIDs(node, &ids)
+	}
+
+	return ids, nil
+}
+
+func (s *Sanitizer) collectAttachmentIDs(node *html.Node, ids *[]uuid.UUID) {
+	if node.Type != html.ElementNode {
+		return
+	}
+
+	if node.DataAtom == atom.Figure {
+		if id, ok := attachmentID(node); ok {
+			if parsed, err := uuid.Parse(id); err == nil {
+				*ids = append(*ids, parsed)
+			}
+		}
+	}
+
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		s.collectAttachmentIDs(child, ids)
+	}
+}
+
 func HasText(input string) bool {
 	tokenizer := html.NewTokenizer(strings.NewReader(input))
 
@@ -160,7 +200,8 @@ func (s *Sanitizer) cleanNode(node *html.Node) []*html.Node {
 	}
 
 	clean := &html.Node{Type: html.ElementNode, DataAtom: tag, Data: tag.String()}
-	if tag == atom.A {
+	switch tag {
+	case atom.A:
 		href, ok := safeURL(attr(node, "href"))
 		if !ok {
 			return children
@@ -170,6 +211,12 @@ func (s *Sanitizer) cleanNode(node *html.Node) []*html.Node {
 			{Key: "target", Val: "_blank"},
 			{Key: "rel", Val: linkRel},
 		}
+	case atom.Figure:
+		id, ok := attachmentID(node)
+		if !ok {
+			return children
+		}
+		clean.Attr = []html.Attribute{{Key: attachmentAttr, Val: id}}
 	}
 
 	for _, child := range children {
@@ -186,6 +233,20 @@ func safeURL(raw string) (string, bool) {
 	}
 
 	return parsed.String(), true
+}
+
+func attachmentID(node *html.Node) (string, bool) {
+	raw := strings.TrimSpace(attr(node, attachmentAttr))
+	if raw == "" {
+		return "", false
+	}
+
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return "", false
+	}
+
+	return id.String(), true
 }
 
 func attr(node *html.Node, key string) string {

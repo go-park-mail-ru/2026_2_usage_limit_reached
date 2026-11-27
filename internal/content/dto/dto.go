@@ -57,6 +57,8 @@ type PostInfo struct {
 	Locked      bool           `json:"locked" example:"false"`
 	LikesCount  int64          `json:"likes_count" example:"12"`
 	LikedByUser bool           `json:"liked_by_user" example:"true"`
+	// Attachments — вложения в порядке позиций в body; пустой срез, если вложений нет или пост закрыт.
+	Attachments []*Attachment `json:"attachments"`
 }
 
 type PostPreview struct {
@@ -94,4 +96,22 @@ type (
 type PostLikeResponse struct {
 	LikesCount  int64 `json:"likes_count" example:"13"`
 	LikedByUser bool  `json:"liked_by_user" example:"true"`
+}
+
+type AttachmentType string
+
+const (
+	AttachmentTypeImage AttachmentType = "image"
+	AttachmentTypeVideo AttachmentType = "video"
+	AttachmentTypeAudio AttachmentType = "audio"
+	AttachmentTypeFile  AttachmentType = "file"
+)
+
+type Attachment struct {
+	ID        uuid.UUID      `json:"id" example:"00000000-0000-4000-8000-000000000301"`
+	MediaType AttachmentType `json:"media_type" enums:"image,video,audio,file" example:"image"`
+	MimeType  string         `json:"mime_type" example:"image/jpeg"`
+	Name      string         `json:"name" example:"Студия.jpg"`
+	SizeBytes int64          `json:"size_bytes" example:"430080"`
+	URL       string         `json:"url" example:"/attachments/00000000-0000-4000-8000-000000000301"`
 }

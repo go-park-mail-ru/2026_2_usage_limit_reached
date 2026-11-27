@@ -132,3 +132,39 @@ func (c *Client) Delete(ctx context.Context, key string) error {
 
 	return nil
 }
+
+// Open открывает объект для чтения. length < 0 — читать от offset до конца объекта.
+// Жёсткий таймаут здесь не ставится: он оборвал бы длинную отдачу файла,
+// поток живёт до закрытия тела (или отмены контекста запроса).
+func (c *Client) Open(ctx context.Context, key string, offset, length int64) (io.ReadCloser, error) {
+	object, err := c.client.GetObject(ctx, c.bucket, key, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("s3 get object %q error: %w", key, err)
+	}
+
+	if offset > 0 {
+		if _, err := object.Seek(offset, io.SeekStart); err != nil {
+			_ = object.Close()
+			return nil, fmt.Errorf("s3 seek object %q error: %w", key, err)
+		}
+	}
+
+	if length < 0 {
+		return object, nil
+	}
+
+	return &limitedReadCloser{reader: io.LimitReader(object, length), closer: object}, nil
+}
+
+type limitedReadCloser struct {
+	reader io.Reader
+	closer io.Closer
+}
+
+func (l *limitedReadCloser) Read(p []byte) (int, error) {
+	return l.reader.Read(p)
+}
+
+func (l *limitedReadCloser) Close() error {
+	return l.closer.Close()
+}

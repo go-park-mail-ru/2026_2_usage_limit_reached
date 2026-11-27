@@ -19,14 +19,21 @@ type PostHandler interface {
 	UnlikePost(w http.ResponseWriter, r *http.Request)
 }
 
+type AttachmentsHandler interface {
+	UploadAttachment(w http.ResponseWriter, r *http.Request)
+	GetAttachment(w http.ResponseWriter, r *http.Request)
+}
+
 type Handlers struct {
-	Post PostHandler
+	Post        PostHandler
+	Attachments AttachmentsHandler
 }
 
 func RegisterRoutes(public *mux.Router, private *mux.Router, deps Handlers) {
 	public.HandleFunc("/feed", deps.Post.Feed).Methods(http.MethodGet, http.MethodOptions)
 	public.HandleFunc("/posts/{id}", deps.Post.ViewPost).Methods(http.MethodGet, http.MethodOptions)
 	public.HandleFunc("/users/{username}/posts", deps.Post.UserPosts).Methods(http.MethodGet, http.MethodOptions)
+	public.HandleFunc("/attachments/{id}", deps.Attachments.GetAttachment).Methods(http.MethodGet, http.MethodHead, http.MethodOptions)
 
 	private.HandleFunc("/profile/me/posts", deps.Post.MyPosts).Methods(http.MethodGet, http.MethodOptions)
 	private.HandleFunc("/profile/me/drafts", deps.Post.MyDrafts).Methods(http.MethodGet, http.MethodOptions)
@@ -35,4 +42,5 @@ func RegisterRoutes(public *mux.Router, private *mux.Router, deps Handlers) {
 	private.HandleFunc("/posts/{id}", deps.Post.DeletePost).Methods(http.MethodDelete, http.MethodOptions)
 	private.HandleFunc("/posts/{id}/like", deps.Post.LikePost).Methods(http.MethodPost, http.MethodOptions)
 	private.HandleFunc("/posts/{id}/like", deps.Post.UnlikePost).Methods(http.MethodDelete, http.MethodOptions)
+	private.HandleFunc("/attachments", deps.Attachments.UploadAttachment).Methods(http.MethodPost, http.MethodOptions)
 }

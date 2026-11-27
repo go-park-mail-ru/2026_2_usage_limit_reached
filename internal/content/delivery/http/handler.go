@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -31,6 +32,9 @@ type ContentUsecase interface {
 	UpdatePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID, p dto.PostRequest, lastUpdatedAt time.Time) error
 	DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error
 
+	UploadAttachment(ctx context.Context, userID *uuid.UUID, file io.ReadSeeker, size int64, filename string) (*dto.Attachment, error)
+	OpenAttachment(ctx context.Context, userID *uuid.UUID, id uuid.UUID, rng *contentusecase.AttachmentRange) (*dto.Attachment, io.ReadCloser, error)
+
 	LikePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error)
 	DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error)
 }
@@ -46,6 +50,12 @@ func handleError(ctx context.Context, logger *slog.Logger, w http.ResponseWriter
 		response.ErrorUnauthorized(w)
 	case errors.Is(err, contentusecase.ErrNotFound):
 		response.ErrorNotFound(w)
+	case errors.Is(err, contentusecase.ErrMediaTooLarge):
+		response.ErrorPayloadTooLarge(w)
+	case errors.Is(err, contentusecase.ErrUnsupportedMediaType):
+		response.ErrorUnsupportedMediaType(w)
+	case errors.Is(err, contentusecase.ErrRangeNotSatisfiable):
+		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 	case errors.Is(err, validator.ErrValidation), errors.Is(err, contentusecase.ErrValidation):
 		response.ErrorBadRequest(w)
 	default:

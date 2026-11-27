@@ -21,6 +21,7 @@ packages:
     interfaces:
       Repository:
       IdentityClient:
+      MediaStorage:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http:
     interfaces:
       ContentUsecase:

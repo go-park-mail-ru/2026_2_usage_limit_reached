@@ -50,6 +50,138 @@ func (_m *MockRepository) EXPECT() *MockRepository_Expecter {
 	return &MockRepository_Expecter{mock: &_m.Mock}
 }
 
+// CountPendingMedia provides a mock function for the type MockRepository
+func (_mock *MockRepository) CountPendingMedia(ctx context.Context, authorID uuid.UUID) (int64, error) {
+	ret := _mock.Called(ctx, authorID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountPendingMedia")
+	}
+
+	var r0 int64
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (int64, error)); ok {
+		return returnFunc(ctx, authorID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) int64); ok {
+		r0 = returnFunc(ctx, authorID)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, authorID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_CountPendingMedia_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountPendingMedia'
+type MockRepository_CountPendingMedia_Call struct {
+	*mock.Call
+}
+
+// CountPendingMedia is a helper method to define mock.On call
+//   - ctx context.Context
+//   - authorID uuid.UUID
+func (_e *MockRepository_Expecter) CountPendingMedia(ctx any, authorID any) *MockRepository_CountPendingMedia_Call {
+	return &MockRepository_CountPendingMedia_Call{Call: _e.mock.On("CountPendingMedia", ctx, authorID)}
+}
+
+func (_c *MockRepository_CountPendingMedia_Call) Run(run func(ctx context.Context, authorID uuid.UUID)) *MockRepository_CountPendingMedia_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_CountPendingMedia_Call) Return(n int64, err error) *MockRepository_CountPendingMedia_Call {
+	_c.Call.Return(n, err)
+	return _c
+}
+
+func (_c *MockRepository_CountPendingMedia_Call) RunAndReturn(run func(ctx context.Context, authorID uuid.UUID) (int64, error)) *MockRepository_CountPendingMedia_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateMedia provides a mock function for the type MockRepository
+func (_mock *MockRepository) CreateMedia(ctx context.Context, m models.Media) (models.Media, error) {
+	ret := _mock.Called(ctx, m)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateMedia")
+	}
+
+	var r0 models.Media
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, models.Media) (models.Media, error)); ok {
+		return returnFunc(ctx, m)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, models.Media) models.Media); ok {
+		r0 = returnFunc(ctx, m)
+	} else {
+		r0 = ret.Get(0).(models.Media)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, models.Media) error); ok {
+		r1 = returnFunc(ctx, m)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_CreateMedia_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateMedia'
+type MockRepository_CreateMedia_Call struct {
+	*mock.Call
+}
+
+// CreateMedia is a helper method to define mock.On call
+//   - ctx context.Context
+//   - m models.Media
+func (_e *MockRepository_Expecter) CreateMedia(ctx any, m any) *MockRepository_CreateMedia_Call {
+	return &MockRepository_CreateMedia_Call{Call: _e.mock.On("CreateMedia", ctx, m)}
+}
+
+func (_c *MockRepository_CreateMedia_Call) Run(run func(ctx context.Context, m models.Media)) *MockRepository_CreateMedia_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 models.Media
+		if args[1] != nil {
+			arg1 = args[1].(models.Media)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_CreateMedia_Call) Return(media models.Media, err error) *MockRepository_CreateMedia_Call {
+	_c.Call.Return(media, err)
+	return _c
+}
+
+func (_c *MockRepository_CreateMedia_Call) RunAndReturn(run func(ctx context.Context, m models.Media) (models.Media, error)) *MockRepository_CreateMedia_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreatePost provides a mock function for the type MockRepository
 func (_mock *MockRepository) CreatePost(ctx context.Context, userID *uuid.UUID, p models.Post) (uuid.UUID, error) {
 	ret := _mock.Called(ctx, userID, p)
@@ -125,20 +257,31 @@ func (_c *MockRepository_CreatePost_Call) RunAndReturn(run func(ctx context.Cont
 }
 
 // DeletePost provides a mock function for the type MockRepository
-func (_mock *MockRepository) DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error {
+func (_mock *MockRepository) DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) ([]string, error) {
 	ret := _mock.Called(ctx, userID, postID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeletePost")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, uuid.UUID) error); ok {
+	var r0 []string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, uuid.UUID) ([]string, error)); ok {
+		return returnFunc(ctx, userID, postID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, uuid.UUID) []string); ok {
 		r0 = returnFunc(ctx, userID, postID)
 	} else {
-		r0 = ret.Error(0)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, userID, postID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // MockRepository_DeletePost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeletePost'
@@ -177,12 +320,12 @@ func (_c *MockRepository_DeletePost_Call) Run(run func(ctx context.Context, user
 	return _c
 }
 
-func (_c *MockRepository_DeletePost_Call) Return(err error) *MockRepository_DeletePost_Call {
-	_c.Call.Return(err)
+func (_c *MockRepository_DeletePost_Call) Return(strings []string, err error) *MockRepository_DeletePost_Call {
+	_c.Call.Return(strings, err)
 	return _c
 }
 
-func (_c *MockRepository_DeletePost_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error) *MockRepository_DeletePost_Call {
+func (_c *MockRepository_DeletePost_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) ([]string, error)) *MockRepository_DeletePost_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -255,6 +398,78 @@ func (_c *MockRepository_DeletePostLike_Call) Return(n int64, err error) *MockRe
 }
 
 func (_c *MockRepository_DeletePostLike_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error)) *MockRepository_DeletePostLike_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetMediaForAccess provides a mock function for the type MockRepository
+func (_mock *MockRepository) GetMediaForAccess(ctx context.Context, userID *uuid.UUID, mediaID uuid.UUID) (models.Media, error) {
+	ret := _mock.Called(ctx, userID, mediaID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetMediaForAccess")
+	}
+
+	var r0 models.Media
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, uuid.UUID) (models.Media, error)); ok {
+		return returnFunc(ctx, userID, mediaID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, uuid.UUID) models.Media); ok {
+		r0 = returnFunc(ctx, userID, mediaID)
+	} else {
+		r0 = ret.Get(0).(models.Media)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, userID, mediaID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_GetMediaForAccess_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetMediaForAccess'
+type MockRepository_GetMediaForAccess_Call struct {
+	*mock.Call
+}
+
+// GetMediaForAccess is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID *uuid.UUID
+//   - mediaID uuid.UUID
+func (_e *MockRepository_Expecter) GetMediaForAccess(ctx any, userID any, mediaID any) *MockRepository_GetMediaForAccess_Call {
+	return &MockRepository_GetMediaForAccess_Call{Call: _e.mock.On("GetMediaForAccess", ctx, userID, mediaID)}
+}
+
+func (_c *MockRepository_GetMediaForAccess_Call) Run(run func(ctx context.Context, userID *uuid.UUID, mediaID uuid.UUID)) *MockRepository_GetMediaForAccess_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(*uuid.UUID)
+		}
+		var arg2 uuid.UUID
+		if args[2] != nil {
+			arg2 = args[2].(uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_GetMediaForAccess_Call) Return(media models.Media, err error) *MockRepository_GetMediaForAccess_Call {
+	_c.Call.Return(media, err)
+	return _c
+}
+
+func (_c *MockRepository_GetMediaForAccess_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, mediaID uuid.UUID) (models.Media, error)) *MockRepository_GetMediaForAccess_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1304,20 +1519,31 @@ func (_c *MockRepository_LikePost_Call) RunAndReturn(run func(ctx context.Contex
 }
 
 // UpdatePost provides a mock function for the type MockRepository
-func (_mock *MockRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) error {
+func (_mock *MockRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) ([]string, error) {
 	ret := _mock.Called(ctx, userID, p, lastUpdatedAt)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdatePost")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, models.Post, time.Time) error); ok {
+	var r0 []string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, models.Post, time.Time) ([]string, error)); ok {
+		return returnFunc(ctx, userID, p, lastUpdatedAt)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, models.Post, time.Time) []string); ok {
 		r0 = returnFunc(ctx, userID, p, lastUpdatedAt)
 	} else {
-		r0 = ret.Error(0)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, models.Post, time.Time) error); ok {
+		r1 = returnFunc(ctx, userID, p, lastUpdatedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // MockRepository_UpdatePost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdatePost'
@@ -1362,12 +1588,12 @@ func (_c *MockRepository_UpdatePost_Call) Run(run func(ctx context.Context, user
 	return _c
 }
 
-func (_c *MockRepository_UpdatePost_Call) Return(err error) *MockRepository_UpdatePost_Call {
-	_c.Call.Return(err)
+func (_c *MockRepository_UpdatePost_Call) Return(strings []string, err error) *MockRepository_UpdatePost_Call {
+	_c.Call.Return(strings, err)
 	return _c
 }
 
-func (_c *MockRepository_UpdatePost_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) error) *MockRepository_UpdatePost_Call {
+func (_c *MockRepository_UpdatePost_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) ([]string, error)) *MockRepository_UpdatePost_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -24,4 +24,7 @@ type Post struct {
 	PublishedAt *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	// Attachments — id медиа из маркеров body в порядке следования.
+	// Порядок элементов задаёт position связок post_block.
+	Attachments []uuid.UUID
 }

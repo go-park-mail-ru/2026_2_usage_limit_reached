@@ -22,10 +22,12 @@ func newRouter(t *testing.T) (*mux.Router, *mock_delivery_http.MockContentUsecas
 	t.Helper()
 
 	uc := mock_delivery_http.NewMockContentUsecase(t)
+	attachmentsHandler := handlers.NewAttachmentsHandler(uc, testutils.SetupValidator(), testutils.SetupLogger())
 	postHandler := handlers.NewPostHandler(uc, testutils.SetupValidator(), testutils.SetupLogger())
 	router := mux.NewRouter()
 	httprouter.RegisterRoutes(router, router, httprouter.Handlers{
-		Post: postHandler,
+		Post:        postHandler,
+		Attachments: attachmentsHandler,
 	})
 	return router, uc
 }

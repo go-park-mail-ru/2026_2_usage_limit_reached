@@ -1,28 +1,36 @@
-package postrepository
+package repository
 
 import (
 	"context"
 	"testing"
 	"time"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
 	"github.com/google/uuid"
 	"github.com/pashagolub/pgxmock/v5"
 )
 
-func newRepository(t *testing.T) (*PostRepository, pgxmock.PgxPoolIface) {
+func newRepository(t *testing.T) (*Repository, pgxmock.PgxPoolIface) {
 	t.Helper()
 
 	pool := testutils.SetupPgxMock(t)
-	return &PostRepository{pool: pool, logger: testutils.SetupLogger()}, pool
+	return &Repository{pool: pool, logger: testutils.SetupLogger()}, pool
 }
 
 func previewRows(posts []*dto.PostPreview) *pgxmock.Rows {
 	rows := pgxmock.NewRows(previewColumns)
 	for _, p := range posts {
-		rows.AddRow(p.ID, p.Author.ID, p.Title, p.BodyPreview, p.PublishedOrUpdatedAt, p.LikesCount,
-			p.Author.Username, p.Author.Nickname, p.Author.AvatarUrl, p.Locked, p.LikedByUser)
+		rows.AddRow(
+			p.ID,
+			p.Author.ID,
+			p.Title,
+			p.BodyPreview,
+			p.PublishedOrUpdatedAt,
+			p.LikesCount,
+			p.Locked,
+			p.LikedByUser,
+		)
 	}
 	return rows
 }
@@ -36,10 +44,10 @@ var (
 )
 
 type (
-	timedFunc       func(*PostRepository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error)
-	popularFunc     func(*PostRepository) func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error)
-	userTimedFunc   func(*PostRepository) func(context.Context, *uuid.UUID, string, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error)
-	userPopularFunc func(*PostRepository) func(context.Context, *uuid.UUID, string, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error)
+	timedFunc       func(*Repository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error)
+	popularFunc     func(*Repository) func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error)
+	userTimedFunc   func(*Repository) func(context.Context, *uuid.UUID, uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error)
+	userPopularFunc func(*Repository) func(context.Context, *uuid.UUID, uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error)
 )
 
 func timed(name, query string, method timedFunc) []listMethod {
@@ -48,14 +56,14 @@ func timed(name, query string, method timedFunc) []listMethod {
 		{
 			name: name + "/first page", query: query,
 			args: []any{&postUserID, noTime, noID, pageLimit},
-			call: func(r *PostRepository) ([]*dto.PostPreview, error) {
+			call: func(r *Repository) ([]*dto.PostPreview, error) {
 				return method(r)(ctx, &postUserID, nil, pageLimit)
 			},
 		},
 		{
 			name: name + "/next page", query: query,
 			args: []any{&postUserID, &timedCursor.PublishedOrUpdatedAt, &timedCursor.PostID, pageLimit},
-			call: func(r *PostRepository) ([]*dto.PostPreview, error) {
+			call: func(r *Repository) ([]*dto.PostPreview, error) {
 				return method(r)(ctx, &postUserID, timedCursor, pageLimit)
 			},
 		},
@@ -68,14 +76,14 @@ func popular(name, query string, method popularFunc) []listMethod {
 		{
 			name: name + "/first page", query: query,
 			args: []any{&postUserID, noLikes, noTime, noID, pageLimit},
-			call: func(r *PostRepository) ([]*dto.PostPreview, error) {
+			call: func(r *Repository) ([]*dto.PostPreview, error) {
 				return method(r)(ctx, &postUserID, nil, pageLimit)
 			},
 		},
 		{
 			name: name + "/next page", query: query,
 			args: []any{&postUserID, &popularCursor.Likes, &popularCursor.PublishedAt, &popularCursor.PostID, pageLimit},
-			call: func(r *PostRepository) ([]*dto.PostPreview, error) {
+			call: func(r *Repository) ([]*dto.PostPreview, error) {
 				return method(r)(ctx, &postUserID, popularCursor, pageLimit)
 			},
 		},
@@ -87,16 +95,16 @@ func userTimed(name, query string, method userTimedFunc) []listMethod {
 	return []listMethod{
 		{
 			name: name + "/first page", query: query,
-			args: []any{&postUserID, "ivan001", noTime, noID, pageLimit},
-			call: func(r *PostRepository) ([]*dto.PostPreview, error) {
-				return method(r)(ctx, &postUserID, "ivan001", nil, pageLimit)
+			args: []any{&postUserID, postAuthorID, noTime, noID, pageLimit},
+			call: func(r *Repository) ([]*dto.PostPreview, error) {
+				return method(r)(ctx, &postUserID, postAuthorID, nil, pageLimit)
 			},
 		},
 		{
 			name: name + "/next page", query: query,
-			args: []any{&postUserID, "ivan001", &timedCursor.PublishedOrUpdatedAt, &timedCursor.PostID, pageLimit},
-			call: func(r *PostRepository) ([]*dto.PostPreview, error) {
-				return method(r)(ctx, &postUserID, "ivan001", timedCursor, pageLimit)
+			args: []any{&postUserID, postAuthorID, &timedCursor.PublishedOrUpdatedAt, &timedCursor.PostID, pageLimit},
+			call: func(r *Repository) ([]*dto.PostPreview, error) {
+				return method(r)(ctx, &postUserID, postAuthorID, timedCursor, pageLimit)
 			},
 		},
 	}
@@ -107,16 +115,16 @@ func userPopular(name, query string, method userPopularFunc) []listMethod {
 	return []listMethod{
 		{
 			name: name + "/first page", query: query,
-			args: []any{&postUserID, "ivan001", noLikes, noTime, noID, pageLimit},
-			call: func(r *PostRepository) ([]*dto.PostPreview, error) {
-				return method(r)(ctx, &postUserID, "ivan001", nil, pageLimit)
+			args: []any{&postUserID, postAuthorID, noLikes, noTime, noID, pageLimit},
+			call: func(r *Repository) ([]*dto.PostPreview, error) {
+				return method(r)(ctx, &postUserID, postAuthorID, nil, pageLimit)
 			},
 		},
 		{
 			name: name + "/next page", query: query,
-			args: []any{&postUserID, "ivan001", &popularCursor.Likes, &popularCursor.PublishedAt, &popularCursor.PostID, pageLimit},
-			call: func(r *PostRepository) ([]*dto.PostPreview, error) {
-				return method(r)(ctx, &postUserID, "ivan001", popularCursor, pageLimit)
+			args: []any{&postUserID, postAuthorID, &popularCursor.Likes, &popularCursor.PublishedAt, &popularCursor.PostID, pageLimit},
+			call: func(r *Repository) ([]*dto.PostPreview, error) {
+				return method(r)(ctx, &postUserID, postAuthorID, popularCursor, pageLimit)
 			},
 		},
 	}

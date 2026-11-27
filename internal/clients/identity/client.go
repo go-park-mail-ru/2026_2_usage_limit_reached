@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
+	identitycontracts "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/contracts/identity"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/authn"
 	identitypb "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/identity/v1"
 	"github.com/google/uuid"
@@ -15,7 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var ErrUserNotFound = errors.New("user not found")
+var ErrEmptyGetUsersResponse = errors.New("identity returned empty get users response")
 
 type Config struct {
 	Address string        `mapstructure:"address"`
@@ -42,22 +44,14 @@ func (c Config) Validate() error {
 	return errors.Join(errs...)
 }
 
-type UserInfo struct {
-	ID        uuid.UUID
-	Username  string
-	Nickname  string
-	AvatarURL string
-	Status    string
-	CreatedAt time.Time
-}
-
 type Client struct {
 	client  identitypb.IdentityServiceClient
 	timeout time.Duration
+	logger  *slog.Logger
 }
 
-func New(conn grpc.ClientConnInterface, timeout time.Duration) *Client {
-	return &Client{client: identitypb.NewIdentityServiceClient(conn), timeout: timeout}
+func New(conn grpc.ClientConnInterface, timeout time.Duration, logger *slog.Logger) *Client {
+	return &Client{client: identitypb.NewIdentityServiceClient(conn), timeout: timeout, logger: logger}
 }
 
 func (c *Client) VerifyToken(ctx context.Context, token string) (*authn.User, error) {
@@ -82,7 +76,7 @@ func (c *Client) VerifyToken(ctx context.Context, token string) (*authn.User, er
 	return &authn.User{ID: userID, Role: resp.GetRole()}, nil
 }
 
-func (c *Client) GetUserByUsername(ctx context.Context, username string) (*UserInfo, error) {
+func (c *Client) GetUserByUsername(ctx context.Context, username string) (*identitycontracts.UserInfo, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
@@ -90,9 +84,9 @@ func (c *Client) GetUserByUsername(ctx context.Context, username string) (*UserI
 	if err != nil {
 		switch status.Code(err) {
 		case codes.NotFound:
-			return nil, ErrUserNotFound
+			return nil, identitycontracts.ErrUserNotFound
 		case codes.InvalidArgument:
-			return nil, fmt.Errorf("identity client: invalid username: %w", err)
+			return nil, identitycontracts.ErrInvalidUsername
 		default:
 			return nil, fmt.Errorf("%w: %w", authn.ErrUnavailable, err)
 		}
@@ -100,10 +94,10 @@ func (c *Client) GetUserByUsername(ctx context.Context, username string) (*UserI
 
 	userID, err := uuid.Parse(resp.GetId())
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid user id: %w", authn.ErrUnavailable, err)
+		return nil, fmt.Errorf("identity client: invalid user id: %w", err)
 	}
 
-	info := &UserInfo{
+	info := &identitycontracts.UserInfo{
 		ID:        userID,
 		Username:  resp.GetUsername(),
 		Nickname:  resp.GetNickname(),
@@ -111,8 +105,93 @@ func (c *Client) GetUserByUsername(ctx context.Context, username string) (*UserI
 		Status:    resp.GetStatus(),
 	}
 	if created := resp.GetCreatedAt(); created != nil {
-		info.CreatedAt = created.AsTime()
+		c := created.AsTime()
+		info.CreatedAt = &c
 	}
 
 	return info, nil
+}
+
+func (c *Client) GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*identitycontracts.UserInfo, error) {
+	requestIDs := UUIDstoUniqStrings(ids)
+
+	result := make(map[uuid.UUID]*identitycontracts.UserInfo, len(requestIDs))
+	if len(requestIDs) == 0 {
+		return result, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	resp, err := c.client.GetUsers(ctx, &identitypb.GetUsersRequest{Ids: requestIDs})
+	if err != nil {
+		return nil, c.wrapRPCError("get users", err)
+	}
+	if resp == nil {
+		return nil, ErrEmptyGetUsersResponse
+	}
+
+	for _, user := range resp.GetUsers() {
+		if user == nil {
+			c.logger.WarnContext(ctx, "identity client: nil user in get users response")
+			continue
+		}
+
+		id, err := uuid.Parse(user.GetId())
+		if err != nil {
+			c.logger.WarnContext(ctx, "identity client: invalid user id", "user_id", user.GetId())
+			continue
+		}
+
+		var createdAt *time.Time
+		if timestamp := user.GetCreatedAt(); timestamp != nil {
+			if err := timestamp.CheckValid(); err != nil {
+				c.logger.WarnContext(ctx, "identity client: invalid user created_at", "user_id", user.GetId())
+				continue
+			}
+
+			t := timestamp.AsTime()
+			createdAt = &t
+		}
+
+		result[id] = &identitycontracts.UserInfo{
+			ID:        id,
+			Username:  user.GetUsername(),
+			Nickname:  user.GetNickname(),
+			AvatarURL: user.GetAvatarUrl(),
+			CreatedAt: createdAt,
+			Status:    user.GetStatus(),
+		}
+	}
+
+	return result, nil
+}
+
+func UUIDstoUniqStrings(ids []uuid.UUID) []string {
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	result := make([]string, 0, len(ids))
+
+	for _, id := range ids {
+		if id == uuid.Nil {
+			continue
+		}
+
+		if _, exists := seen[id]; exists {
+			continue
+		}
+
+		seen[id] = struct{}{}
+		result = append(result, id.String())
+	}
+
+	return result
+}
+
+func (c *Client) wrapRPCError(operation string, err error) error {
+	switch status.Code(err) {
+	case codes.Unavailable, codes.DeadlineExceeded:
+		return fmt.Errorf("%w: %s: %v", authn.ErrUnavailable, operation, err)
+	default:
+		return fmt.Errorf("identity %s: %w", operation, err)
+	}
 }

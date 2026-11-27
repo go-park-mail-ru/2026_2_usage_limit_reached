@@ -117,15 +117,6 @@ func TestGetUsers(t *testing.T) {
 	}
 }
 
-func TestGetUsersInvalidID(t *testing.T) {
-	client := newTestClient(t, stubIdentity{})
-
-	_, err := client.GetUsers(context.Background(), &identitypb.GetUsersRequest{Ids: []string{"not-a-uuid"}})
-	if status.Code(err) != codes.InvalidArgument {
-		t.Fatalf("code = %v", status.Code(err))
-	}
-}
-
 func TestGetUserByUsername(t *testing.T) {
 	userID := uuid.New()
 

@@ -1,4 +1,4 @@
-package postrepository
+package repository
 
 import (
 	"context"
@@ -7,23 +7,23 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/dto"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/posts/models"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/postgres"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
-type PostRepository struct {
+type Repository struct {
 	pool   postgres.DB
 	logger *slog.Logger
 }
 
-func NewPostRepository(db *postgres.DBClient, logger *slog.Logger) *PostRepository {
-	return &PostRepository{pool: db.Pool, logger: logger}
+func NewRepository(db *postgres.DBClient, logger *slog.Logger) *Repository {
+	return &Repository{pool: db.Pool, logger: logger}
 }
 
-func (r *PostRepository) CreatePost(ctx context.Context, userID *uuid.UUID, p models.Post) (uuid.UUID, error) {
+func (r *Repository) CreatePost(ctx context.Context, userID *uuid.UUID, p models.Post) (uuid.UUID, error) {
 	const query = `
 		INSERT INTO post (author_id, title, body, status, published_at)
 		VALUES ($1, $2, $3, $4, CASE WHEN $4 = 'published' THEN now() END)
@@ -50,14 +50,13 @@ func (r *PostRepository) CreatePost(ctx context.Context, userID *uuid.UUID, p mo
 	return postID, nil
 }
 
-func (r *PostRepository) GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error) {
+func (r *Repository) GetPost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (*dto.PostInfo, error) {
 	const query = `
 		SELECT p.id, p.author_id, p.title,
 			CASE WHEN l.locked THEN '' ELSE p.body END AS body,
-			p.status, p.published_at, p.likes_count, p.created_at, p.updated_at, u.username, u.nickname, u.avatar_key, l.locked,
+			p.status, p.published_at, p.likes_count, p.created_at, p.updated_at, l.locked,
 			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM post p
-		JOIN "user" u ON u.id = p.author_id AND u.status = 'active'
 		LEFT JOIN post_access pa ON pa.post_id = p.id
 		CROSS JOIN LATERAL (
 			SELECT (pa.post_id IS NOT NULL AND p.author_id IS DISTINCT FROM $1) AS locked
@@ -83,9 +82,6 @@ func (r *PostRepository) GetPost(ctx context.Context, userID *uuid.UUID, postID 
 		&post.LikesCount,
 		&post.CreatedAt,
 		&post.UpdatedAt,
-		&post.Author.Username,
-		&post.Author.Nickname,
-		&post.Author.AvatarUrl,
 		&post.Locked,
 		&post.LikedByUser,
 	)
@@ -98,14 +94,13 @@ func (r *PostRepository) GetPost(ctx context.Context, userID *uuid.UUID, postID 
 	return post, nil
 }
 
-func (r *PostRepository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
 			p.id, p.author_id, p.title, p.body, p.published_at, p.likes_count,
-			u.username, u.nickname, u.avatar_key, FALSE,
+			FALSE,
 			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM post p
-		JOIN "user" u ON u.id = p.author_id
 		WHERE p.status = 'published'
 			AND ($2::timestamptz IS NULL OR (p.published_at, p.id) < ($2::timestamptz, $3::uuid))
 			AND p.author_id = $1
@@ -127,14 +122,13 @@ func (r *PostRepository) GetMyNewPosts(ctx context.Context, userID *uuid.UUID, c
 	return posts, nil
 }
 
-func (r *PostRepository) GetMyOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetMyOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
 			p.id, p.author_id, p.title, p.body, p.published_at, p.likes_count,
-			u.username, u.nickname, u.avatar_key, FALSE,
+			FALSE,
 			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM post p
-		JOIN "user" u ON u.id = p.author_id
 		WHERE p.status = 'published'
 			AND ($2::timestamptz IS NULL OR (p.published_at, p.id) > ($2::timestamptz, $3::uuid))
 			AND p.author_id = $1
@@ -156,14 +150,13 @@ func (r *PostRepository) GetMyOldPosts(ctx context.Context, userID *uuid.UUID, c
 	return posts, nil
 }
 
-func (r *PostRepository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
 			p.id, p.author_id, p.title, p.body, p.published_at, p.likes_count,
-			u.username, u.nickname, u.avatar_key, FALSE,
+			FALSE,
 			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM post p
-		JOIN "user" u ON u.id = p.author_id
 		WHERE p.status = 'published'
 				AND ($2::bigint IS NULL OR (p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid))
 				AND p.author_id = $1
@@ -185,13 +178,12 @@ func (r *PostRepository) GetMyPopularPosts(ctx context.Context, userID *uuid.UUI
 	return posts, nil
 }
 
-func (r *PostRepository) GetMyNewDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetMyNewDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
 			p.id, p.author_id, p.title, p.body, p.updated_at, p.likes_count,
-			u.username, u.nickname, u.avatar_key, FALSE, FALSE
+			FALSE, FALSE
 		FROM post p
-		JOIN "user" u ON u.id = p.author_id
 		WHERE p.status = 'draft'
 			AND ($2::timestamptz IS NULL OR (p.updated_at, p.id) < ($2::timestamptz, $3::uuid))
 			AND p.author_id = $1
@@ -213,13 +205,12 @@ func (r *PostRepository) GetMyNewDrafts(ctx context.Context, userID *uuid.UUID, 
 	return posts, nil
 }
 
-func (r *PostRepository) GetMyOldDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetMyOldDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		SELECT 
 			p.id, p.author_id, p.title, p.body, p.updated_at, p.likes_count,
-			u.username, u.nickname, u.avatar_key, FALSE, FALSE
+			FALSE, FALSE
 		FROM post p
-		JOIN "user" u ON u.id = p.author_id
 		WHERE p.status = 'draft'
 			AND ($2::timestamptz IS NULL OR (p.updated_at, p.id) > ($2::timestamptz, $3::uuid))
 			AND p.author_id = $1
@@ -241,23 +232,20 @@ func (r *PostRepository) GetMyOldDrafts(ctx context.Context, userID *uuid.UUID, 
 	return posts, nil
 }
 
-func (r *PostRepository) GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, p.body,
-			       p.published_at, p.likes_count,
-			       u.username, u.nickname, u.avatar_key
+			       p.published_at, p.likes_count
 			FROM post p
-			JOIN "user" u ON u.id = p.author_id
 			WHERE p.status = 'published'
-			  AND u.username = $2
+			  AND p.author_id = $2
 			  AND ($3::timestamptz IS NULL OR (p.published_at, p.id) < ($3::timestamptz, $4::uuid))
 			ORDER BY p.published_at DESC, p.id DESC
 			LIMIT $5
 		)
 		SELECT p.id, p.author_id, p.title, CASE WHEN l.locked THEN '' ELSE p.body END AS body_preview,
-		       p.published_at, p.likes_count, p.username, p.nickname, p.avatar_key,
-		       l.locked,
+		       p.published_at, p.likes_count, l.locked,
 		       EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM page p
 		LEFT JOIN post_access pa ON pa.post_id = p.id
@@ -269,7 +257,7 @@ func (r *PostRepository) GetUserNewPosts(ctx context.Context, userID *uuid.UUID,
 
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "get user new posts"),
-		slog.String("author_username", authorUsername),
+		slog.String("author_id", authorID.String()),
 		slog.String("userID", uid(userID)),
 		slog.Int("limit", limit),
 		slog.Bool("hasCursor", cursor != nil),
@@ -283,7 +271,7 @@ func (r *PostRepository) GetUserNewPosts(ctx context.Context, userID *uuid.UUID,
 		ts, id = &cursor.PublishedOrUpdatedAt, &cursor.PostID
 	}
 
-	rows, err := r.pool.Query(ctx, query, userID, authorUsername, ts, id, limit)
+	rows, err := r.pool.Query(ctx, query, userID, authorID, ts, id, limit)
 	if err != nil {
 		return nil, fmt.Errorf("get user new posts error: %w", err)
 	}
@@ -296,23 +284,20 @@ func (r *PostRepository) GetUserNewPosts(ctx context.Context, userID *uuid.UUID,
 	return posts, nil
 }
 
-func (r *PostRepository) GetUserOldPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetUserOldPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, p.body,
-			       p.published_at, p.likes_count,
-			       u.username, u.nickname, u.avatar_key
+			       p.published_at, p.likes_count
 			FROM post p
-			JOIN "user" u ON u.id = p.author_id
 			WHERE p.status = 'published'
-			  AND u.username = $2
+			  AND p.author_id = $2
 			  AND ($3::timestamptz IS NULL OR (p.published_at, p.id) > ($3::timestamptz, $4::uuid))
 			ORDER BY p.published_at ASC, p.id ASC
 			LIMIT $5
 		)
 		SELECT p.id, p.author_id, p.title, CASE WHEN l.locked THEN '' ELSE p.body END AS body_preview,
-		       p.published_at, p.likes_count, p.username, p.nickname, p.avatar_key,
-		       l.locked,
+		       p.published_at, p.likes_count, l.locked,
 		       EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM page p
 		LEFT JOIN post_access pa ON pa.post_id = p.id
@@ -324,7 +309,7 @@ func (r *PostRepository) GetUserOldPosts(ctx context.Context, userID *uuid.UUID,
 
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "get user old posts"),
-		slog.String("author_username", authorUsername),
+		slog.String("author_id", authorID.String()),
 		slog.String("userID", uid(userID)),
 		slog.Int("limit", limit),
 		slog.Bool("hasCursor", cursor != nil),
@@ -338,7 +323,7 @@ func (r *PostRepository) GetUserOldPosts(ctx context.Context, userID *uuid.UUID,
 		ts, id = &cursor.PublishedOrUpdatedAt, &cursor.PostID
 	}
 
-	rows, err := r.pool.Query(ctx, query, userID, authorUsername, ts, id, limit)
+	rows, err := r.pool.Query(ctx, query, userID, authorID, ts, id, limit)
 	if err != nil {
 		return nil, fmt.Errorf("get user old posts error: %w", err)
 	}
@@ -351,23 +336,20 @@ func (r *PostRepository) GetUserOldPosts(ctx context.Context, userID *uuid.UUID,
 	return posts, nil
 }
 
-func (r *PostRepository) GetUserPopularPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetUserPopularPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, p.body,
-			       p.published_at, p.likes_count,
-			       u.username, u.nickname, u.avatar_key
+			       p.published_at, p.likes_count
 			FROM post p
-			JOIN "user" u ON u.id = p.author_id
 			WHERE p.status = 'published'
-			  AND u.username = $2
+			  AND p.author_id = $2
 			  AND ($3::bigint IS NULL OR (p.likes_count, p.published_at, p.id) < ($3::bigint, $4::timestamptz, $5::uuid))
 			ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC
 			LIMIT $6
 		)
 		SELECT p.id, p.author_id, p.title, CASE WHEN l.locked THEN '' ELSE p.body END AS body_preview,
-		       p.published_at, p.likes_count, p.username, p.nickname, p.avatar_key,
-		       l.locked,
+		       p.published_at, p.likes_count, l.locked,
 		       EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM page p
 		LEFT JOIN post_access pa ON pa.post_id = p.id
@@ -379,7 +361,7 @@ func (r *PostRepository) GetUserPopularPosts(ctx context.Context, userID *uuid.U
 
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "get user popular posts"),
-		slog.String("author_username", authorUsername),
+		slog.String("author_id", authorID.String()),
 		slog.String("userID", uid(userID)),
 		slog.Int("limit", limit),
 		slog.Bool("hasCursor", cursor != nil),
@@ -394,7 +376,7 @@ func (r *PostRepository) GetUserPopularPosts(ctx context.Context, userID *uuid.U
 		likes, ts, id = &cursor.Likes, &cursor.PublishedAt, &cursor.PostID
 	}
 
-	rows, err := r.pool.Query(ctx, query, userID, authorUsername, likes, ts, id, limit)
+	rows, err := r.pool.Query(ctx, query, userID, authorID, likes, ts, id, limit)
 	if err != nil {
 		return nil, fmt.Errorf("get user popular posts error: %w", err)
 	}
@@ -407,14 +389,13 @@ func (r *PostRepository) GetUserPopularPosts(ctx context.Context, userID *uuid.U
 	return posts, nil
 }
 
-func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, p.body,
-				p.published_at, p.likes_count, u.username, u.nickname, u.avatar_key
+				p.published_at, p.likes_count
 			FROM post p
-			JOIN "user" u ON u.id = p.author_id
-			WHERE p.status = 'published' AND u.status = 'active'
+			WHERE p.status = 'published'
 				AND ($2::timestamptz IS NULL OR (p.published_at, p.id) < ($2::timestamptz, $3::uuid))
 			ORDER BY p.published_at DESC, p.id DESC
 			LIMIT $4
@@ -422,8 +403,7 @@ func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cur
 		SELECT 
 			p.id, p.author_id, p.title,
 			CASE WHEN l.locked THEN '' ELSE p.body END AS body_preview,
-			p.published_at, p.likes_count,
-			p.username, p.nickname, p.avatar_key, l.locked,
+			p.published_at, p.likes_count, l.locked,
 			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM page p
 		LEFT JOIN post_access pa ON pa.post_id = p.id
@@ -447,14 +427,13 @@ func (r *PostRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cur
 	return posts, nil
 }
 
-func (r *PostRepository) GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, p.body,
-				p.published_at, p.likes_count, u.username, u.nickname, u.avatar_key
+				p.published_at, p.likes_count
 			FROM post p
-			JOIN "user" u ON u.id = p.author_id
-			WHERE p.status = 'published' AND u.status = 'active'
+			WHERE p.status = 'published'
 				AND ($2::timestamptz IS NULL OR (p.published_at, p.id) > ($2::timestamptz, $3::uuid))
 			ORDER BY p.published_at, p.id
 			LIMIT $4
@@ -462,8 +441,7 @@ func (r *PostRepository) GetOldPosts(ctx context.Context, userID *uuid.UUID, cur
 		SELECT 
 			p.id, p.author_id, p.title,
 			CASE WHEN l.locked THEN '' ELSE p.body END AS body_preview,
-			p.published_at, p.likes_count,
-			p.username, p.nickname, p.avatar_key, l.locked,
+			p.published_at, p.likes_count, l.locked,
 			EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM page p
 		LEFT JOIN post_access pa ON pa.post_id = p.id
@@ -487,21 +465,20 @@ func (r *PostRepository) GetOldPosts(ctx context.Context, userID *uuid.UUID, cur
 	return posts, nil
 }
 
-func (r *PostRepository) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	const query = `
 		WITH page AS (
 			SELECT p.id, p.author_id, p.title, p.body,
-			p.published_at, p.likes_count, u.username, u.nickname, u.avatar_key
+			p.published_at, p.likes_count
 			FROM post p
-			JOIN "user" u ON u.id = p.author_id
-			WHERE p.status = 'published' AND u.status = 'active'
+			WHERE p.status = 'published'
 				AND ($2::bigint IS NULL OR (p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid))
 			ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC
 			LIMIT $5
 		)
 		SELECT p.id, p.author_id, p.title,
 				CASE WHEN l.locked THEN '' ELSE p.body END AS body_preview,
-				p.published_at, p.likes_count, p.username, p.nickname, p.avatar_key, l.locked,
+				p.published_at, p.likes_count, l.locked,
 				EXISTS (SELECT 1 FROM post_like pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked_by_me
 		FROM page p
 		LEFT JOIN post_access pa ON pa.post_id = p.id
@@ -525,7 +502,7 @@ func (r *PostRepository) GetPopularPosts(ctx context.Context, userID *uuid.UUID,
 	return posts, nil
 }
 
-func (r *PostRepository) getTimedPosts(ctx context.Context, query string, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) getTimedPosts(ctx context.Context, query string, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	var (
 		ts *time.Time
 		id *uuid.UUID
@@ -545,7 +522,7 @@ func (r *PostRepository) getTimedPosts(ctx context.Context, query string, userID
 	return posts, nil
 }
 
-func (r *PostRepository) getPopularPosts(ctx context.Context, query string, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
+func (r *Repository) getPopularPosts(ctx context.Context, query string, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 	var (
 		likes *int64
 		ts    *time.Time
@@ -578,9 +555,6 @@ func scanPosts(rows pgx.Rows) ([]*dto.PostPreview, error) {
 			&post.BodyPreview,
 			&post.PublishedOrUpdatedAt,
 			&post.LikesCount,
-			&post.Author.Username,
-			&post.Author.Nickname,
-			&post.Author.AvatarUrl,
 			&post.Locked,
 			&post.LikedByUser,
 		)
@@ -595,7 +569,7 @@ func scanPosts(rows pgx.Rows) ([]*dto.PostPreview, error) {
 	return posts, nil
 }
 
-func (r *PostRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) error {
+func (r *Repository) UpdatePost(ctx context.Context, userID *uuid.UUID, p models.Post, lastUpdatedAt time.Time) error {
 	const query = `
 		UPDATE post SET
 			title = $3,
@@ -661,7 +635,7 @@ func (r *PostRepository) UpdatePost(ctx context.Context, userID *uuid.UUID, p mo
 	return nil
 }
 
-func (r *PostRepository) DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error {
+func (r *Repository) DeletePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) error {
 	r.logger.DebugContext(ctx, "executing query",
 		slog.String("op", "delete post"),
 		slog.String("postID", postID.String()),
@@ -678,7 +652,7 @@ func (r *PostRepository) DeletePost(ctx context.Context, userID *uuid.UUID, post
 	return nil
 }
 
-func (r *PostRepository) LikePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
+func (r *Repository) LikePost(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
 	const getPostAuthor = `
 		SELECT p.author_id
 		FROM post p
@@ -743,7 +717,7 @@ func (r *PostRepository) LikePost(ctx context.Context, userID *uuid.UUID, postID
 	return likesCount, nil
 }
 
-func (r *PostRepository) DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
+func (r *Repository) DeletePostLike(ctx context.Context, userID *uuid.UUID, postID uuid.UUID) (int64, error) {
 	const deletePostLike = `DELETE FROM post_like WHERE post_id = $1 AND user_id = $2`
 	const getLikesCount = `SELECT likes_count FROM post WHERE id = $1`
 

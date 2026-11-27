@@ -14,7 +14,7 @@ import (
 	donationusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/usecase/mock_monetization_usecase"
 	mock_payments_usecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/usecase/mock_monetization_usecase"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider"
+	paymentprovider "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider/mock_pkg_payment_provider"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
@@ -117,7 +117,7 @@ func equalOptionalString(a, b *string) bool {
 }
 
 func expectDonationPrefix(
-	repo *mock_monetization_usecase.MockDonationRepository,
+	repo *mock_monetization_usecase.MockMonetizationRepository,
 	identity *mock_monetization_usecase.MockIdentityClient,
 ) []*mock.Call {
 	identityCall := identity.EXPECT().
@@ -136,7 +136,7 @@ func expectDonationPrefix(
 }
 
 func expectPaymentResult(
-	repo *mock_payments_usecase.MockPaymentRepo,
+	repo *mock_payments_usecase.MockPaymentRepository,
 	provider *mock_pkg_payment_provider.MockProvider,
 	status string,
 ) []*mock.Call {
@@ -223,10 +223,10 @@ func TestMonetizationUsecase_Donate_PaymentStatuses(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			uc, repo, paymentRepo, provider, identity := newUsecase(t)
+			uc, repo, PaymentRepository, provider, identity := newUsecase(t)
 
 			calls := expectDonationPrefix(repo, identity)
-			calls = append(calls, expectPaymentResult(paymentRepo, provider, tt.payStatus)...)
+			calls = append(calls, expectPaymentResult(PaymentRepository, provider, tt.payStatus)...)
 
 			if tt.markPaid {
 				calls = append(calls,
@@ -453,10 +453,10 @@ func TestMonetizationUsecase_Donate_RepositoryErrors(t *testing.T) {
 func TestMonetizationUsecase_Donate_PaymentError(t *testing.T) {
 	t.Parallel()
 
-	uc, repo, paymentRepo, provider, identity := newUsecase(t)
+	uc, repo, PaymentRepository, provider, identity := newUsecase(t)
 
 	calls := expectDonationPrefix(repo, identity)
-	calls = append(calls, paymentRepo.EXPECT().StartAttempt(mock.Anything, donationOrderID).
+	calls = append(calls, PaymentRepository.EXPECT().StartAttempt(mock.Anything, donationOrderID).
 		Return(paymentOrder(paymentmodels.StatusProcessing), &paymentmodels.PaymentAttempt{
 			ID: attemptID, PaymentOrderID: donationOrderID,
 			Status: paymentmodels.AttemptStatusProcessing,
@@ -474,10 +474,10 @@ func TestMonetizationUsecase_Donate_PaymentError(t *testing.T) {
 func TestMonetizationUsecase_Donate_MarkPaidError(t *testing.T) {
 	t.Parallel()
 
-	uc, repo, paymentRepo, provider, identity := newUsecase(t)
+	uc, repo, PaymentRepository, provider, identity := newUsecase(t)
 
 	calls := expectDonationPrefix(repo, identity)
-	calls = append(calls, expectPaymentResult(paymentRepo, provider, "paid")...)
+	calls = append(calls, expectPaymentResult(PaymentRepository, provider, "paid")...)
 	calls = append(calls,
 		repo.EXPECT().
 			MarkPaid(mock.Anything, donationOrderID).
@@ -497,7 +497,7 @@ type listMethod struct {
 	userID   uuid.UUID
 	received bool
 	expect   func(
-		repo *mock_monetization_usecase.MockDonationRepository,
+		repo *mock_monetization_usecase.MockMonetizationRepository,
 		cursor *dto.DonationCursor,
 		limit int,
 		items []*models.Donation,
@@ -519,7 +519,7 @@ func listMethods() []listMethod {
 			userID:   donationPayerID,
 			received: false,
 			expect: func(
-				repo *mock_monetization_usecase.MockDonationRepository,
+				repo *mock_monetization_usecase.MockMonetizationRepository,
 				cursor *dto.DonationCursor,
 				limit int,
 				items []*models.Donation,
@@ -542,7 +542,7 @@ func listMethods() []listMethod {
 			userID:   donationAuthorID,
 			received: true,
 			expect: func(
-				repo *mock_monetization_usecase.MockDonationRepository,
+				repo *mock_monetization_usecase.MockMonetizationRepository,
 				cursor *dto.DonationCursor,
 				limit int,
 				items []*models.Donation,
@@ -631,7 +631,7 @@ func listIdentityUsers(
 }
 
 func expectListEnrichment(
-	payments *mock_payments_usecase.MockPaymentRepo,
+	payments *mock_payments_usecase.MockPaymentRepository,
 	identity *mock_monetization_usecase.MockIdentityClient,
 	items []*models.Donation,
 	received bool,

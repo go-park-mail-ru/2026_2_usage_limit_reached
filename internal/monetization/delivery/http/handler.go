@@ -14,7 +14,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 )
 
-type DonationUsecase interface {
+type MonetizationUsecase interface {
 	Donate(ctx context.Context, payerID uuid.UUID, donationReq dto.CreateDonationRequest) (*dto.SentDonation, error)
 	GetSentDonations(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error)
 	GetReceivedDonations(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error)

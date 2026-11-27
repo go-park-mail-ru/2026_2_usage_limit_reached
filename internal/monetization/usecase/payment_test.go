@@ -20,11 +20,11 @@ import (
 
 func newPaymentUsecase(
 	t *testing.T,
-	repo *mock_payments_usecase.MockPaymentRepo,
+	repo *mock_payments_usecase.MockPaymentRepository,
 	provider *mock_pkg_payment_provider.MockProvider,
 ) *paymentsusecase.MonetizationUsecase {
 	return paymentsusecase.New(
-		mock_monetization_usecase.NewMockDonationRepository(t),
+		mock_monetization_usecase.NewMockMonetizationRepository(t),
 		repo,
 		provider,
 		mock_monetization_usecase.NewMockIdentityClient(t),
@@ -77,13 +77,13 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		mockBehavior   func(repo *mock_payments_usecase.MockPaymentRepo, provider *mock_pkg_payment_provider.MockProvider)
+		mockBehavior   func(repo *mock_payments_usecase.MockPaymentRepository, provider *mock_pkg_payment_provider.MockProvider)
 		expectedStatus models.PaymentOrderStatus
 		expectedErr    error
 	}{
 		{
 			name: "StartAttempt repository error is mapped",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, _ *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, _ *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(nil, nil, false, repoErr)
 			},
@@ -91,7 +91,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Order not found",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, _ *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, _ *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(nil, nil, false, models.ErrPaymentOrderNotFound)
 			},
@@ -99,7 +99,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Attempt not found",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, _ *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, _ *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(nil, nil, false, models.ErrPaymentAttemptNotFound)
 			},
@@ -107,7 +107,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Paid order is returned without charge",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, _ *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, _ *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(order(models.StatusPaid), attemptWithStatus(orderID, models.AttemptStatusSucceeded), false, nil)
 			},
@@ -115,7 +115,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Failed order is returned without charge",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, _ *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, _ *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(order(models.StatusFailed), attemptWithStatus(orderID, models.AttemptStatusFailed), false, nil)
 			},
@@ -123,7 +123,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Canceled order is returned without charge",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, _ *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, _ *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(order(models.StatusCanceled), attemptWithStatus(orderID, models.AttemptStatusCanceled), false, nil)
 			},
@@ -131,7 +131,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Already processing attempt is not charged again",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, _ *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, _ *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(order(models.StatusProcessing), attemptWithStatus(orderID, models.AttemptStatusProcessing), false, nil)
 			},
@@ -139,7 +139,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Expired pending order is not charged",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, _ *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, _ *mock_pkg_payment_provider.MockProvider) {
 				// StartAttempt возвращает started=false, если expires_at уже наступил
 				// Сам заказ отменит expiration worker
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
@@ -149,7 +149,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Charge error leaves order processing",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, provider *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, provider *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(order(models.StatusProcessing), attemptWithStatus(orderID, models.AttemptStatusProcessing), true, nil)
 				provider.EXPECT().Charge(mock.Anything, chargeRequest()).
@@ -160,7 +160,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Successful charge completes attempt and returns final order status",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, provider *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, provider *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(order(models.StatusProcessing), attemptWithStatus(orderID, models.AttemptStatusProcessing), true, nil)
 				provider.EXPECT().Charge(mock.Anything, chargeRequest()).Return(paymentprovider.ChargeResult{
@@ -182,7 +182,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Successful late charge returns the current canceled order state",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, provider *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, provider *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(order(models.StatusProcessing), attemptWithStatus(orderID, models.AttemptStatusProcessing), true, nil)
 				provider.EXPECT().Charge(mock.Anything, chargeRequest()).Return(paymentprovider.ChargeResult{
@@ -199,7 +199,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Complete attempt error is mapped",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, provider *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, provider *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(order(models.StatusProcessing), attemptWithStatus(orderID, models.AttemptStatusProcessing), true, nil)
 				provider.EXPECT().Charge(mock.Anything, chargeRequest()).Return(paymentprovider.ChargeResult{
@@ -212,7 +212,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Failed charge fails attempt and returns final order status",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, provider *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, provider *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(order(models.StatusProcessing), attemptWithStatus(orderID, models.AttemptStatusProcessing), true, nil)
 				provider.EXPECT().Charge(mock.Anything, chargeRequest()).Return(paymentprovider.ChargeResult{
@@ -227,7 +227,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Fail attempt error is mapped",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, provider *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, provider *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(order(models.StatusProcessing), attemptWithStatus(orderID, models.AttemptStatusProcessing), true, nil)
 				provider.EXPECT().Charge(mock.Anything, chargeRequest()).Return(paymentprovider.ChargeResult{
@@ -240,7 +240,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Unknown charge status reloads current order",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, provider *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, provider *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(order(models.StatusProcessing), attemptWithStatus(orderID, models.AttemptStatusProcessing), true, nil)
 				provider.EXPECT().Charge(mock.Anything, chargeRequest()).
@@ -252,7 +252,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 		},
 		{
 			name: "Final order reload error is mapped",
-			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepo, provider *mock_pkg_payment_provider.MockProvider) {
+			mockBehavior: func(repo *mock_payments_usecase.MockPaymentRepository, provider *mock_pkg_payment_provider.MockProvider) {
 				repo.EXPECT().StartAttempt(mock.Anything, orderID).
 					Return(order(models.StatusProcessing), attemptWithStatus(orderID, models.AttemptStatusProcessing), true, nil)
 				provider.EXPECT().Charge(mock.Anything, chargeRequest()).Return(paymentprovider.ChargeResult{
@@ -268,7 +268,7 @@ func TestPaymentUsecase_Pay(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := mock_payments_usecase.NewMockPaymentRepo(t)
+			repo := mock_payments_usecase.NewMockPaymentRepository(t)
 			provider := mock_pkg_payment_provider.NewMockProvider(t)
 			tt.mockBehavior(repo, provider)
 
@@ -303,7 +303,7 @@ func TestPaymentUsecase_Pay_RepoErrorMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := mock_payments_usecase.NewMockPaymentRepo(t)
+			repo := mock_payments_usecase.NewMockPaymentRepository(t)
 			provider := mock_pkg_payment_provider.NewMockProvider(t)
 			repo.EXPECT().StartAttempt(mock.Anything, orderID).
 				Return(nil, nil, false, tt.repoErr)

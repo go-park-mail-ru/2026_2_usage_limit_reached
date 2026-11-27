@@ -15,15 +15,15 @@ import (
 
 func newUsecase(t *testing.T) (
 	*donationusecase.MonetizationUsecase,
-	*mock_monetization_usecase.MockDonationRepository,
-	*mock_payments_usecase.MockPaymentRepo,
+	*mock_monetization_usecase.MockMonetizationRepository,
+	*mock_payments_usecase.MockPaymentRepository,
 	*mock_pkg_payment_provider.MockProvider,
 	*mock_monetization_usecase.MockIdentityClient,
 ) {
 	t.Helper()
 
-	repo := mock_monetization_usecase.NewMockDonationRepository(t)
-	payments := mock_payments_usecase.NewMockPaymentRepo(t)
+	repo := mock_monetization_usecase.NewMockMonetizationRepository(t)
+	payments := mock_payments_usecase.NewMockPaymentRepository(t)
 	provider := mock_pkg_payment_provider.NewMockProvider(t)
 	identity := mock_monetization_usecase.NewMockIdentityClient(t)
 

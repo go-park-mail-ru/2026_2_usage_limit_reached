@@ -45,7 +45,7 @@ func Run(configPath string) error {
 		return fmt.Errorf("validator initialization error: %w", err)
 	}
 
-	donationRepo := monetizationrepo.NewMonetizationRepository(postgresClient, appLogger)
+	monetizationRepo := monetizationrepo.NewMonetizationRepository(postgresClient, appLogger)
 
 	identityConn, err := grpc.NewClient(cfg.Identity.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -55,8 +55,8 @@ func Run(configPath string) error {
 	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout, appLogger)
 
 	monetizationUc := monetizationuc.New(
-		donationRepo,
-		donationRepo,
+		monetizationRepo,
+		monetizationRepo,
 		paymentprovider.NewMockProvider(),
 		identityClient,
 		valid,
@@ -95,7 +95,7 @@ func Run(configPath string) error {
 	})
 
 	g.Go(func() error {
-		expirationworker.RunExpirationWorker(gctx, donationRepo, cfg.Monetization.ExpirationWorker, appLogger)
+		expirationworker.RunExpirationWorker(gctx, monetizationRepo, cfg.Monetization.ExpirationWorker, appLogger)
 		return nil
 	})
 

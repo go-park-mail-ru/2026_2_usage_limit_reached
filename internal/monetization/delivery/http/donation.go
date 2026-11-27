@@ -18,13 +18,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const (
-	limitField   = "limit"
-	cursorFiled  = "cursor"
-	defaultLimit = 20
-	maxLimit     = 50
-)
-
 type DonationHandler struct {
 	uc        MonetizationUsecase
 	validator *validator.Validator

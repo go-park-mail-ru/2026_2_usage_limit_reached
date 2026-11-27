@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type PaymentRepo interface {
+type PaymentRepository interface {
 	GetOrdersByIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*models.PaymentOrder, error)
 	GetOrderByID(ctx context.Context, id uuid.UUID) (*models.PaymentOrder, error)
 	StartAttempt(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, *models.PaymentAttempt, bool, error)

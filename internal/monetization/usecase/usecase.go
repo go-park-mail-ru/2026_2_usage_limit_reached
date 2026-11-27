@@ -24,7 +24,7 @@ type IdentityClient interface {
 	GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*identitycontracts.UserInfo, error)
 }
 
-type DonationRepository interface {
+type MonetizationRepository interface {
 	CreateDonationWithPayment(ctx context.Context, req dto.CreateDonationWithPayment) (*models.Donation, *models.PaymentOrder, error)
 	GetReceivedDonations(ctx context.Context, authorID uuid.UUID, cursor *dto.DonationCursor, limit int) ([]*models.Donation, error)
 	GetSentDonations(ctx context.Context, donorID uuid.UUID, cursor *dto.DonationCursor, limit int) ([]*models.Donation, error)
@@ -54,14 +54,14 @@ func mapRepoError(op string, err error) error {
 }
 
 type MonetizationUsecase struct {
-	repo            DonationRepository
-	paymentRepo     PaymentRepo
+	repo            MonetizationRepository
+	paymentRepo     PaymentRepository
 	paymentProvider paymentProvider.Provider
 	identity        IdentityClient
 	validator       *validator.Validator
 }
 
-func New(repo DonationRepository, paymentRepo PaymentRepo, provider paymentProvider.Provider, identity IdentityClient, v *validator.Validator) *MonetizationUsecase {
+func New(repo MonetizationRepository, paymentRepo PaymentRepository, provider paymentProvider.Provider, identity IdentityClient, v *validator.Validator) *MonetizationUsecase {
 	return &MonetizationUsecase{
 		repo:            repo,
 		paymentRepo:     paymentRepo,

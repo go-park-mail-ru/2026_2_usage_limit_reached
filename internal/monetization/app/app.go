@@ -71,10 +71,13 @@ func Run(configPath string) error {
 		middleware.CORSMiddleware(cfg.CORS),
 	)
 
+	public := router.NewRoute().Subrouter()
+	public.Use(middleware.OptionalAuthMiddleware(identityClient), middleware.CSRFMiddleware(csrfManager))
+
 	private := router.NewRoute().Subrouter()
 	private.Use(middleware.AuthMiddleware(identityClient), middleware.CSRFMiddleware(csrfManager))
 
-	httprouter.RegisterRoutes(private, httprouter.Router{
+	httprouter.RegisterRoutes(public, private, httprouter.Router{
 		Donation: monetizationhttp.NewDonationHandler(monetizationUc, valid, appLogger),
 	})
 

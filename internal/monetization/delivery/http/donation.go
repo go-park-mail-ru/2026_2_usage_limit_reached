@@ -26,12 +26,12 @@ const (
 )
 
 type DonationHandler struct {
-	uc        DonationUsecase
+	uc        MonetizationUsecase
 	validator *validator.Validator
 	logger    *slog.Logger
 }
 
-func NewDonationHandler(uc DonationUsecase, v *validator.Validator, logger *slog.Logger) *DonationHandler {
+func NewDonationHandler(uc MonetizationUsecase, v *validator.Validator, logger *slog.Logger) *DonationHandler {
 	return &DonationHandler{uc: uc, validator: v, logger: logger}
 }
 

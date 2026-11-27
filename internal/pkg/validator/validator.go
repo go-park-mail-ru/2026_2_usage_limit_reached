@@ -20,6 +20,11 @@ const (
 	postPublishedStatus         = "published"
 	postDraftStatus             = "draft"
 	postArchivedStatus          = "archived"
+
+	subscriptionStatusOpen      = "open"
+	subscriptionsStatusArchived = "archived"
+	subscriptionActionSubscribe = "subscribe"
+	subscriptionActionUpgrade   = "upgrade"
 )
 
 type UsernameRules struct {
@@ -70,16 +75,25 @@ type DonationRules struct {
 	MaxMessageLen int `mapstructure:"max_message_len"`
 }
 
+type SubscriptionTierRules struct {
+	MinNameLen        int             `mapstructure:"min_name_len"`
+	MaxNameLen        int             `mapstructure:"max_name_len"`
+	MaxDescriptionLen int             `mapstructure:"max_description_len"`
+	PriceStepMinor    int64           `mapstructure:"price_step_minor"`
+	AllowedStatuses   map[string]bool `mapstructure:"allowed_statuses"`
+}
+
 type ValidationConfig struct {
-	Username UsernameRules `mapstructure:"username"`
-	Nickname NicknameRules `mapstructure:"nickname"`
-	Bio      BioRules      `mapstructure:"bio"`
-	Category CategoryRules `mapstructure:"category"`
-	Password PasswordRules `mapstructure:"password"`
-	Email    EmailRules    `mapstructure:"email"`
-	Post     PostRules     `mapstructure:"post"`
-	Payment  PaymentRules  `mapstructure:"payment"`
-	Donation DonationRules `mapstructure:"donation"`
+	Username         UsernameRules         `mapstructure:"username"`
+	Nickname         NicknameRules         `mapstructure:"nickname"`
+	Bio              BioRules              `mapstructure:"bio"`
+	Category         CategoryRules         `mapstructure:"category"`
+	Password         PasswordRules         `mapstructure:"password"`
+	Email            EmailRules            `mapstructure:"email"`
+	Post             PostRules             `mapstructure:"post"`
+	Payment          PaymentRules          `mapstructure:"payment"`
+	Donation         DonationRules         `mapstructure:"donation"`
+	SubscriptionTier SubscriptionTierRules `mapstructure:"subscription_tier"`
 }
 
 func DefaultConfig() ValidationConfig {
@@ -114,6 +128,13 @@ func DefaultConfig() ValidationConfig {
 		Donation: DonationRules{
 			MaxMessageLen: 5000,
 		},
+		SubscriptionTier: SubscriptionTierRules{
+			MinNameLen:        3,
+			MaxNameLen:        64,
+			MaxDescriptionLen: 1000,
+			PriceStepMinor:    1,
+			AllowedStatuses:   map[string]bool{subscriptionStatusOpen: true, subscriptionsStatusArchived: true},
+		},
 	}
 }
 
@@ -139,6 +160,9 @@ func (c ValidationConfig) Validate() error {
 		{"payment.request_key_len", c.Payment.RequestKeyLen},
 		{"payment.min_amount_minor", c.Payment.MinAmountMinor},
 		{"donation.max_message_len", c.Donation.MaxMessageLen},
+		{"subscription_tier.min_name_len", c.SubscriptionTier.MinNameLen},
+		{"subscription_tier.max_name_len", c.SubscriptionTier.MaxNameLen},
+		{"subscription_tier.max_description_len", c.SubscriptionTier.MaxDescriptionLen},
 	}
 	for _, p := range positive {
 		if p.value <= 0 {
@@ -174,6 +198,15 @@ func (c ValidationConfig) Validate() error {
 	}
 	if len(c.Payment.AllowedOrigins) == 0 {
 		errs = append(errs, errors.New("validator: payment.allowed_origins must not be empty"))
+	}
+	if c.SubscriptionTier.PriceStepMinor <= 0 {
+		errs = append(errs, fmt.Errorf("validator: subscription_tier.price_step_minor must be positive, got %d", c.SubscriptionTier.PriceStepMinor))
+	}
+	if c.SubscriptionTier.MinNameLen > c.SubscriptionTier.MaxNameLen {
+		errs = append(errs, fmt.Errorf("validator: subscription_tier.min_name_len (%d) > subscription_tier.max_name_len (%d)", c.SubscriptionTier.MinNameLen, c.SubscriptionTier.MaxNameLen))
+	}
+	if len(c.SubscriptionTier.AllowedStatuses) == 0 {
+		errs = append(errs, errors.New("validator: subscription_tier.allowed_statuses must not be empty"))
 	}
 
 	return errors.Join(errs...)
@@ -295,4 +328,27 @@ func (v Validator) IsValidPaymentOrigin(origin string) bool {
 
 func (v Validator) IsValidDonationMessage(mes string) bool {
 	return len([]rune(strings.TrimSpace(mes))) < v.cfg.Donation.MaxMessageLen
+}
+
+func (v Validator) IsValidSubscriptionTierName(name string) bool {
+	name = strings.TrimSpace(name)
+	return utf8.RuneCountInString(name) >= v.cfg.SubscriptionTier.MinNameLen && utf8.RuneCountInString(name) <= v.cfg.SubscriptionTier.MaxNameLen
+}
+
+func (v Validator) IsValidSubscriptionTierDescription(description string) bool {
+	description = strings.TrimSpace(description)
+	return len(description) > 0 && utf8.RuneCountInString(description) <= v.cfg.SubscriptionTier.MaxDescriptionLen
+}
+
+func (v Validator) IsValidSubscriptionTierPriceMinor(priceMinor int64) bool {
+	rules := v.cfg.SubscriptionTier
+	return priceMinor%rules.PriceStepMinor == 0
+}
+
+func (v Validator) IsValidSubscriptionTierStatus(status string) bool {
+	return v.cfg.SubscriptionTier.AllowedStatuses[strings.TrimSpace(status)]
+}
+
+func (v Validator) IsValidSubscriptionAction(action string) bool {
+	return action == subscriptionActionSubscribe || action == subscriptionActionUpgrade
 }

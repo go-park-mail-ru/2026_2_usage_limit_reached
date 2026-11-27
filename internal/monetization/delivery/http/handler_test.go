@@ -148,20 +148,20 @@ func TestDonationHandler_SendDonation_Errors(t *testing.T) {
 type listEndpoint struct {
 	name   string
 	target string
-	expect func(uc *mock_delivery_http.MockDonationUsecase, c *dto.DonationCursor, limit int) *mock.Call
+	expect func(uc *mock_delivery_http.MockMonetizationUsecase, c *dto.DonationCursor, limit int) *mock.Call
 }
 
 func listEndpoints() []listEndpoint {
 	return []listEndpoint{
 		{
 			name: "sent", target: "/profile/me/donations/sent",
-			expect: func(uc *mock_delivery_http.MockDonationUsecase, c *dto.DonationCursor, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockMonetizationUsecase, c *dto.DonationCursor, limit int) *mock.Call {
 				return uc.EXPECT().GetSentDonations(mock.Anything, donationPayerID, c, limit).Call
 			},
 		},
 		{
 			name: "received", target: "/profile/me/donations/received",
-			expect: func(uc *mock_delivery_http.MockDonationUsecase, c *dto.DonationCursor, limit int) *mock.Call {
+			expect: func(uc *mock_delivery_http.MockMonetizationUsecase, c *dto.DonationCursor, limit int) *mock.Call {
 				return uc.EXPECT().GetReceivedDonations(mock.Anything, donationPayerID, c, limit).Call
 			},
 		},

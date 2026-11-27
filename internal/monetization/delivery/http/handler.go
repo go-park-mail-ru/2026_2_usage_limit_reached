@@ -14,10 +14,23 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
 )
 
-type DonationUsecase interface {
+const (
+	limitField   = "limit"
+	cursorFiled  = "cursor"
+	defaultLimit = 20
+	maxLimit     = 50
+)
+
+type MonetizationUsecase interface {
 	Donate(ctx context.Context, payerID uuid.UUID, donationReq dto.CreateDonationRequest) (*dto.SentDonation, error)
 	GetSentDonations(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error)
 	GetReceivedDonations(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error)
+
+	GetMySubscriptionTiers(ctx context.Context, authorID uuid.UUID, cursor *dto.SubscriptionTierCursor, limit int) (*dto.SubscriptionTierPage, error)
+	CreateSubscriptionTier(ctx context.Context, authorID uuid.UUID, req dto.CreateSubscriptionTierRequest) (*dto.SubscriptionTier, error)
+	UpdateSubscriptionTier(ctx context.Context, authorID, tierID uuid.UUID, req dto.UpdateSubscriptionTierRequest) (*dto.SubscriptionTier, error)
+	GetSubscriptionOptions(ctx context.Context, readerID, authorID uuid.UUID, postID *uuid.UUID, cursor *dto.SubscriptionTierCursor, limit int) (*dto.SubscriptionOptionsPage, error)
+	CreateSubscription(ctx context.Context, readerID uuid.UUID, req dto.CreateSubscriptionRequest) (*dto.CurrentSubscription, error)
 }
 
 func handleError(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, action string, err error) {

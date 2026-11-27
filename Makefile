@@ -46,4 +46,4 @@ swagger-content:
 
 swagger-monetization:
 	@mkdir -p docs/monetization
-	$(SWAG) init -g cmd/monetization/main.go -o docs/monetization $(SWAG_FLAGS) --tags donations
+	$(SWAG) init -g cmd/monetization/main.go -o docs/monetization $(SWAG_FLAGS) --tags donations,subscriptions

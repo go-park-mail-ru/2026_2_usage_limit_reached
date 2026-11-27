@@ -113,7 +113,7 @@ func (h *SubscriptionHandler) CreateSubscriptionTier(w http.ResponseWriter, r *h
 
 // UpdateSubscriptionTier updates tier details or archives the tier.
 // @Summary Изменение или архивация уровня подписки
-// @Description Изменяет имя и описание уровня либо архивирует его. Цена неизменяема.
+// @Description Изменяет имя, описание и цену уровня либо архивирует его. Цена активного уровня не может пересечь цену соседнего уровня.
 // @Tags subscriptions
 // @Accept json
 // @Produce json
@@ -325,7 +325,11 @@ func (h *SubscriptionHandler) CreateSubscription(w http.ResponseWriter, r *http.
 		return
 	}
 
-	response.WriteJSON(w, http.StatusOK, dto.CreateSubscriptionResponse{
+	statusCode := http.StatusCreated
+	if req.Action == "upgrade" {
+		statusCode = http.StatusOK
+	}
+	response.WriteJSON(w, statusCode, dto.CreateSubscriptionResponse{
 		CurrentSubscription: *result,
 	})
 }

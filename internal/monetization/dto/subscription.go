@@ -58,6 +58,7 @@ func (r CreateSubscriptionTierRequest) Validate(v *validator.Validator) error {
 type UpdateSubscriptionTierRequest struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	PriceMinor  int64  `json:"price_minor"`
 	Status      string `json:"status"`
 }
 
@@ -66,11 +67,14 @@ func (r UpdateSubscriptionTierRequest) Validate(v *validator.Validator) error {
 	if !v.IsValidSubscriptionTierStatus(r.Status) {
 		errs = append(errs, fmt.Errorf("invalid tier status"))
 	}
-	if v.IsValidSubscriptionTierName(r.Name) {
+	if !v.IsValidSubscriptionTierName(r.Name) {
 		errs = append(errs, fmt.Errorf("invalid tier name"))
 	}
 	if !v.IsValidSubscriptionTierDescription(r.Description) {
 		errs = append(errs, fmt.Errorf("invalid tier description"))
+	}
+	if !v.IsValidPaymentAmountMinor(r.PriceMinor) || !v.IsValidSubscriptionTierPriceMinor(r.PriceMinor) {
+		errs = append(errs, fmt.Errorf("invalid tier price"))
 	}
 	if len(errs) == 0 {
 		return nil
@@ -132,7 +136,6 @@ func (r CreateSubscriptionRequest) Validate(v *validator.Validator) error {
 	if !v.IsValidPaymentReqKey(r.RequestKey) {
 		errs = append(errs, fmt.Errorf("invalid request key"))
 	}
-
 	switch r.Action {
 	case "subscribe":
 		if r.ExpectedSubscriptionID != nil || r.ExpectedCurrentTierID != nil {
@@ -154,6 +157,19 @@ func (r CreateSubscriptionRequest) Validate(v *validator.Validator) error {
 
 type CreateSubscriptionResponse struct {
 	CurrentSubscription CurrentSubscription `json:"current_subscription"`
+}
+
+type CreateSubscriptionWithPayment struct {
+	ReaderID               uuid.UUID
+	AuthorID               uuid.UUID
+	Action                 string
+	TierID                 uuid.UUID
+	ExpectedSubscriptionID *uuid.UUID
+	ExpectedCurrentTierID  *uuid.UUID
+	ExpectedPriceMinor     int64
+	PostID                 *uuid.UUID
+	RequestKey             string
+	ExpiresAt              *time.Time
 }
 
 func (r CreateSubscriptionTierRequest) Normalize() CreateSubscriptionTierRequest {

@@ -511,7 +511,7 @@ func (_c *MockMonetizationUsecase_GetSentDonations_Call) RunAndReturn(run func(c
 }
 
 // GetSubscriptionOptions provides a mock function for the type MockMonetizationUsecase
-func (_mock *MockMonetizationUsecase) GetSubscriptionOptions(ctx context.Context, readerID uuid.UUID, authorID uuid.UUID, postID *uuid.UUID, cursor *dto.SubscriptionOptionCursor, limit int) (*dto.SubscriptionOptionsPage, error) {
+func (_mock *MockMonetizationUsecase) GetSubscriptionOptions(ctx context.Context, readerID uuid.UUID, authorID uuid.UUID, postID *uuid.UUID, cursor *dto.SubscriptionTierCursor, limit int) (*dto.SubscriptionOptionsPage, error) {
 	ret := _mock.Called(ctx, readerID, authorID, postID, cursor, limit)
 
 	if len(ret) == 0 {
@@ -520,17 +520,17 @@ func (_mock *MockMonetizationUsecase) GetSubscriptionOptions(ctx context.Context
 
 	var r0 *dto.SubscriptionOptionsPage
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, *dto.SubscriptionOptionCursor, int) (*dto.SubscriptionOptionsPage, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, *dto.SubscriptionTierCursor, int) (*dto.SubscriptionOptionsPage, error)); ok {
 		return returnFunc(ctx, readerID, authorID, postID, cursor, limit)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, *dto.SubscriptionOptionCursor, int) *dto.SubscriptionOptionsPage); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, *dto.SubscriptionTierCursor, int) *dto.SubscriptionOptionsPage); ok {
 		r0 = returnFunc(ctx, readerID, authorID, postID, cursor, limit)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*dto.SubscriptionOptionsPage)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, *dto.SubscriptionOptionCursor, int) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, *dto.SubscriptionTierCursor, int) error); ok {
 		r1 = returnFunc(ctx, readerID, authorID, postID, cursor, limit)
 	} else {
 		r1 = ret.Error(1)
@@ -548,13 +548,13 @@ type MockMonetizationUsecase_GetSubscriptionOptions_Call struct {
 //   - readerID uuid.UUID
 //   - authorID uuid.UUID
 //   - postID *uuid.UUID
-//   - cursor *dto.SubscriptionOptionCursor
+//   - cursor *dto.SubscriptionTierCursor
 //   - limit int
 func (_e *MockMonetizationUsecase_Expecter) GetSubscriptionOptions(ctx any, readerID any, authorID any, postID any, cursor any, limit any) *MockMonetizationUsecase_GetSubscriptionOptions_Call {
 	return &MockMonetizationUsecase_GetSubscriptionOptions_Call{Call: _e.mock.On("GetSubscriptionOptions", ctx, readerID, authorID, postID, cursor, limit)}
 }
 
-func (_c *MockMonetizationUsecase_GetSubscriptionOptions_Call) Run(run func(ctx context.Context, readerID uuid.UUID, authorID uuid.UUID, postID *uuid.UUID, cursor *dto.SubscriptionOptionCursor, limit int)) *MockMonetizationUsecase_GetSubscriptionOptions_Call {
+func (_c *MockMonetizationUsecase_GetSubscriptionOptions_Call) Run(run func(ctx context.Context, readerID uuid.UUID, authorID uuid.UUID, postID *uuid.UUID, cursor *dto.SubscriptionTierCursor, limit int)) *MockMonetizationUsecase_GetSubscriptionOptions_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -572,9 +572,9 @@ func (_c *MockMonetizationUsecase_GetSubscriptionOptions_Call) Run(run func(ctx 
 		if args[3] != nil {
 			arg3 = args[3].(*uuid.UUID)
 		}
-		var arg4 *dto.SubscriptionOptionCursor
+		var arg4 *dto.SubscriptionTierCursor
 		if args[4] != nil {
-			arg4 = args[4].(*dto.SubscriptionOptionCursor)
+			arg4 = args[4].(*dto.SubscriptionTierCursor)
 		}
 		var arg5 int
 		if args[5] != nil {
@@ -597,7 +597,7 @@ func (_c *MockMonetizationUsecase_GetSubscriptionOptions_Call) Return(subscripti
 	return _c
 }
 
-func (_c *MockMonetizationUsecase_GetSubscriptionOptions_Call) RunAndReturn(run func(ctx context.Context, readerID uuid.UUID, authorID uuid.UUID, postID *uuid.UUID, cursor *dto.SubscriptionOptionCursor, limit int) (*dto.SubscriptionOptionsPage, error)) *MockMonetizationUsecase_GetSubscriptionOptions_Call {
+func (_c *MockMonetizationUsecase_GetSubscriptionOptions_Call) RunAndReturn(run func(ctx context.Context, readerID uuid.UUID, authorID uuid.UUID, postID *uuid.UUID, cursor *dto.SubscriptionTierCursor, limit int) (*dto.SubscriptionOptionsPage, error)) *MockMonetizationUsecase_GetSubscriptionOptions_Call {
 	_c.Call.Return(run)
 	return _c
 }

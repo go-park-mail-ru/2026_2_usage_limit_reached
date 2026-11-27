@@ -78,7 +78,8 @@ func Run(configPath string) error {
 	private.Use(middleware.AuthMiddleware(identityClient), middleware.CSRFMiddleware(csrfManager))
 
 	httprouter.RegisterRoutes(public, private, httprouter.Router{
-		Donation: monetizationhttp.NewDonationHandler(monetizationUc, valid, appLogger),
+		Donation:     monetizationhttp.NewDonationHandler(monetizationUc, valid, appLogger),
+		Subscription: monetizationhttp.NewSubscriptionHandler(monetizationUc, valid, appLogger),
 	})
 
 	httpSrv, err := httpserver.New(cfg.Monetization.HTTP, appLogger)

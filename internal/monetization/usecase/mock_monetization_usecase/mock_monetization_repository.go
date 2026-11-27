@@ -49,6 +49,131 @@ func (_m *MockMonetizationRepository) EXPECT() *MockMonetizationRepository_Expec
 	return &MockMonetizationRepository_Expecter{mock: &_m.Mock}
 }
 
+// ActivateSubscription provides a mock function for the type MockMonetizationRepository
+func (_mock *MockMonetizationRepository) ActivateSubscription(ctx context.Context, paymentOrderID uuid.UUID) (*models.CurrentSubscription, error) {
+	ret := _mock.Called(ctx, paymentOrderID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ActivateSubscription")
+	}
+
+	var r0 *models.CurrentSubscription
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*models.CurrentSubscription, error)); ok {
+		return returnFunc(ctx, paymentOrderID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) *models.CurrentSubscription); ok {
+		r0 = returnFunc(ctx, paymentOrderID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.CurrentSubscription)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, paymentOrderID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockMonetizationRepository_ActivateSubscription_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ActivateSubscription'
+type MockMonetizationRepository_ActivateSubscription_Call struct {
+	*mock.Call
+}
+
+// ActivateSubscription is a helper method to define mock.On call
+//   - ctx context.Context
+//   - paymentOrderID uuid.UUID
+func (_e *MockMonetizationRepository_Expecter) ActivateSubscription(ctx any, paymentOrderID any) *MockMonetizationRepository_ActivateSubscription_Call {
+	return &MockMonetizationRepository_ActivateSubscription_Call{Call: _e.mock.On("ActivateSubscription", ctx, paymentOrderID)}
+}
+
+func (_c *MockMonetizationRepository_ActivateSubscription_Call) Run(run func(ctx context.Context, paymentOrderID uuid.UUID)) *MockMonetizationRepository_ActivateSubscription_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockMonetizationRepository_ActivateSubscription_Call) Return(currentSubscription *models.CurrentSubscription, err error) *MockMonetizationRepository_ActivateSubscription_Call {
+	_c.Call.Return(currentSubscription, err)
+	return _c
+}
+
+func (_c *MockMonetizationRepository_ActivateSubscription_Call) RunAndReturn(run func(ctx context.Context, paymentOrderID uuid.UUID) (*models.CurrentSubscription, error)) *MockMonetizationRepository_ActivateSubscription_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CancelSubscription provides a mock function for the type MockMonetizationRepository
+func (_mock *MockMonetizationRepository) CancelSubscription(ctx context.Context, subscriptionID uuid.UUID) error {
+	ret := _mock.Called(ctx, subscriptionID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CancelSubscription")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) error); ok {
+		r0 = returnFunc(ctx, subscriptionID)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockMonetizationRepository_CancelSubscription_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelSubscription'
+type MockMonetizationRepository_CancelSubscription_Call struct {
+	*mock.Call
+}
+
+// CancelSubscription is a helper method to define mock.On call
+//   - ctx context.Context
+//   - subscriptionID uuid.UUID
+func (_e *MockMonetizationRepository_Expecter) CancelSubscription(ctx any, subscriptionID any) *MockMonetizationRepository_CancelSubscription_Call {
+	return &MockMonetizationRepository_CancelSubscription_Call{Call: _e.mock.On("CancelSubscription", ctx, subscriptionID)}
+}
+
+func (_c *MockMonetizationRepository_CancelSubscription_Call) Run(run func(ctx context.Context, subscriptionID uuid.UUID)) *MockMonetizationRepository_CancelSubscription_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockMonetizationRepository_CancelSubscription_Call) Return(err error) *MockMonetizationRepository_CancelSubscription_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockMonetizationRepository_CancelSubscription_Call) RunAndReturn(run func(ctx context.Context, subscriptionID uuid.UUID) error) *MockMonetizationRepository_CancelSubscription_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateDonationWithPayment provides a mock function for the type MockMonetizationRepository
 func (_mock *MockMonetizationRepository) CreateDonationWithPayment(ctx context.Context, req dto.CreateDonationWithPayment) (*models.Donation, *models.PaymentOrder, error) {
 	ret := _mock.Called(ctx, req)
@@ -121,6 +246,213 @@ func (_c *MockMonetizationRepository_CreateDonationWithPayment_Call) Return(dona
 }
 
 func (_c *MockMonetizationRepository_CreateDonationWithPayment_Call) RunAndReturn(run func(ctx context.Context, req dto.CreateDonationWithPayment) (*models.Donation, *models.PaymentOrder, error)) *MockMonetizationRepository_CreateDonationWithPayment_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateSubscriptionTier provides a mock function for the type MockMonetizationRepository
+func (_mock *MockMonetizationRepository) CreateSubscriptionTier(ctx context.Context, authorID uuid.UUID, req dto.CreateSubscriptionTierRequest) (*models.SubscriptionTier, error) {
+	ret := _mock.Called(ctx, authorID, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateSubscriptionTier")
+	}
+
+	var r0 *models.SubscriptionTier
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, dto.CreateSubscriptionTierRequest) (*models.SubscriptionTier, error)); ok {
+		return returnFunc(ctx, authorID, req)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, dto.CreateSubscriptionTierRequest) *models.SubscriptionTier); ok {
+		r0 = returnFunc(ctx, authorID, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.SubscriptionTier)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, dto.CreateSubscriptionTierRequest) error); ok {
+		r1 = returnFunc(ctx, authorID, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockMonetizationRepository_CreateSubscriptionTier_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateSubscriptionTier'
+type MockMonetizationRepository_CreateSubscriptionTier_Call struct {
+	*mock.Call
+}
+
+// CreateSubscriptionTier is a helper method to define mock.On call
+//   - ctx context.Context
+//   - authorID uuid.UUID
+//   - req dto.CreateSubscriptionTierRequest
+func (_e *MockMonetizationRepository_Expecter) CreateSubscriptionTier(ctx any, authorID any, req any) *MockMonetizationRepository_CreateSubscriptionTier_Call {
+	return &MockMonetizationRepository_CreateSubscriptionTier_Call{Call: _e.mock.On("CreateSubscriptionTier", ctx, authorID, req)}
+}
+
+func (_c *MockMonetizationRepository_CreateSubscriptionTier_Call) Run(run func(ctx context.Context, authorID uuid.UUID, req dto.CreateSubscriptionTierRequest)) *MockMonetizationRepository_CreateSubscriptionTier_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 dto.CreateSubscriptionTierRequest
+		if args[2] != nil {
+			arg2 = args[2].(dto.CreateSubscriptionTierRequest)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockMonetizationRepository_CreateSubscriptionTier_Call) Return(subscriptionTier *models.SubscriptionTier, err error) *MockMonetizationRepository_CreateSubscriptionTier_Call {
+	_c.Call.Return(subscriptionTier, err)
+	return _c
+}
+
+func (_c *MockMonetizationRepository_CreateSubscriptionTier_Call) RunAndReturn(run func(ctx context.Context, authorID uuid.UUID, req dto.CreateSubscriptionTierRequest) (*models.SubscriptionTier, error)) *MockMonetizationRepository_CreateSubscriptionTier_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateSubscriptionWithPayment provides a mock function for the type MockMonetizationRepository
+func (_mock *MockMonetizationRepository) CreateSubscriptionWithPayment(ctx context.Context, req dto.CreateSubscriptionWithPayment) (*models.CurrentSubscription, *models.PaymentOrder, error) {
+	ret := _mock.Called(ctx, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateSubscriptionWithPayment")
+	}
+
+	var r0 *models.CurrentSubscription
+	var r1 *models.PaymentOrder
+	var r2 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, dto.CreateSubscriptionWithPayment) (*models.CurrentSubscription, *models.PaymentOrder, error)); ok {
+		return returnFunc(ctx, req)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, dto.CreateSubscriptionWithPayment) *models.CurrentSubscription); ok {
+		r0 = returnFunc(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.CurrentSubscription)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, dto.CreateSubscriptionWithPayment) *models.PaymentOrder); ok {
+		r1 = returnFunc(ctx, req)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*models.PaymentOrder)
+		}
+	}
+	if returnFunc, ok := ret.Get(2).(func(context.Context, dto.CreateSubscriptionWithPayment) error); ok {
+		r2 = returnFunc(ctx, req)
+	} else {
+		r2 = ret.Error(2)
+	}
+	return r0, r1, r2
+}
+
+// MockMonetizationRepository_CreateSubscriptionWithPayment_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateSubscriptionWithPayment'
+type MockMonetizationRepository_CreateSubscriptionWithPayment_Call struct {
+	*mock.Call
+}
+
+// CreateSubscriptionWithPayment is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req dto.CreateSubscriptionWithPayment
+func (_e *MockMonetizationRepository_Expecter) CreateSubscriptionWithPayment(ctx any, req any) *MockMonetizationRepository_CreateSubscriptionWithPayment_Call {
+	return &MockMonetizationRepository_CreateSubscriptionWithPayment_Call{Call: _e.mock.On("CreateSubscriptionWithPayment", ctx, req)}
+}
+
+func (_c *MockMonetizationRepository_CreateSubscriptionWithPayment_Call) Run(run func(ctx context.Context, req dto.CreateSubscriptionWithPayment)) *MockMonetizationRepository_CreateSubscriptionWithPayment_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 dto.CreateSubscriptionWithPayment
+		if args[1] != nil {
+			arg1 = args[1].(dto.CreateSubscriptionWithPayment)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockMonetizationRepository_CreateSubscriptionWithPayment_Call) Return(currentSubscription *models.CurrentSubscription, paymentOrder *models.PaymentOrder, err error) *MockMonetizationRepository_CreateSubscriptionWithPayment_Call {
+	_c.Call.Return(currentSubscription, paymentOrder, err)
+	return _c
+}
+
+func (_c *MockMonetizationRepository_CreateSubscriptionWithPayment_Call) RunAndReturn(run func(ctx context.Context, req dto.CreateSubscriptionWithPayment) (*models.CurrentSubscription, *models.PaymentOrder, error)) *MockMonetizationRepository_CreateSubscriptionWithPayment_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// FailSubscriptionPurchase provides a mock function for the type MockMonetizationRepository
+func (_mock *MockMonetizationRepository) FailSubscriptionPurchase(ctx context.Context, paymentOrderID uuid.UUID) error {
+	ret := _mock.Called(ctx, paymentOrderID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FailSubscriptionPurchase")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) error); ok {
+		r0 = returnFunc(ctx, paymentOrderID)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockMonetizationRepository_FailSubscriptionPurchase_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FailSubscriptionPurchase'
+type MockMonetizationRepository_FailSubscriptionPurchase_Call struct {
+	*mock.Call
+}
+
+// FailSubscriptionPurchase is a helper method to define mock.On call
+//   - ctx context.Context
+//   - paymentOrderID uuid.UUID
+func (_e *MockMonetizationRepository_Expecter) FailSubscriptionPurchase(ctx any, paymentOrderID any) *MockMonetizationRepository_FailSubscriptionPurchase_Call {
+	return &MockMonetizationRepository_FailSubscriptionPurchase_Call{Call: _e.mock.On("FailSubscriptionPurchase", ctx, paymentOrderID)}
+}
+
+func (_c *MockMonetizationRepository_FailSubscriptionPurchase_Call) Run(run func(ctx context.Context, paymentOrderID uuid.UUID)) *MockMonetizationRepository_FailSubscriptionPurchase_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockMonetizationRepository_FailSubscriptionPurchase_Call) Return(err error) *MockMonetizationRepository_FailSubscriptionPurchase_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockMonetizationRepository_FailSubscriptionPurchase_Call) RunAndReturn(run func(ctx context.Context, paymentOrderID uuid.UUID) error) *MockMonetizationRepository_FailSubscriptionPurchase_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -285,6 +617,186 @@ func (_c *MockMonetizationRepository_GetSentDonations_Call) RunAndReturn(run fun
 	return _c
 }
 
+// GetSubscriptionOptions provides a mock function for the type MockMonetizationRepository
+func (_mock *MockMonetizationRepository) GetSubscriptionOptions(ctx context.Context, readerID uuid.UUID, authorID uuid.UUID, postID *uuid.UUID, cursor *dto.SubscriptionTierCursor, limit int) ([]*models.SubscriptionTier, *models.CurrentSubscription, error) {
+	ret := _mock.Called(ctx, readerID, authorID, postID, cursor, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetSubscriptionOptions")
+	}
+
+	var r0 []*models.SubscriptionTier
+	var r1 *models.CurrentSubscription
+	var r2 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, *dto.SubscriptionTierCursor, int) ([]*models.SubscriptionTier, *models.CurrentSubscription, error)); ok {
+		return returnFunc(ctx, readerID, authorID, postID, cursor, limit)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, *dto.SubscriptionTierCursor, int) []*models.SubscriptionTier); ok {
+		r0 = returnFunc(ctx, readerID, authorID, postID, cursor, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*models.SubscriptionTier)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, *dto.SubscriptionTierCursor, int) *models.CurrentSubscription); ok {
+		r1 = returnFunc(ctx, readerID, authorID, postID, cursor, limit)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*models.CurrentSubscription)
+		}
+	}
+	if returnFunc, ok := ret.Get(2).(func(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, *dto.SubscriptionTierCursor, int) error); ok {
+		r2 = returnFunc(ctx, readerID, authorID, postID, cursor, limit)
+	} else {
+		r2 = ret.Error(2)
+	}
+	return r0, r1, r2
+}
+
+// MockMonetizationRepository_GetSubscriptionOptions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetSubscriptionOptions'
+type MockMonetizationRepository_GetSubscriptionOptions_Call struct {
+	*mock.Call
+}
+
+// GetSubscriptionOptions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - readerID uuid.UUID
+//   - authorID uuid.UUID
+//   - postID *uuid.UUID
+//   - cursor *dto.SubscriptionTierCursor
+//   - limit int
+func (_e *MockMonetizationRepository_Expecter) GetSubscriptionOptions(ctx any, readerID any, authorID any, postID any, cursor any, limit any) *MockMonetizationRepository_GetSubscriptionOptions_Call {
+	return &MockMonetizationRepository_GetSubscriptionOptions_Call{Call: _e.mock.On("GetSubscriptionOptions", ctx, readerID, authorID, postID, cursor, limit)}
+}
+
+func (_c *MockMonetizationRepository_GetSubscriptionOptions_Call) Run(run func(ctx context.Context, readerID uuid.UUID, authorID uuid.UUID, postID *uuid.UUID, cursor *dto.SubscriptionTierCursor, limit int)) *MockMonetizationRepository_GetSubscriptionOptions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 uuid.UUID
+		if args[2] != nil {
+			arg2 = args[2].(uuid.UUID)
+		}
+		var arg3 *uuid.UUID
+		if args[3] != nil {
+			arg3 = args[3].(*uuid.UUID)
+		}
+		var arg4 *dto.SubscriptionTierCursor
+		if args[4] != nil {
+			arg4 = args[4].(*dto.SubscriptionTierCursor)
+		}
+		var arg5 int
+		if args[5] != nil {
+			arg5 = args[5].(int)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+			arg4,
+			arg5,
+		)
+	})
+	return _c
+}
+
+func (_c *MockMonetizationRepository_GetSubscriptionOptions_Call) Return(subscriptionTiers []*models.SubscriptionTier, currentSubscription *models.CurrentSubscription, err error) *MockMonetizationRepository_GetSubscriptionOptions_Call {
+	_c.Call.Return(subscriptionTiers, currentSubscription, err)
+	return _c
+}
+
+func (_c *MockMonetizationRepository_GetSubscriptionOptions_Call) RunAndReturn(run func(ctx context.Context, readerID uuid.UUID, authorID uuid.UUID, postID *uuid.UUID, cursor *dto.SubscriptionTierCursor, limit int) ([]*models.SubscriptionTier, *models.CurrentSubscription, error)) *MockMonetizationRepository_GetSubscriptionOptions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetSubscriptionTiers provides a mock function for the type MockMonetizationRepository
+func (_mock *MockMonetizationRepository) GetSubscriptionTiers(ctx context.Context, authorID uuid.UUID, cursor *dto.SubscriptionTierCursor, limit int) ([]*models.SubscriptionTier, error) {
+	ret := _mock.Called(ctx, authorID, cursor, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetSubscriptionTiers")
+	}
+
+	var r0 []*models.SubscriptionTier
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, *dto.SubscriptionTierCursor, int) ([]*models.SubscriptionTier, error)); ok {
+		return returnFunc(ctx, authorID, cursor, limit)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, *dto.SubscriptionTierCursor, int) []*models.SubscriptionTier); ok {
+		r0 = returnFunc(ctx, authorID, cursor, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*models.SubscriptionTier)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, *dto.SubscriptionTierCursor, int) error); ok {
+		r1 = returnFunc(ctx, authorID, cursor, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockMonetizationRepository_GetSubscriptionTiers_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetSubscriptionTiers'
+type MockMonetizationRepository_GetSubscriptionTiers_Call struct {
+	*mock.Call
+}
+
+// GetSubscriptionTiers is a helper method to define mock.On call
+//   - ctx context.Context
+//   - authorID uuid.UUID
+//   - cursor *dto.SubscriptionTierCursor
+//   - limit int
+func (_e *MockMonetizationRepository_Expecter) GetSubscriptionTiers(ctx any, authorID any, cursor any, limit any) *MockMonetizationRepository_GetSubscriptionTiers_Call {
+	return &MockMonetizationRepository_GetSubscriptionTiers_Call{Call: _e.mock.On("GetSubscriptionTiers", ctx, authorID, cursor, limit)}
+}
+
+func (_c *MockMonetizationRepository_GetSubscriptionTiers_Call) Run(run func(ctx context.Context, authorID uuid.UUID, cursor *dto.SubscriptionTierCursor, limit int)) *MockMonetizationRepository_GetSubscriptionTiers_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 *dto.SubscriptionTierCursor
+		if args[2] != nil {
+			arg2 = args[2].(*dto.SubscriptionTierCursor)
+		}
+		var arg3 int
+		if args[3] != nil {
+			arg3 = args[3].(int)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockMonetizationRepository_GetSubscriptionTiers_Call) Return(subscriptionTiers []*models.SubscriptionTier, err error) *MockMonetizationRepository_GetSubscriptionTiers_Call {
+	_c.Call.Return(subscriptionTiers, err)
+	return _c
+}
+
+func (_c *MockMonetizationRepository_GetSubscriptionTiers_Call) RunAndReturn(run func(ctx context.Context, authorID uuid.UUID, cursor *dto.SubscriptionTierCursor, limit int) ([]*models.SubscriptionTier, error)) *MockMonetizationRepository_GetSubscriptionTiers_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // MarkPaid provides a mock function for the type MockMonetizationRepository
 func (_mock *MockMonetizationRepository) MarkPaid(ctx context.Context, paymentOrderID uuid.UUID) error {
 	ret := _mock.Called(ctx, paymentOrderID)
@@ -338,6 +850,86 @@ func (_c *MockMonetizationRepository_MarkPaid_Call) Return(err error) *MockMonet
 }
 
 func (_c *MockMonetizationRepository_MarkPaid_Call) RunAndReturn(run func(ctx context.Context, paymentOrderID uuid.UUID) error) *MockMonetizationRepository_MarkPaid_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateSubscriptionTier provides a mock function for the type MockMonetizationRepository
+func (_mock *MockMonetizationRepository) UpdateSubscriptionTier(ctx context.Context, authorID uuid.UUID, tierID uuid.UUID, req dto.UpdateSubscriptionTierRequest) (*models.SubscriptionTier, error) {
+	ret := _mock.Called(ctx, authorID, tierID, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateSubscriptionTier")
+	}
+
+	var r0 *models.SubscriptionTier
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, dto.UpdateSubscriptionTierRequest) (*models.SubscriptionTier, error)); ok {
+		return returnFunc(ctx, authorID, tierID, req)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, dto.UpdateSubscriptionTierRequest) *models.SubscriptionTier); ok {
+		r0 = returnFunc(ctx, authorID, tierID, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.SubscriptionTier)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, dto.UpdateSubscriptionTierRequest) error); ok {
+		r1 = returnFunc(ctx, authorID, tierID, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockMonetizationRepository_UpdateSubscriptionTier_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateSubscriptionTier'
+type MockMonetizationRepository_UpdateSubscriptionTier_Call struct {
+	*mock.Call
+}
+
+// UpdateSubscriptionTier is a helper method to define mock.On call
+//   - ctx context.Context
+//   - authorID uuid.UUID
+//   - tierID uuid.UUID
+//   - req dto.UpdateSubscriptionTierRequest
+func (_e *MockMonetizationRepository_Expecter) UpdateSubscriptionTier(ctx any, authorID any, tierID any, req any) *MockMonetizationRepository_UpdateSubscriptionTier_Call {
+	return &MockMonetizationRepository_UpdateSubscriptionTier_Call{Call: _e.mock.On("UpdateSubscriptionTier", ctx, authorID, tierID, req)}
+}
+
+func (_c *MockMonetizationRepository_UpdateSubscriptionTier_Call) Run(run func(ctx context.Context, authorID uuid.UUID, tierID uuid.UUID, req dto.UpdateSubscriptionTierRequest)) *MockMonetizationRepository_UpdateSubscriptionTier_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 uuid.UUID
+		if args[2] != nil {
+			arg2 = args[2].(uuid.UUID)
+		}
+		var arg3 dto.UpdateSubscriptionTierRequest
+		if args[3] != nil {
+			arg3 = args[3].(dto.UpdateSubscriptionTierRequest)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockMonetizationRepository_UpdateSubscriptionTier_Call) Return(subscriptionTier *models.SubscriptionTier, err error) *MockMonetizationRepository_UpdateSubscriptionTier_Call {
+	_c.Call.Return(subscriptionTier, err)
+	return _c
+}
+
+func (_c *MockMonetizationRepository_UpdateSubscriptionTier_Call) RunAndReturn(run func(ctx context.Context, authorID uuid.UUID, tierID uuid.UUID, req dto.UpdateSubscriptionTierRequest) (*models.SubscriptionTier, error)) *MockMonetizationRepository_UpdateSubscriptionTier_Call {
 	_c.Call.Return(run)
 	return _c
 }

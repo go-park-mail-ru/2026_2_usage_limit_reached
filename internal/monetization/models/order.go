@@ -16,7 +16,8 @@ var (
 type PaymentOrderPurpose string
 
 const (
-	PurposeDonation PaymentOrderPurpose = "donation"
+	PurposeDonation          PaymentOrderPurpose = "donation"
+	PurposeSubscriptionPeriod PaymentOrderPurpose = "subscription_period"
 )
 
 type PaymentOrderOrigin string

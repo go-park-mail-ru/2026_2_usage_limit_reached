@@ -17,7 +17,7 @@ var (
 	ErrValidation = errors.New("validation error")
 	ErrNotFound   = errors.New("not found")
 	ErrForbidden  = errors.New("forbidden")
-	ErrConflict   = errors.New("payment conflict")
+	ErrConflict   = errors.New("conflict")
 )
 
 type IdentityClient interface {
@@ -28,6 +28,14 @@ type MonetizationRepository interface {
 	CreateDonationWithPayment(ctx context.Context, req dto.CreateDonationWithPayment) (*models.Donation, *models.PaymentOrder, error)
 	GetReceivedDonations(ctx context.Context, authorID uuid.UUID, cursor *dto.DonationCursor, limit int) ([]*models.Donation, error)
 	GetSentDonations(ctx context.Context, donorID uuid.UUID, cursor *dto.DonationCursor, limit int) ([]*models.Donation, error)
+	GetSubscriptionTiers(ctx context.Context, authorID uuid.UUID, cursor *dto.SubscriptionTierCursor, limit int) ([]*models.SubscriptionTier, error)
+	CreateSubscriptionTier(ctx context.Context, authorID uuid.UUID, req dto.CreateSubscriptionTierRequest) (*models.SubscriptionTier, error)
+	UpdateSubscriptionTier(ctx context.Context, authorID, tierID uuid.UUID, req dto.UpdateSubscriptionTierRequest) (*models.SubscriptionTier, error)
+	GetSubscriptionOptions(ctx context.Context, readerID, authorID uuid.UUID, postID *uuid.UUID, cursor *dto.SubscriptionTierCursor, limit int) ([]*models.SubscriptionTier, *models.CurrentSubscription, error)
+	CreateSubscriptionWithPayment(ctx context.Context, req dto.CreateSubscriptionWithPayment) (*models.CurrentSubscription, *models.PaymentOrder, error)
+	ActivateSubscription(ctx context.Context, paymentOrderID uuid.UUID) (*models.CurrentSubscription, error)
+	FailSubscriptionPurchase(ctx context.Context, paymentOrderID uuid.UUID) error
+	CancelSubscription(ctx context.Context, subscriptionID uuid.UUID) error
 	MarkPaid(ctx context.Context, paymentOrderID uuid.UUID) error
 }
 
@@ -42,6 +50,16 @@ var repoErrors = []struct{ from, to error }{
 	{models.ErrForbiddenUpdate, ErrForbidden},
 	{models.ErrPaymentOrderValidation, ErrValidation},
 	{models.ErrPaymentAttemptValidation, ErrValidation},
+	{models.ErrSubscriptionTierConflict, ErrConflict},
+	{models.ErrSubscriptionTierUnavailable, ErrConflict},
+	{models.ErrSubscriptionPriceChanged, ErrConflict},
+	{models.ErrSubscriptionChanged, ErrConflict},
+	{models.ErrSelfSubscription, ErrForbidden},
+	{models.ErrSubscriptionPaymentFailed, ErrConflict},
+	{models.ErrIdempotencyKeyReused, ErrConflict},
+	{models.ErrSubscriptionTierNotFound, ErrNotFound},
+	{models.ErrSubscriptionTargetNotFound, ErrNotFound},
+	{models.ErrSubscriptionTierValidation, ErrValidation},
 }
 
 func mapRepoError(op string, err error) error {

@@ -18,6 +18,7 @@ type PaymentRepository interface {
 	StartAttempt(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, *models.PaymentAttempt, bool, error)
 	CompleteSuccessfulAttempt(ctx context.Context, attempt dto.AttemptToComplete) (bool, error)
 	FailAttempt(ctx context.Context, orderID, attemptID uuid.UUID, reason string) error
+	RefundPaidOrder(ctx context.Context, orderID uuid.UUID, reason string) error
 }
 
 func (uc *MonetizationUsecase) GetPayments(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID]*models.PaymentOrder, error) {

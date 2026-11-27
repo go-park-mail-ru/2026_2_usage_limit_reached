@@ -320,6 +320,69 @@ func (_c *MockPaymentRepository_GetOrdersByIDs_Call) RunAndReturn(run func(ctx c
 	return _c
 }
 
+// RefundPaidOrder provides a mock function for the type MockPaymentRepository
+func (_mock *MockPaymentRepository) RefundPaidOrder(ctx context.Context, orderID uuid.UUID, reason string) error {
+	ret := _mock.Called(ctx, orderID, reason)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RefundPaidOrder")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, string) error); ok {
+		r0 = returnFunc(ctx, orderID, reason)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockPaymentRepository_RefundPaidOrder_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RefundPaidOrder'
+type MockPaymentRepository_RefundPaidOrder_Call struct {
+	*mock.Call
+}
+
+// RefundPaidOrder is a helper method to define mock.On call
+//   - ctx context.Context
+//   - orderID uuid.UUID
+//   - reason string
+func (_e *MockPaymentRepository_Expecter) RefundPaidOrder(ctx any, orderID any, reason any) *MockPaymentRepository_RefundPaidOrder_Call {
+	return &MockPaymentRepository_RefundPaidOrder_Call{Call: _e.mock.On("RefundPaidOrder", ctx, orderID, reason)}
+}
+
+func (_c *MockPaymentRepository_RefundPaidOrder_Call) Run(run func(ctx context.Context, orderID uuid.UUID, reason string)) *MockPaymentRepository_RefundPaidOrder_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockPaymentRepository_RefundPaidOrder_Call) Return(err error) *MockPaymentRepository_RefundPaidOrder_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockPaymentRepository_RefundPaidOrder_Call) RunAndReturn(run func(ctx context.Context, orderID uuid.UUID, reason string) error) *MockPaymentRepository_RefundPaidOrder_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // StartAttempt provides a mock function for the type MockPaymentRepository
 func (_mock *MockPaymentRepository) StartAttempt(ctx context.Context, orderID uuid.UUID) (*models.PaymentOrder, *models.PaymentAttempt, bool, error) {
 	ret := _mock.Called(ctx, orderID)

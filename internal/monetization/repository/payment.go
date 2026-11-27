@@ -710,6 +710,51 @@ func (r *MonetizationRepository) makeRefund(ctx context.Context, tx pgx.Tx, atte
 	return nil
 }
 
+func (r *MonetizationRepository) RefundPaidOrder(ctx context.Context, orderID uuid.UUID, reason string) error {
+	if orderID == uuid.Nil || strings.TrimSpace(reason) == "" {
+		return models.ErrPaymentOrderValidation
+	}
+
+	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
+		const getPaidOrder = `
+			SELECT credited_attempt_id
+			FROM payment_order
+			WHERE id = $1 AND status = 'paid'
+			FOR UPDATE
+		`
+		var attemptID *uuid.UUID
+		if err := tx.QueryRow(ctx, getPaidOrder, orderID).Scan(&attemptID); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return models.ErrPaymentOrderValidation
+			}
+			return fmt.Errorf("get paid order to refund: %w", err)
+		}
+		if attemptID == nil {
+			return models.ErrPaymentOrderValidation
+		}
+
+		const getChargedAmount = `
+			SELECT charged_amount_minor
+			FROM payment_attempt
+			WHERE id = $1 AND payment_order_id = $2 AND status = 'succeeded'
+		`
+		var amount int64
+		if err := tx.QueryRow(ctx, getChargedAmount, *attemptID, orderID).Scan(&amount); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return models.ErrPaymentAttemptValidation
+			}
+			return fmt.Errorf("get paid attempt to refund: %w", err)
+		}
+
+		return r.makeRefund(ctx, tx, *attemptID, amount, strings.TrimSpace(reason))
+	})
+	if err != nil {
+		return fmt.Errorf("refund paid order: %w", err)
+	}
+
+	return nil
+}
+
 func (r *MonetizationRepository) FailAttempt(ctx context.Context, orderID, attemptID uuid.UUID, reason string) error {
 	const lockOrder = `SELECT status FROM payment_order WHERE id = $1 FOR UPDATE`
 	const hasActiveQuery = `

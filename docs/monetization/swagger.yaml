@@ -20,6 +20,50 @@ components:
         status:
           type: string
       type: object
+    dto.CreateSubscriptionRequest:
+      properties:
+        action:
+          type: string
+        expected_current_tier_id:
+          type: string
+        expected_price_minor:
+          type: integer
+        expected_subscription_id:
+          type: string
+        post_id:
+          type: string
+        request_key:
+          type: string
+        tier_id:
+          type: string
+      type: object
+    dto.CreateSubscriptionResponse:
+      properties:
+        current_subscription:
+          $ref: '#/components/schemas/dto.CurrentSubscription'
+      type: object
+    dto.CreateSubscriptionTierRequest:
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        price_minor:
+          type: integer
+      type: object
+    dto.CurrentSubscription:
+      properties:
+        currency:
+          type: string
+        id:
+          type: string
+        period_ends_at:
+          type: string
+        price_minor:
+          type: integer
+        tier:
+          $ref: '#/components/schemas/dto.SubscriptionTierReference'
+      type: object
     dto.DonationPageResponse:
       properties:
         items:
@@ -57,6 +101,63 @@ components:
           type: string
         user:
           $ref: '#/components/schemas/dto.DonationUserInfo'
+      type: object
+    dto.SubscriptionOptionsResponse:
+      properties:
+        current_subscription:
+          $ref: '#/components/schemas/dto.CurrentSubscription'
+        items:
+          items:
+            $ref: '#/components/schemas/dto.SubscriptionTier'
+          type: array
+          uniqueItems: false
+        next_cursor:
+          type: string
+      type: object
+    dto.SubscriptionTier:
+      properties:
+        currency:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        price_minor:
+          type: integer
+        status:
+          type: string
+      type: object
+    dto.SubscriptionTierListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/dto.SubscriptionTier'
+          type: array
+          uniqueItems: false
+        next_cursor:
+          type: string
+      type: object
+    dto.SubscriptionTierReference:
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+      type: object
+    dto.UpdateSubscriptionTierRequest:
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        price_minor:
+          type: integer
+        status:
+          type: string
       type: object
     response.ErrorResponse:
       properties:
@@ -142,6 +243,142 @@ paths:
       summary: Отправка доната
       tags:
       - donations
+  /authors/{author_id}/subscription-options:
+    get:
+      description: Возвращает текущую подписку читателя и доступные для оформления
+        уровни страницами по возрастанию цены и ID. Для следующей страницы передайте
+        next_cursor из ответа в параметр cursor. Персональный ответ не кэшируется.
+      parameters:
+      - description: ID автора
+        in: path
+        name: author_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - description: Ограничить уровнями, открывающими этот пост
+        in: query
+        name: post_id
+        schema:
+          format: uuid
+          type: string
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
+          не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.SubscriptionOptionsResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Internal Server Error
+      summary: Варианты подписки автора
+      tags:
+      - subscriptions
+  /authors/{author_id}/subscriptions:
+    post:
+      description: Создаёт платёжный заказ и выполняет попытку оплаты выбранного уровня.
+        Повтор request_key возвращает результат исходного действия.
+      parameters:
+      - description: ID автора
+        in: path
+        name: author_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.CreateSubscriptionRequest'
+              description: Параметры подписки
+              summary: request
+        description: Параметры подписки
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.CreateSubscriptionResponse'
+          description: Повышение уровня
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.CreateSubscriptionResponse'
+          description: Оформление подписки
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - CookieAuth: []
+      summary: Оформление или повышение подписки
+      tags:
+      - subscriptions
   /profile/me/donations/received:
     get:
       description: Возвращает список донатов, полученных авторизованным пользователем
@@ -243,3 +480,181 @@ paths:
       summary: Мои отправленные донаты
       tags:
       - donations
+  /profile/me/tiers:
+    get:
+      description: Возвращает открытые и архивные уровни текущего автора страницами
+        по возрастанию цены и ID. Для следующей страницы передайте next_cursor из
+        ответа в параметр cursor.
+      parameters:
+      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          maximum: 50
+          minimum: 1
+          type: integer
+      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
+          не передаётся)
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.SubscriptionTierListResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный cursor
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - CookieAuth: []
+      summary: Список уровней подписки автора
+      tags:
+      - subscriptions
+    post:
+      description: Создаёт открытый уровень подписки с фиксированной ценой за 30 суток.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.CreateSubscriptionTierRequest'
+              description: Данные уровня
+              summary: request
+        description: Данные уровня
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.SubscriptionTier'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Forbidden
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - CookieAuth: []
+      summary: Создание уровня подписки
+      tags:
+      - subscriptions
+  /profile/me/tiers/{id}:
+    patch:
+      description: Изменяет имя, описание и цену уровня либо архивирует его. Цена
+        активного уровня не может пересечь цену соседнего уровня.
+      parameters:
+      - description: ID уровня
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.UpdateSubscriptionTierRequest'
+              description: Изменения уровня
+              summary: request
+        description: Изменения уровня
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.SubscriptionTier'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - CookieAuth: []
+      summary: Изменение или архивация уровня подписки
+      tags:
+      - subscriptions

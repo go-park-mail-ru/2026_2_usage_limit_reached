@@ -15,7 +15,8 @@ type ProfileUserResponse struct {
 }
 
 type ProfileResponse struct {
-	User ProfileUserResponse `json:"user"`
+	User   ProfileUserResponse `json:"user"`
+	Author *AuthorMeResponse   `json:"author,omitempty"`
 }
 
 type PublicProfileUserResponse struct {
@@ -27,7 +28,8 @@ type PublicProfileUserResponse struct {
 }
 
 type PublicProfileResponse struct {
-	User PublicProfileUserResponse `json:"user"`
+	User   PublicProfileUserResponse `json:"user"`
+	Author *AuthorMeResponse         `json:"author,omitempty"`
 }
 
 type UpdateProfileRequest struct {
@@ -46,23 +48,26 @@ type AvatarResponse struct {
 	AvatarURL string `json:"avatar_url" example:"/media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png"`
 }
 
-func ToProfileResponse(user *models.User, avatarURL *string) *ProfileResponse {
+func ToProfileResponse(user *models.User, avatarURL *string, author *AuthorMeResponse) *ProfileResponse {
 	if user == nil {
 		return nil
 	}
 
-	return &ProfileResponse{User: ProfileUserResponse{
-		PublicProfileUserResponse: toPublicUserResponse(user, avatarURL),
-		Email:                     user.Email,
-	}}
+	return &ProfileResponse{
+		User: ProfileUserResponse{
+			PublicProfileUserResponse: toPublicUserResponse(user, avatarURL),
+			Email:                     user.Email,
+		},
+		Author: author,
+	}
 }
 
-func ToPublicProfileResponse(user *models.User, avatarURL *string) *PublicProfileResponse {
+func ToPublicProfileResponse(user *models.User, avatarURL *string, author *AuthorMeResponse) *PublicProfileResponse {
 	if user == nil {
 		return nil
 	}
 
-	return &PublicProfileResponse{User: toPublicUserResponse(user, avatarURL)}
+	return &PublicProfileResponse{User: toPublicUserResponse(user, avatarURL), Author: author}
 }
 
 func toPublicUserResponse(user *models.User, avatarURL *string) PublicProfileUserResponse {

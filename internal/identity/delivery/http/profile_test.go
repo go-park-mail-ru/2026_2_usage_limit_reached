@@ -48,6 +48,7 @@ func newRouter(t *testing.T, uc handlers.IdentityUsecase, userID uuid.UUID) *mux
 	authHandler := handlers.NewAuthHandler(mock_delivery_http.NewMockIdentityUsecase(t), valid, logger)
 	profileHandler := handlers.NewProfileHandler(uc, valid, logger)
 	csrfHandler := handlers.NewCSRFHandler(csrf.NewManager(csrf.DefaultConfig()), logger)
+	authorHandler := handlers.NewAuthorHandler(mock_delivery_http.NewMockAuthorUsecase(t), valid, logger)
 
 	router := mux.NewRouter()
 	public := router.NewRoute().Subrouter()
@@ -58,6 +59,7 @@ func newRouter(t *testing.T, uc handlers.IdentityUsecase, userID uuid.UUID) *mux
 		Auth:    authHandler,
 		Profile: profileHandler,
 		CSRF:    csrfHandler,
+		Author:  authorHandler,
 	})
 
 	return router

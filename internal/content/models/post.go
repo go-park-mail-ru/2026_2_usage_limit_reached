@@ -20,6 +20,7 @@ type Post struct {
 	AuthorID    uuid.UUID
 	Title       string
 	Body        string
+	SearchText  string
 	Status      string
 	PublishedAt *time.Time
 	CreatedAt   time.Time

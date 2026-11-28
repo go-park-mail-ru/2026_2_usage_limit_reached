@@ -26,7 +26,7 @@ func (uc *ContentUsecase) CreatePost(ctx context.Context, userID *uuid.UUID, p d
 		return uuid.Nil, fmt.Errorf("%s: %w", "create post", ErrUnauthorized)
 	}
 
-	body, err := uc.sanitizeBody(p.Body)
+	body, searchText, err := uc.prepareBody(p.Body)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("%s: %w", "create post", err)
 	}
@@ -39,6 +39,7 @@ func (uc *ContentUsecase) CreatePost(ctx context.Context, userID *uuid.UUID, p d
 	post := models.Post{
 		Title:       p.Title,
 		Body:        body,
+		SearchText:  searchText,
 		Status:      p.Status,
 		Attachments: attachments,
 	}
@@ -123,24 +124,30 @@ func (uc *ContentUsecase) GetMyOldDrafts(ctx context.Context, userID *uuid.UUID,
 	return page, nil
 }
 
-func (uc *ContentUsecase) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error) {
-	page, err := uc.getTimedPosts(ctx, uc.repo.GetNewPosts, userID, cursor, limit)
+func (uc *ContentUsecase) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) (*dto.TimedPostsPage, error) {
+	page, err := uc.getTimedPosts(ctx, func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+		return uc.repo.GetNewPosts(ctx, userID, cursor, limit, filters)
+	}, userID, cursor, limit)
 	if err != nil {
 		return nil, mapRepoError("get new posts", err)
 	}
 	return page, nil
 }
 
-func (uc *ContentUsecase) GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error) {
-	page, err := uc.getTimedPosts(ctx, uc.repo.GetOldPosts, userID, cursor, limit)
+func (uc *ContentUsecase) GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) (*dto.TimedPostsPage, error) {
+	page, err := uc.getTimedPosts(ctx, func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+		return uc.repo.GetOldPosts(ctx, userID, cursor, limit, filters)
+	}, userID, cursor, limit)
 	if err != nil {
 		return nil, mapRepoError("get old posts", err)
 	}
 	return page, nil
 }
 
-func (uc *ContentUsecase) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error) {
-	page, err := uc.getPopularPosts(ctx, uc.repo.GetPopularPosts, userID, cursor, limit)
+func (uc *ContentUsecase) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int, filters dto.FeedFilters) (*dto.PopularPostsPage, error) {
+	page, err := uc.getPopularPosts(ctx, func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
+		return uc.repo.GetPopularPosts(ctx, userID, cursor, limit, filters)
+	}, userID, cursor, limit)
 	if err != nil {
 		return nil, mapRepoError("get popular posts", err)
 	}
@@ -341,7 +348,7 @@ func (uc *ContentUsecase) UpdatePost(ctx context.Context, userID *uuid.UUID, pos
 		return fmt.Errorf("%s: %w", "update post (unauthorized)", ErrUnauthorized)
 	}
 
-	body, err := uc.sanitizeBody(p.Body)
+	body, searchText, err := uc.prepareBody(p.Body)
 	if err != nil {
 		return fmt.Errorf("%s: %w", "update post", err)
 	}
@@ -355,6 +362,7 @@ func (uc *ContentUsecase) UpdatePost(ctx context.Context, userID *uuid.UUID, pos
 		ID:          postID,
 		Title:       p.Title,
 		Body:        body,
+		SearchText:  searchText,
 		Status:      p.Status,
 		Attachments: attachments,
 	}
@@ -400,6 +408,20 @@ func (uc *ContentUsecase) DeletePostLike(ctx context.Context, userID *uuid.UUID,
 		return 0, mapRepoError("delete like", err)
 	}
 	return likes, nil
+}
+
+func (uc *ContentUsecase) prepareBody(raw string) (string, string, error) {
+	body, err := uc.sanitizeBody(raw)
+	if err != nil {
+		return "", "", err
+	}
+
+	searchText, err := uc.sanitizer.PlainText(body)
+	if err != nil {
+		return "", "", fmt.Errorf("sanitize body: %w", ErrValidation)
+	}
+
+	return body, searchText, nil
 }
 
 func (uc *ContentUsecase) sanitizeBody(body string) (string, error) {

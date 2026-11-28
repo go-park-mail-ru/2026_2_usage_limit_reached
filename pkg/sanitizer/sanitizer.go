@@ -177,6 +177,45 @@ func HasText(input string) bool {
 	return false
 }
 
+// PlainText возвращает видимый текст разметки: теги отбрасываются, содержимое
+// удаляемых тегов (script, style и т.п.) пропускается, сущности декодируются,
+// пробелы схлопываются. Используется для поискового текста поста.
+func (s *Sanitizer) PlainText(input string) (string, error) {
+	nodes, err := html.ParseFragment(strings.NewReader(input), bodyContext)
+	if err != nil {
+		return "", fmt.Errorf("parse html: %w", err)
+	}
+
+	var output strings.Builder
+	for _, node := range nodes {
+		s.collectText(node, &output)
+	}
+
+	return normalizeSpace(output.String()), nil
+}
+
+func (s *Sanitizer) collectText(node *html.Node, output *strings.Builder) {
+	switch node.Type {
+	case html.TextNode:
+		output.WriteString(node.Data)
+	case html.ElementNode:
+		if s.removedWithContent[node.DataAtom] {
+			return
+		}
+
+		// Разделитель, чтобы текст соседних блоков не склеивался: <p>a</p><p>b</p> → "a b"
+		output.WriteString(" ")
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			s.collectText(child, output)
+		}
+		output.WriteString(" ")
+	}
+}
+
+func normalizeSpace(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
 // Рекурсия безопасна, т.к. html.ParseFragment отклоняет вложенность глубже 512 элементов
 func (s *Sanitizer) cleanNode(node *html.Node) []*html.Node {
 	switch {
@@ -206,6 +245,7 @@ func (s *Sanitizer) cleanNode(node *html.Node) []*html.Node {
 		if !ok {
 			return children
 		}
+
 		clean.Attr = []html.Attribute{
 			{Key: "href", Val: href},
 			{Key: "target", Val: "_blank"},
@@ -216,6 +256,7 @@ func (s *Sanitizer) cleanNode(node *html.Node) []*html.Node {
 		if !ok {
 			return children
 		}
+
 		clean.Attr = []html.Attribute{{Key: attachmentAttr, Val: id}}
 	}
 

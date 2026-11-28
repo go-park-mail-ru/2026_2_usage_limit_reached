@@ -195,11 +195,27 @@ func TestGetPublicProfile(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		repo := mock_identity_usecase.NewMockRepository(t)
 		repo.EXPECT().GetUserByUsername(mock.Anything, "ivan001").Return(testUser(), nil)
+		repo.EXPECT().GetAuthorByID(mock.Anything, testUserID).Return(nil, models.ErrAuthorNotFound)
 
 		got, err := newUsecase(repo, nil, nil).GetPublicProfile(context.Background(), "ivan001")
 
 		require.NoError(t, err)
 		require.Equal(t, testUserID, got.User.ID)
+		require.Nil(t, got.Author)
+	})
+
+	t.Run("includes author block", func(t *testing.T) {
+		author := &models.Author{ID: testUserID, Username: "ivan001", Nickname: "Иван", Bio: "Пишу о книгах"}
+
+		repo := mock_identity_usecase.NewMockRepository(t)
+		repo.EXPECT().GetUserByUsername(mock.Anything, "ivan001").Return(testUser(), nil)
+		repo.EXPECT().GetAuthorByID(mock.Anything, testUserID).Return(author, nil)
+
+		got, err := newUsecase(repo, nil, nil).GetPublicProfile(context.Background(), "ivan001")
+
+		require.NoError(t, err)
+		require.NotNil(t, got.Author)
+		require.Equal(t, "Пишу о книгах", got.Author.Bio)
 	})
 
 	t.Run("inactive user hidden", func(t *testing.T) {
@@ -220,11 +236,13 @@ func TestUpdateMyProfile(t *testing.T) {
 	repo := mock_identity_usecase.NewMockRepository(t)
 	repo.EXPECT().GetUserByID(mock.Anything, testUserID).Return(testUser(), nil)
 	repo.EXPECT().UpdateNickname(mock.Anything, testUserID, "Новый").Return("Новый", nil)
+	repo.EXPECT().GetAuthorByID(mock.Anything, testUserID).Return(nil, models.ErrAuthorNotFound)
 
 	got, err := newUsecase(repo, nil, nil).UpdateMyProfile(context.Background(), testUserID, dto.UpdateProfileRequest{Nickname: "Новый"})
 
 	require.NoError(t, err)
 	require.Equal(t, "Новый", got.User.Nickname)
+	require.Nil(t, got.Author)
 }
 
 func TestUploadAvatarTooLarge(t *testing.T) {

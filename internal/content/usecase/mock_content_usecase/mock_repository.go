@@ -875,8 +875,8 @@ func (_c *MockRepository_GetMyPopularPosts_Call) RunAndReturn(run func(ctx conte
 }
 
 // GetNewPosts provides a mock function for the type MockRepository
-func (_mock *MockRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
-	ret := _mock.Called(ctx, userID, cursor, limit)
+func (_mock *MockRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) ([]*dto.PostPreview, error) {
+	ret := _mock.Called(ctx, userID, cursor, limit, filters)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetNewPosts")
@@ -884,18 +884,18 @@ func (_mock *MockRepository) GetNewPosts(ctx context.Context, userID *uuid.UUID,
 
 	var r0 []*dto.PostPreview
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error)); ok {
-		return returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int, dto.FeedFilters) ([]*dto.PostPreview, error)); ok {
+		return returnFunc(ctx, userID, cursor, limit, filters)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) []*dto.PostPreview); ok {
-		r0 = returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int, dto.FeedFilters) []*dto.PostPreview); ok {
+		r0 = returnFunc(ctx, userID, cursor, limit, filters)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*dto.PostPreview)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) error); ok {
-		r1 = returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int, dto.FeedFilters) error); ok {
+		r1 = returnFunc(ctx, userID, cursor, limit, filters)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -912,11 +912,12 @@ type MockRepository_GetNewPosts_Call struct {
 //   - userID *uuid.UUID
 //   - cursor *dto.TimedPostsCursor
 //   - limit int
-func (_e *MockRepository_Expecter) GetNewPosts(ctx any, userID any, cursor any, limit any) *MockRepository_GetNewPosts_Call {
-	return &MockRepository_GetNewPosts_Call{Call: _e.mock.On("GetNewPosts", ctx, userID, cursor, limit)}
+//   - filters dto.FeedFilters
+func (_e *MockRepository_Expecter) GetNewPosts(ctx any, userID any, cursor any, limit any, filters any) *MockRepository_GetNewPosts_Call {
+	return &MockRepository_GetNewPosts_Call{Call: _e.mock.On("GetNewPosts", ctx, userID, cursor, limit, filters)}
 }
 
-func (_c *MockRepository_GetNewPosts_Call) Run(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int)) *MockRepository_GetNewPosts_Call {
+func (_c *MockRepository_GetNewPosts_Call) Run(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters)) *MockRepository_GetNewPosts_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -934,11 +935,16 @@ func (_c *MockRepository_GetNewPosts_Call) Run(run func(ctx context.Context, use
 		if args[3] != nil {
 			arg3 = args[3].(int)
 		}
+		var arg4 dto.FeedFilters
+		if args[4] != nil {
+			arg4 = args[4].(dto.FeedFilters)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
 			arg3,
+			arg4,
 		)
 	})
 	return _c
@@ -949,14 +955,14 @@ func (_c *MockRepository_GetNewPosts_Call) Return(postPreviews []*dto.PostPrevie
 	return _c
 }
 
-func (_c *MockRepository_GetNewPosts_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)) *MockRepository_GetNewPosts_Call {
+func (_c *MockRepository_GetNewPosts_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) ([]*dto.PostPreview, error)) *MockRepository_GetNewPosts_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetOldPosts provides a mock function for the type MockRepository
-func (_mock *MockRepository) GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
-	ret := _mock.Called(ctx, userID, cursor, limit)
+func (_mock *MockRepository) GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) ([]*dto.PostPreview, error) {
+	ret := _mock.Called(ctx, userID, cursor, limit, filters)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetOldPosts")
@@ -964,18 +970,18 @@ func (_mock *MockRepository) GetOldPosts(ctx context.Context, userID *uuid.UUID,
 
 	var r0 []*dto.PostPreview
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error)); ok {
-		return returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int, dto.FeedFilters) ([]*dto.PostPreview, error)); ok {
+		return returnFunc(ctx, userID, cursor, limit, filters)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) []*dto.PostPreview); ok {
-		r0 = returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int, dto.FeedFilters) []*dto.PostPreview); ok {
+		r0 = returnFunc(ctx, userID, cursor, limit, filters)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*dto.PostPreview)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) error); ok {
-		r1 = returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int, dto.FeedFilters) error); ok {
+		r1 = returnFunc(ctx, userID, cursor, limit, filters)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -992,11 +998,12 @@ type MockRepository_GetOldPosts_Call struct {
 //   - userID *uuid.UUID
 //   - cursor *dto.TimedPostsCursor
 //   - limit int
-func (_e *MockRepository_Expecter) GetOldPosts(ctx any, userID any, cursor any, limit any) *MockRepository_GetOldPosts_Call {
-	return &MockRepository_GetOldPosts_Call{Call: _e.mock.On("GetOldPosts", ctx, userID, cursor, limit)}
+//   - filters dto.FeedFilters
+func (_e *MockRepository_Expecter) GetOldPosts(ctx any, userID any, cursor any, limit any, filters any) *MockRepository_GetOldPosts_Call {
+	return &MockRepository_GetOldPosts_Call{Call: _e.mock.On("GetOldPosts", ctx, userID, cursor, limit, filters)}
 }
 
-func (_c *MockRepository_GetOldPosts_Call) Run(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int)) *MockRepository_GetOldPosts_Call {
+func (_c *MockRepository_GetOldPosts_Call) Run(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters)) *MockRepository_GetOldPosts_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -1014,11 +1021,16 @@ func (_c *MockRepository_GetOldPosts_Call) Run(run func(ctx context.Context, use
 		if args[3] != nil {
 			arg3 = args[3].(int)
 		}
+		var arg4 dto.FeedFilters
+		if args[4] != nil {
+			arg4 = args[4].(dto.FeedFilters)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
 			arg3,
+			arg4,
 		)
 	})
 	return _c
@@ -1029,14 +1041,14 @@ func (_c *MockRepository_GetOldPosts_Call) Return(postPreviews []*dto.PostPrevie
 	return _c
 }
 
-func (_c *MockRepository_GetOldPosts_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)) *MockRepository_GetOldPosts_Call {
+func (_c *MockRepository_GetOldPosts_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) ([]*dto.PostPreview, error)) *MockRepository_GetOldPosts_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetPopularPosts provides a mock function for the type MockRepository
-func (_mock *MockRepository) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
-	ret := _mock.Called(ctx, userID, cursor, limit)
+func (_mock *MockRepository) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int, filters dto.FeedFilters) ([]*dto.PostPreview, error) {
+	ret := _mock.Called(ctx, userID, cursor, limit, filters)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetPopularPosts")
@@ -1044,18 +1056,18 @@ func (_mock *MockRepository) GetPopularPosts(ctx context.Context, userID *uuid.U
 
 	var r0 []*dto.PostPreview
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error)); ok {
-		return returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int, dto.FeedFilters) ([]*dto.PostPreview, error)); ok {
+		return returnFunc(ctx, userID, cursor, limit, filters)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) []*dto.PostPreview); ok {
-		r0 = returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int, dto.FeedFilters) []*dto.PostPreview); ok {
+		r0 = returnFunc(ctx, userID, cursor, limit, filters)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*dto.PostPreview)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) error); ok {
-		r1 = returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int, dto.FeedFilters) error); ok {
+		r1 = returnFunc(ctx, userID, cursor, limit, filters)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1072,11 +1084,12 @@ type MockRepository_GetPopularPosts_Call struct {
 //   - userID *uuid.UUID
 //   - cursor *dto.PopularPostsCursor
 //   - limit int
-func (_e *MockRepository_Expecter) GetPopularPosts(ctx any, userID any, cursor any, limit any) *MockRepository_GetPopularPosts_Call {
-	return &MockRepository_GetPopularPosts_Call{Call: _e.mock.On("GetPopularPosts", ctx, userID, cursor, limit)}
+//   - filters dto.FeedFilters
+func (_e *MockRepository_Expecter) GetPopularPosts(ctx any, userID any, cursor any, limit any, filters any) *MockRepository_GetPopularPosts_Call {
+	return &MockRepository_GetPopularPosts_Call{Call: _e.mock.On("GetPopularPosts", ctx, userID, cursor, limit, filters)}
 }
 
-func (_c *MockRepository_GetPopularPosts_Call) Run(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int)) *MockRepository_GetPopularPosts_Call {
+func (_c *MockRepository_GetPopularPosts_Call) Run(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int, filters dto.FeedFilters)) *MockRepository_GetPopularPosts_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -1094,11 +1107,16 @@ func (_c *MockRepository_GetPopularPosts_Call) Run(run func(ctx context.Context,
 		if args[3] != nil {
 			arg3 = args[3].(int)
 		}
+		var arg4 dto.FeedFilters
+		if args[4] != nil {
+			arg4 = args[4].(dto.FeedFilters)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
 			arg3,
+			arg4,
 		)
 	})
 	return _c
@@ -1109,7 +1127,7 @@ func (_c *MockRepository_GetPopularPosts_Call) Return(postPreviews []*dto.PostPr
 	return _c
 }
 
-func (_c *MockRepository_GetPopularPosts_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)) *MockRepository_GetPopularPosts_Call {
+func (_c *MockRepository_GetPopularPosts_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int, filters dto.FeedFilters) ([]*dto.PostPreview, error)) *MockRepository_GetPopularPosts_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -39,7 +39,7 @@ func handleError(ctx context.Context, logger *slog.Logger, w http.ResponseWriter
 		response.ErrorUnauthorized(w)
 	case errors.Is(err, identityuc.ErrUserInactive):
 		response.ErrorForbidden(w)
-	case errors.Is(err, identityuc.ErrProfileNotFound), errors.Is(err, identityuc.ErrUserNotFound):
+	case errors.Is(err, identityuc.ErrProfileNotFound), errors.Is(err, identityuc.ErrUserNotFound), errors.Is(err, identityuc.ErrAuthorNotFound):
 		response.ErrorNotFound(w)
 	case errors.Is(err, identityuc.ErrAvatarTooLarge):
 		response.ErrorPayloadTooLarge(w)

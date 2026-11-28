@@ -37,7 +37,19 @@ type BioRules struct {
 }
 
 type CategoryRules struct {
-	MaxLen int `mapstructure:"max_len"`
+	MaxLen  int      `mapstructure:"max_len"`
+	Allowed []string `mapstructure:"allowed"`
+}
+
+type SearchRules struct {
+	MinLen        int `mapstructure:"min_len"`
+	MaxLen        int `mapstructure:"max_len"`
+	MaxCategories int `mapstructure:"max_categories"`
+}
+
+type FeedRules struct {
+	DefaultLimit int `mapstructure:"default_limit"`
+	MaxLimit     int `mapstructure:"max_limit"`
 }
 
 type PasswordRules struct {
@@ -90,6 +102,8 @@ type ValidationConfig struct {
 	Media    MediaRules    `mapstructure:"media"`
 	Payment  PaymentRules  `mapstructure:"payment"`
 	Donation DonationRules `mapstructure:"donation"`
+	Search   SearchRules   `mapstructure:"search"`
+	Feed     FeedRules     `mapstructure:"feed"`
 }
 
 func DefaultConfig() ValidationConfig {
@@ -101,7 +115,10 @@ func DefaultConfig() ValidationConfig {
 		},
 		Nickname: NicknameRules{MaxLen: 64},
 		Bio:      BioRules{MaxLen: 1000},
-		Category: CategoryRules{MaxLen: 64},
+		Category: CategoryRules{
+			MaxLen:  64,
+			Allowed: []string{"Творчество", "Образование", "Технологии", "Игры", "Другое"},
+		},
 		Password: PasswordRules{MinLen: 8, MaxLen: 72},
 		Email: EmailRules{
 			MaxLen: 254,
@@ -132,6 +149,15 @@ func DefaultConfig() ValidationConfig {
 		Donation: DonationRules{
 			MaxMessageLen: 5000,
 		},
+		Search: SearchRules{
+			MinLen:        2,
+			MaxLen:        64,
+			MaxCategories: 5,
+		},
+		Feed: FeedRules{
+			DefaultLimit: 20,
+			MaxLimit:     50,
+		},
 	}
 }
 
@@ -159,6 +185,11 @@ func (c ValidationConfig) Validate() error {
 		{"donation.max_message_len", c.Donation.MaxMessageLen},
 		{"media.max_post_attachments", c.Media.MaxPostAttachments},
 		{"media.max_pending_media", c.Media.MaxPendingMedia},
+		{"search.min_len", c.Search.MinLen},
+		{"search.max_len", c.Search.MaxLen},
+		{"search.max_categories", c.Search.MaxCategories},
+		{"feed.default_limit", c.Feed.DefaultLimit},
+		{"feed.max_limit", c.Feed.MaxLimit},
 	}
 	for _, p := range positive {
 		if p.value <= 0 {
@@ -192,6 +223,34 @@ func (c ValidationConfig) Validate() error {
 	if c.Password.MinLen > c.Password.MaxLen {
 		errs = append(errs, fmt.Errorf("validator: password.min_len (%d) > password.max_len (%d)", c.Password.MinLen, c.Password.MaxLen))
 	}
+	if c.Search.MinLen > c.Search.MaxLen {
+		errs = append(errs, fmt.Errorf("validator: search.min_len (%d) > search.max_len (%d)", c.Search.MinLen, c.Search.MaxLen))
+	}
+	if c.Feed.DefaultLimit > c.Feed.MaxLimit {
+		errs = append(errs, fmt.Errorf("validator: feed.default_limit (%d) > feed.max_limit (%d)", c.Feed.DefaultLimit, c.Feed.MaxLimit))
+	}
+	if len(c.Category.Allowed) == 0 {
+		errs = append(errs, errors.New("validator: category.allowed must not be empty"))
+	}
+
+	allowedCategories := make(map[string]struct{}, len(c.Category.Allowed))
+	for _, category := range c.Category.Allowed {
+		name := strings.TrimSpace(category)
+		if name == "" {
+			errs = append(errs, errors.New("validator: category.allowed must not contain empty values"))
+			continue
+		}
+
+		if utf8.RuneCountInString(name) > c.Category.MaxLen {
+			errs = append(errs, fmt.Errorf("validator: category %q exceeds category.max_len", name))
+		}
+
+		if _, ok := allowedCategories[name]; ok {
+			errs = append(errs, fmt.Errorf("validator: duplicate category %q in category.allowed", name))
+		}
+		allowedCategories[name] = struct{}{}
+	}
+
 	if c.Username.AllowedRunes == "" {
 		errs = append(errs, errors.New("validator: username.allowed_runes must not be empty"))
 	}
@@ -215,9 +274,10 @@ func (c ValidationConfig) Validate() error {
 }
 
 type Validator struct {
-	cfg          ValidationConfig
-	emailRegexp  *regexp.Regexp
-	allowedRunes map[rune]struct{}
+	cfg               ValidationConfig
+	emailRegexp       *regexp.Regexp
+	allowedRunes      map[rune]struct{}
+	allowedCategories map[string]struct{}
 }
 
 func NewValidator(valCfg ValidationConfig) (*Validator, error) {
@@ -232,7 +292,17 @@ func NewValidator(valCfg ValidationConfig) (*Validator, error) {
 		allowedRunes[r] = struct{}{}
 	}
 
-	return &Validator{valCfg, emailRegexp, allowedRunes}, nil
+	allowedCategories := make(map[string]struct{}, len(valCfg.Category.Allowed))
+	for _, category := range valCfg.Category.Allowed {
+		allowedCategories[strings.TrimSpace(category)] = struct{}{}
+	}
+
+	return &Validator{
+		cfg:               valCfg,
+		emailRegexp:       emailRegexp,
+		allowedRunes:      allowedRunes,
+		allowedCategories: allowedCategories,
+	}, nil
 }
 
 func (v Validator) IsValidEmail(email string) bool {
@@ -275,6 +345,29 @@ func (v Validator) IsValidBio(bio string) bool {
 func (v Validator) IsValidCategory(category string) bool {
 	length := len([]rune(strings.TrimSpace(category)))
 	return length > 0 && length <= v.cfg.Category.MaxLen
+}
+
+func (v Validator) IsAllowedCategory(category string) bool {
+	_, ok := v.allowedCategories[strings.TrimSpace(category)]
+	return ok
+}
+
+func (v Validator) IsValidSearchQuery(query string) bool {
+	length := utf8.RuneCountInString(strings.TrimSpace(query))
+
+	return length == 0 || (length >= v.cfg.Search.MinLen && length <= v.cfg.Search.MaxLen)
+}
+
+func (v Validator) MaxSearchCategories() int {
+	return v.cfg.Search.MaxCategories
+}
+
+func (v Validator) DefaultFeedLimit() int {
+	return v.cfg.Feed.DefaultLimit
+}
+
+func (v Validator) MaxFeedLimit() int {
+	return v.cfg.Feed.MaxLimit
 }
 
 func (v Validator) IsValidPassword(password string) bool {

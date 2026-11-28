@@ -10,7 +10,7 @@ export PATH := $(GOBIN):$(PATH)
 
 PROTO_FILES := $(shell find $(PROTO_ROOT) -name '*.proto' | sed 's|^$(PROTO_ROOT)/||' | sort)
 
-.PHONY: proto proto-clean proto-check tools swagger swagger-identity swagger-content
+.PHONY: proto proto-clean proto-check tools swagger swagger-identity swagger-content reindex-posts swagger-monetization
 
 # Генерирует Go-код в pkg/proto.
 # protoc должен быть установлен отдельно; плагины ставятся make tools.
@@ -25,7 +25,6 @@ proto:
 proto-check: proto
 	@git diff --exit-code -- pkg/proto
 
-# Удаляет только сгенерированный identity-код.
 proto-clean:
 	rm -rf pkg/proto/identity
 
@@ -38,12 +37,16 @@ swagger: swagger-identity swagger-content swagger-monetization
 
 swagger-identity:
 	@mkdir -p docs/identity
-	$(SWAG) init -g cmd/identity/main.go -o docs/identity $(SWAG_FLAGS) --tags auth,profile
+	$(SWAG) init -g cmd/identity/main.go -o docs/identity $(SWAG_FLAGS) --tags auth,profile,authors
 
 swagger-content:
 	@mkdir -p docs/content
-	$(SWAG) init -g cmd/content/main.go -o docs/content $(SWAG_FLAGS) --tags posts
+$(SWAG) init -g cmd/content/main.go -o docs/content $(SWAG_FLAGS) --tags posts
 
 swagger-monetization:
 	@mkdir -p docs/monetization
-	$(SWAG) init -g cmd/monetization/main.go -o docs/monetization $(SWAG_FLAGS) --tags donations
+$(SWAG) init -g cmd/monetization/main.go -o docs/monetization $(SWAG_FLAGS) --tags donations
+
+# Пересчитывает post.search_text у существующих постов санитайзером из pkg/sanitizer
+reindex-posts:
+	go run ./cmd/reindex-posts --config-file=configs/content.yaml

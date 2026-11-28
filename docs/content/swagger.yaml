@@ -469,6 +469,33 @@ paths:
         name: cursor
         schema:
           type: string
+      - description: Поиск по заголовку и видимому тексту поста
+        in: query
+        name: q
+        schema:
+          type: string
+      - description: Тема автора
+        in: query
+        name: tag
+        schema:
+          enum:
+          - Творчество
+          - Образование
+          - Технологии
+          - Игры
+          - Другое
+          type: string
+      - description: Тип вложения
+        in: query
+        name: attachment_type
+        schema:
+          enum:
+          - any
+          - video
+          - image
+          - audio
+          - file
+          type: string
       responses:
         "200":
           content:
@@ -481,7 +508,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/response.ErrorResponse'
-          description: Неверный sort или cursor
+          description: Неверный sort, cursor, tag или attachment_type
         "500":
           content:
             application/json:

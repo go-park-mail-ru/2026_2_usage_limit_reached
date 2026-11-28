@@ -1,5 +1,57 @@
 components:
   schemas:
+    dto.AuthorCreateRequest:
+      properties:
+        bio:
+          example: Пишу о книгах
+          type: string
+        category:
+          example: Творчество
+          type: string
+      type: object
+    dto.AuthorMeResponse:
+      properties:
+        bio:
+          example: Пишу о книгах
+          type: string
+        category:
+          example: Творчество
+          type: string
+        id:
+          example: 00000000-0000-4000-8000-000000000001
+          type: string
+        nickname:
+          example: nickname_123
+          type: string
+        username:
+          example: username123
+          type: string
+      type: object
+    dto.AuthorSearchItem:
+      properties:
+        avatar_url:
+          example: /media/avatars/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000201.png
+          type: string
+        bio:
+          example: i am author
+          type: string
+        nickname:
+          example: nickname_123
+          type: string
+        username:
+          example: username123
+          type: string
+      type: object
+    dto.AuthorSearchResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/dto.AuthorSearchItem'
+          type: array
+          uniqueItems: false
+        next_cursor:
+          type: string
+      type: object
     dto.AvatarResponse:
       properties:
         avatar_url:
@@ -17,6 +69,8 @@ components:
       type: object
     dto.ProfileResponse:
       properties:
+        author:
+          $ref: '#/components/schemas/dto.AuthorMeResponse'
         user:
           $ref: '#/components/schemas/dto.ProfileUserResponse'
       type: object
@@ -43,6 +97,8 @@ components:
       type: object
     dto.PublicProfileResponse:
       properties:
+        author:
+          $ref: '#/components/schemas/dto.AuthorMeResponse'
         user:
           $ref: '#/components/schemas/dto.PublicProfileUserResponse'
       type: object
@@ -122,6 +178,215 @@ info:
   version: "1.0"
 openapi: 3.1.0
 paths:
+  /authors:
+    get:
+      description: Ищет активных авторов по частичному совпадению с username или nickname
+        и по категориям. Размер страницы фиксирован, следующая страница запрашивается
+        через next_cursor
+      parameters:
+      - description: Часть username или nickname, минимум 2 символа
+        in: query
+        name: q
+        schema:
+          type: string
+      - description: Категории автора, параметр можно передать несколько раз
+        in: query
+        name: category
+        schema:
+          items:
+            type: string
+          type: array
+      - description: Курсор из next_cursor предыдущего ответа
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.AuthorSearchResponse'
+          description: Страница авторов
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Неверный запрос или курсор
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      summary: Поиск авторов
+      tags:
+      - authors
+  /authors/me:
+    get:
+      description: Возвращает блок автора для страницы профиля. 404 означает, что
+        пользователь ещё не автор
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.AuthorMeResponse'
+          description: Профиль автора
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь заблокирован или удалён
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не автор
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Мой профиль автора
+      tags:
+      - authors
+    post:
+      description: Создаёт профиль автора. Повторный вызов ничего не меняет и возвращает
+        существующий профиль
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.AuthorCreateRequest'
+              description: 'Данные автора: bio обязателен, category опциональна (Творчество,
+                Образование, Технологии, Игры, Другое)'
+              summary: request
+        description: 'Данные автора: bio обязателен, category опциональна (Творчество,
+          Образование, Технологии, Игры, Другое)'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.AuthorMeResponse'
+          description: Профиль автора
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь заблокирован или удалён
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не найден
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Стать автором
+      tags:
+      - authors
+    put:
+      description: Полностью заменяет bio и category текущего автора; отсутствие category
+        в теле очищает её. Пользователь должен быть автором
+      parameters:
+      - description: CSRF-токен из GET /csrf
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/dto.AuthorCreateRequest'
+              description: Новые данные автора
+              summary: request
+        description: Новые данные автора
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/dto.AuthorMeResponse'
+          description: Обновлённый профиль автора
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Ошибка валидации
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь неавторизован
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь заблокирован или удалён
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Пользователь не автор
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/response.ErrorResponse'
+          description: Внутренняя ошибка сервера
+      security:
+      - CookieAuth: []
+      summary: Редактирование профиля автора
+      tags:
+      - authors
   /csrf:
     get:
       description: Возвращает токен для заголовка X-CSRF-Token. Доступен до и после

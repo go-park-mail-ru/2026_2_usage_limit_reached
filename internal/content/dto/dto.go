@@ -101,6 +101,7 @@ type PostLikeResponse struct {
 type AttachmentType string
 
 const (
+	AttachmentTypeAny   AttachmentType = "any"
 	AttachmentTypeImage AttachmentType = "image"
 	AttachmentTypeVideo AttachmentType = "video"
 	AttachmentTypeAudio AttachmentType = "audio"
@@ -114,4 +115,27 @@ type Attachment struct {
 	Name      string         `json:"name" example:"Студия.jpg"`
 	SizeBytes int64          `json:"size_bytes" example:"430080"`
 	URL       string         `json:"url" example:"/attachments/00000000-0000-4000-8000-000000000301"`
+}
+
+func (t AttachmentType) IsValid() bool {
+	switch t {
+	case AttachmentTypeAny, AttachmentTypeVideo, AttachmentTypeImage, AttachmentTypeAudio, AttachmentTypeFile:
+		return true
+	default:
+		return false
+	}
+}
+
+type FeedFilters struct {
+	Query          string
+	Tag            string
+	AttachmentType AttachmentType
+}
+
+func (f FeedFilters) Validate(v *validator.Validator) error {
+	if !v.IsValidSearchQuery(f.Query) {
+		return fmt.Errorf("invalid search query: %w", validator.ErrValidation)
+	}
+
+	return nil
 }

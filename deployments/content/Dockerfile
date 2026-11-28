@@ -8,7 +8,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 go build -o /out/content ./cmd/content
+RUN CGO_ENABLED=0 go build -o /out/content ./cmd/content \
+    && CGO_ENABLED=0 go build -o /out/reindex-posts ./cmd/reindex-posts
 
 FROM alpine:3.20
 
@@ -18,6 +19,7 @@ RUN apk add --no-cache ca-certificates tzdata \
 WORKDIR /app
 
 COPY --from=builder --chown=content:content /out/content /app/content
+COPY --from=builder --chown=content:content /out/reindex-posts /app/reindex-posts
 
 USER content
 ENTRYPOINT ["/app/content"]

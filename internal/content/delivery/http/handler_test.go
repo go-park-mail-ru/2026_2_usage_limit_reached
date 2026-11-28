@@ -11,7 +11,7 @@ import (
 	handlers "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http/mock_delivery_http"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
-	postusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/usecase"
+	contentusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/response"
@@ -51,19 +51,19 @@ func listEndpoints() []listEndpoint {
 		{
 			name: "feed new", target: "/feed?sort=new", kind: timedKind,
 			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
-				return uc.EXPECT().GetNewPosts(mock.Anything, u, timed(raw), limit).Call
+				return uc.EXPECT().GetNewPosts(mock.Anything, u, timed(raw), limit, dto.FeedFilters{}).Call
 			},
 		},
 		{
 			name: "feed old", target: "/feed?sort=old", kind: timedKind,
 			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
-				return uc.EXPECT().GetOldPosts(mock.Anything, u, timed(raw), limit).Call
+				return uc.EXPECT().GetOldPosts(mock.Anything, u, timed(raw), limit, dto.FeedFilters{}).Call
 			},
 		},
 		{
 			name: "feed popular", target: "/feed?sort=popular", kind: popularKind,
 			expect: func(uc *mock_delivery_http.MockContentUsecase, u *uuid.UUID, raw string, limit int) *mock.Call {
-				return uc.EXPECT().GetPopularPosts(mock.Anything, u, popular(raw), limit).Call
+				return uc.EXPECT().GetPopularPosts(mock.Anything, u, popular(raw), limit, dto.FeedFilters{}).Call
 			},
 		},
 		{
@@ -259,8 +259,8 @@ func TestPostHandler_List_Errors(t *testing.T) {
 		ucErr      error
 		wantStatus int
 	}{
-		{name: "anonymous on private list", ucErr: postusecase.ErrUnauthorized, wantStatus: http.StatusUnauthorized},
-		{name: "unknown author", ucErr: postusecase.ErrNotFound, wantStatus: http.StatusNotFound},
+		{name: "anonymous on private list", ucErr: contentusecase.ErrUnauthorized, wantStatus: http.StatusUnauthorized},
+		{name: "unknown author", ucErr: contentusecase.ErrNotFound, wantStatus: http.StatusNotFound},
 		{name: "storage failure", ucErr: technicalErr, wantStatus: http.StatusInternalServerError},
 	}
 	for _, e := range listEndpoints() {
@@ -360,11 +360,11 @@ func TestPostHandler_ErrorStatuses(t *testing.T) {
 		ucErr      error
 		wantStatus int
 	}{
-		{name: "conflict", ucErr: postusecase.ErrConflict, wantStatus: http.StatusConflict},
-		{name: "forbidden", ucErr: postusecase.ErrForbidden, wantStatus: http.StatusForbidden},
-		{name: "unauthorized", ucErr: postusecase.ErrUnauthorized, wantStatus: http.StatusUnauthorized},
-		{name: "not found", ucErr: postusecase.ErrNotFound, wantStatus: http.StatusNotFound},
-		{name: "usecase validation", ucErr: postusecase.ErrValidation, wantStatus: http.StatusBadRequest},
+		{name: "conflict", ucErr: contentusecase.ErrConflict, wantStatus: http.StatusConflict},
+		{name: "forbidden", ucErr: contentusecase.ErrForbidden, wantStatus: http.StatusForbidden},
+		{name: "unauthorized", ucErr: contentusecase.ErrUnauthorized, wantStatus: http.StatusUnauthorized},
+		{name: "not found", ucErr: contentusecase.ErrNotFound, wantStatus: http.StatusNotFound},
+		{name: "usecase validation", ucErr: contentusecase.ErrValidation, wantStatus: http.StatusBadRequest},
 		{name: "request validation", ucErr: validator.ErrValidation, wantStatus: http.StatusBadRequest},
 		{name: "storage failure", ucErr: technicalErr, wantStatus: http.StatusInternalServerError},
 	}
@@ -461,8 +461,8 @@ func TestPostHandler_NewPost_Errors(t *testing.T) {
 		ucErr      error
 		wantStatus int
 	}{
-		{name: "anonymous user", userID: anonymous, ucErr: postusecase.ErrUnauthorized, wantStatus: http.StatusUnauthorized},
-		{name: "reader is not an author", userID: &postUserID, ucErr: postusecase.ErrForbidden, wantStatus: http.StatusForbidden},
+		{name: "anonymous user", userID: anonymous, ucErr: contentusecase.ErrUnauthorized, wantStatus: http.StatusUnauthorized},
+		{name: "reader is not an author", userID: &postUserID, ucErr: contentusecase.ErrForbidden, wantStatus: http.StatusForbidden},
 		{name: "storage failure", userID: &postUserID, ucErr: technicalErr, wantStatus: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {
@@ -488,8 +488,8 @@ func TestPostHandler_EditPost(t *testing.T) {
 		wantStatus int
 	}{
 		{name: "actual version", wantStatus: http.StatusOK},
-		{name: "stale version", ucErr: postusecase.ErrConflict, wantStatus: http.StatusConflict},
-		{name: "foreign or unknown post", ucErr: postusecase.ErrNotFound, wantStatus: http.StatusNotFound},
+		{name: "stale version", ucErr: contentusecase.ErrConflict, wantStatus: http.StatusConflict},
+		{name: "foreign or unknown post", ucErr: contentusecase.ErrNotFound, wantStatus: http.StatusNotFound},
 		{name: "storage failure", ucErr: technicalErr, wantStatus: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {
@@ -538,8 +538,8 @@ func TestPostHandler_DeletePost(t *testing.T) {
 		wantStatus int
 	}{
 		{name: "own post", userID: &postUserID, wantStatus: http.StatusOK},
-		{name: "anonymous user", userID: anonymous, ucErr: postusecase.ErrUnauthorized, wantStatus: http.StatusUnauthorized},
-		{name: "foreign or unknown post", userID: &postUserID, ucErr: postusecase.ErrNotFound, wantStatus: http.StatusNotFound},
+		{name: "anonymous user", userID: anonymous, ucErr: contentusecase.ErrUnauthorized, wantStatus: http.StatusUnauthorized},
+		{name: "foreign or unknown post", userID: &postUserID, ucErr: contentusecase.ErrNotFound, wantStatus: http.StatusNotFound},
 		{name: "storage failure", userID: &postUserID, ucErr: technicalErr, wantStatus: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {
@@ -614,8 +614,8 @@ func TestPostHandler_Likes_Errors(t *testing.T) {
 		ucErr      error
 		wantStatus int
 	}{
-		{name: "anonymous user", userID: anonymous, ucErr: postusecase.ErrUnauthorized, wantStatus: http.StatusUnauthorized},
-		{name: "unavailable post", userID: &postUserID, ucErr: postusecase.ErrNotFound, wantStatus: http.StatusNotFound},
+		{name: "anonymous user", userID: anonymous, ucErr: contentusecase.ErrUnauthorized, wantStatus: http.StatusUnauthorized},
+		{name: "unavailable post", userID: &postUserID, ucErr: contentusecase.ErrNotFound, wantStatus: http.StatusNotFound},
 		{name: "storage failure", userID: &postUserID, ucErr: technicalErr, wantStatus: http.StatusInternalServerError},
 	}
 	for _, e := range likeEndpoints() {

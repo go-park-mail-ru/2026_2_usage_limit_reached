@@ -23,14 +23,14 @@ var (
 	errDB      = errors.New("connection lost")
 )
 
-func newTestRepository(t *testing.T) (*UserRepository, pgxmock.PgxPoolIface) {
+func newTestRepository(t *testing.T) (*Repository, pgxmock.PgxPoolIface) {
 	t.Helper()
 
 	pool, err := pgxmock.NewPool()
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 
-	return &UserRepository{pool: pool, logger: testutils.SetupLogger()}, pool
+	return &Repository{pool: pool, logger: testutils.SetupLogger()}, pool
 }
 
 func testUser() *models.User {
@@ -45,7 +45,7 @@ func userRow() *pgxmock.Rows {
 		AddRow(testUserID, "ivan001", "Иван", "ivan@example.test", "hash", nil, models.StatusActive, testTime, testTime)
 }
 
-func TestUserRepository_CreateUser(t *testing.T) {
+func TestRepository_CreateUser(t *testing.T) {
 	newUser := models.User{Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test", PasswordHash: "hash", Status: models.StatusActive}
 	tests := []struct {
 		name    string
@@ -81,7 +81,7 @@ func TestUserRepository_CreateUser(t *testing.T) {
 	}
 }
 
-func TestUserRepository_CreateUser_OtherConstraintIsNotConflict(t *testing.T) {
+func TestRepository_CreateUser_OtherConstraintIsNotConflict(t *testing.T) {
 	repo, pool := newTestRepository(t)
 	pool.ExpectQuery(`INSERT INTO "user"`).WithArgs("", "", "", "", "").WillReturnError(&pgconn.PgError{Code: "23514"})
 
@@ -92,7 +92,7 @@ func TestUserRepository_CreateUser_OtherConstraintIsNotConflict(t *testing.T) {
 	require.NotErrorIs(t, err, models.ErrUserExists)
 }
 
-func TestUserRepository_UpdateNickname(t *testing.T) {
+func TestRepository_UpdateNickname(t *testing.T) {
 	tests := []struct {
 		name    string
 		rows    *pgxmock.Rows
@@ -123,7 +123,7 @@ func TestUserRepository_UpdateNickname(t *testing.T) {
 	}
 }
 
-func TestUserRepository_UpdateAvatarKey(t *testing.T) {
+func TestRepository_UpdateAvatarKey(t *testing.T) {
 	newKey, oldKey := "avatars/new.png", "avatars/old.png"
 	tests := []struct {
 		name    string
@@ -158,20 +158,20 @@ func TestUserRepository_UpdateAvatarKey(t *testing.T) {
 	}
 }
 
-func TestUserRepository_GetUser(t *testing.T) {
+func TestRepository_GetUser(t *testing.T) {
 	lookups := []struct {
 		name  string
 		where string
 		arg   any
-		get   func(*UserRepository) (*models.User, error)
+		get   func(*Repository) (*models.User, error)
 	}{
-		{name: "by id", where: `WHERE id = \$1`, arg: testUserID, get: func(r *UserRepository) (*models.User, error) {
+		{name: "by id", where: `WHERE id = \$1`, arg: testUserID, get: func(r *Repository) (*models.User, error) {
 			return r.GetUserByID(context.Background(), testUserID)
 		}},
-		{name: "by username", where: `WHERE username = \$1`, arg: "ivan001", get: func(r *UserRepository) (*models.User, error) {
+		{name: "by username", where: `WHERE username = \$1`, arg: "ivan001", get: func(r *Repository) (*models.User, error) {
 			return r.GetUserByUsername(context.Background(), "ivan001")
 		}},
-		{name: "by email", where: `WHERE email = \$1`, arg: "ivan@example.test", get: func(r *UserRepository) (*models.User, error) {
+		{name: "by email", where: `WHERE email = \$1`, arg: "ivan@example.test", get: func(r *Repository) (*models.User, error) {
 			return r.GetUserByEmail(context.Background(), "ivan@example.test")
 		}},
 	}
@@ -206,7 +206,7 @@ func TestUserRepository_GetUser(t *testing.T) {
 	}
 }
 
-func TestUserRepository_GetUser_InvalidField(t *testing.T) {
+func TestRepository_GetUser_InvalidField(t *testing.T) {
 	repo, pool := newTestRepository(t)
 
 	got, err := repo.getUser(context.Background(), "password_hash", "hash")

@@ -48,69 +48,11 @@ components:
           example: username123
           type: string
       type: object
-    dto.CreateDonationRequest:
-      properties:
-        amount_minor:
-          type: integer
-        currency:
-          type: string
-        is_anonymous:
-          type: boolean
-        message:
-          type: string
-        request_key:
-          type: string
-      type: object
-    dto.CreateDonationResponse:
-      properties:
-        id:
-          type: string
-        status:
-          type: string
-      type: object
     dto.CreatePostResponse:
       properties:
         id:
           example: 00000000-0000-4000-8000-000000000101
           type: string
-      type: object
-    dto.DonationPageResponse:
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/dto.GetDonationResponse'
-          type: array
-          uniqueItems: false
-        next_cursor:
-          type: string
-      type: object
-    dto.DonationUserInfo:
-      properties:
-        avatar_url:
-          type: string
-        nickname:
-          type: string
-        username:
-          type: string
-      type: object
-    dto.GetDonationResponse:
-      properties:
-        amount_minor:
-          type: integer
-        created_or_paid_at:
-          type: string
-        currency:
-          type: string
-        id:
-          type: string
-        is_anonymous:
-          type: boolean
-        message:
-          type: string
-        status:
-          type: string
-        user:
-          $ref: '#/components/schemas/dto.DonationUserInfo'
       type: object
     dto.PostInfo:
       properties:
@@ -232,7 +174,7 @@ externalDocs:
   description: ""
   url: ""
 info:
-  description: Ленты, посты и донаты.
+  description: Посты, лайки и комментарии.
   title: Patreon Clone Content API
   version: "1.0"
 openapi: 3.1.0
@@ -374,69 +316,6 @@ paths:
       summary: Выдача вложения
       tags:
       - posts
-  /authors/{author_id}/donations:
-    post:
-      description: Отправляет донат указанному автору. Операция создаёт платёжную
-        попытку, заказ и возвращает ID и статус заказа.
-      parameters:
-      - description: ID автора
-        in: path
-        name: author_id
-        required: true
-        schema:
-          format: uuid
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/dto.CreateDonationRequest'
-              description: Данные доната
-              summary: request
-        description: Данные доната
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/dto.CreateDonationResponse'
-          description: Заказ создан
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/response.ErrorResponse'
-          description: Ошибка валидации или некорректный ID автора
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/response.ErrorResponse'
-          description: Пользователь неавторизован
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/response.ErrorResponse'
-          description: Автор не найден
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/response.ErrorResponse'
-          description: Конфликт оплаты
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/response.ErrorResponse'
-          description: Внутренняя ошибка сервера
-      security:
-      - CookieAuth: []
-      summary: Отправка доната
-      tags:
-      - donations
   /feed:
     get:
       description: 'Возвращает опубликованные посты страницами. Авторизация необязательна:
@@ -873,107 +752,6 @@ paths:
       summary: Лайк поста
       tags:
       - posts
-  /profile/me/donations/received:
-    get:
-      description: Возвращает список донатов, полученных авторизованным пользователем
-        (если он является автором), страницами. Чтобы получить следующую страницу,
-        передайте next_cursor из ответа в параметр cursor; значение null означает,
-        что страниц больше нет.
-      parameters:
-      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
-        in: query
-        name: limit
-        schema:
-          default: 20
-          maximum: 50
-          minimum: 1
-          type: integer
-      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
-          не передаётся)
-        in: query
-        name: cursor
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/dto.DonationPageResponse'
-          description: Страница донатов
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/response.ErrorResponse'
-          description: Неверный cursor
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/response.ErrorResponse'
-          description: Пользователь неавторизован
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/response.ErrorResponse'
-          description: Внутренняя ошибка сервера
-      security:
-      - CookieAuth: []
-      summary: Мои полученные донаты
-      tags:
-      - donations
-  /profile/me/donations/sent:
-    get:
-      description: Возвращает список донатов, отправленных авторизованным пользователем,
-        страницами. Чтобы получить следующую страницу, передайте next_cursor из ответа
-        в параметр cursor; значение null означает, что страниц больше нет.
-      parameters:
-      - description: Размер страницы (значения вне диапазона 1-50 заменяются на 20)
-        in: query
-        name: limit
-        schema:
-          default: 20
-          maximum: 50
-          minimum: 1
-          type: integer
-      - description: Курсор из next_cursor предыдущего ответа (для первой страницы
-          не передаётся)
-        in: query
-        name: cursor
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/dto.DonationPageResponse'
-          description: Страница донатов
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/response.ErrorResponse'
-          description: Неверный cursor
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/response.ErrorResponse'
-          description: Пользователь неавторизован
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/response.ErrorResponse'
-          description: Внутренняя ошибка сервера
-      security:
-      - CookieAuth: []
-      summary: Мои отправленные донаты
-      tags:
-      - donations
   /profile/me/drafts:
     get:
       description: Возвращает черновики авторизованного пользователя страницами. Поддерживается

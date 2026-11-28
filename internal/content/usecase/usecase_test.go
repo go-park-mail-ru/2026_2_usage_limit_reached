@@ -3,6 +3,7 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -42,6 +43,20 @@ type listMethod struct {
 	nextCursor   func(p *dto.PostPreview) any
 	expect       func(repo *mock_content_usecase.MockRepository, userID *uuid.UUID, items []*dto.PostPreview, err error)
 	call         func(uc *contentusecase.ContentUsecase, userID *uuid.UUID) (*page, error)
+}
+
+type testOnlineConfClient struct {
+	enabled bool
+	scope   string
+	key     string
+	userID  uuid.UUID
+}
+
+func (c *testOnlineConfClient) Enabled(scope, key string, userID uuid.UUID) bool {
+	c.scope = scope
+	c.key = key
+	c.userID = userID
+	return c.enabled
 }
 
 func listMethods() []listMethod {
@@ -640,13 +655,121 @@ func TestContentUsecase_Likes_Anonymous(t *testing.T) {
 	}
 }
 
+func TestFeedAttachmentFilterGate(t *testing.T) {
+	methods := []struct {
+		name  string
+		setup func(*mock_content_usecase.MockRepository, dto.FeedFilters)
+		call  func(*contentusecase.ContentUsecase, *uuid.UUID, dto.FeedFilters) error
+	}{
+		{
+			name: "new",
+			setup: func(repo *mock_content_usecase.MockRepository, filters dto.FeedFilters) {
+				repo.EXPECT().GetNewPosts(mock.Anything, mock.Anything, timedCursor, pageLimit+1, filters).
+					Return([]*dto.PostPreview{}, nil)
+			},
+			call: func(uc *contentusecase.ContentUsecase, userID *uuid.UUID, filters dto.FeedFilters) error {
+				_, err := uc.GetNewPosts(context.Background(), userID, timedCursor, pageLimit, filters)
+				return err
+			},
+		},
+		{
+			name: "old",
+			setup: func(repo *mock_content_usecase.MockRepository, filters dto.FeedFilters) {
+				repo.EXPECT().GetOldPosts(mock.Anything, mock.Anything, timedCursor, pageLimit+1, filters).
+					Return([]*dto.PostPreview{}, nil)
+			},
+			call: func(uc *contentusecase.ContentUsecase, userID *uuid.UUID, filters dto.FeedFilters) error {
+				_, err := uc.GetOldPosts(context.Background(), userID, timedCursor, pageLimit, filters)
+				return err
+			},
+		},
+		{
+			name: "popular",
+			setup: func(repo *mock_content_usecase.MockRepository, filters dto.FeedFilters) {
+				repo.EXPECT().GetPopularPosts(mock.Anything, mock.Anything, popularCursor, pageLimit+1, filters).
+					Return([]*dto.PostPreview{}, nil)
+			},
+			call: func(uc *contentusecase.ContentUsecase, userID *uuid.UUID, filters dto.FeedFilters) error {
+				_, err := uc.GetPopularPosts(context.Background(), userID, popularCursor, pageLimit, filters)
+				return err
+			},
+		},
+	}
+
+	for _, method := range methods {
+		for _, enabled := range []bool{false, true} {
+			method := method
+			enabled := enabled
+			t.Run(method.name+"/enabled="+strconv.FormatBool(enabled), func(t *testing.T) {
+				repo := mock_content_usecase.NewMockRepository(t)
+				client := &testOnlineConfClient{enabled: enabled}
+				userID := postUserID
+				inputFilters := dto.FeedFilters{
+					Query:          "cats",
+					Tag:            "animals",
+					AttachmentType: dto.AttachmentTypeVideo,
+				}
+				expectedFilters := inputFilters
+				if !enabled {
+					expectedFilters.AttachmentType = ""
+				}
+				method.setup(repo, expectedFilters)
+
+				uc := newTestContentUsecaseWithOnlineConf(repo, client)
+				require.NoError(t, method.call(uc, &userID, inputFilters))
+				require.Equal(t, "content", client.scope)
+				require.Equal(t, "feed_attachment_filter", client.key)
+				require.Equal(t, userID, client.userID)
+			})
+		}
+	}
+}
+
+func TestFeedAttachmentFilterGateAnonymousUser(t *testing.T) {
+	repo := mock_content_usecase.NewMockRepository(t)
+	client := &testOnlineConfClient{}
+	filters := dto.FeedFilters{
+		Query:          "cats",
+		Tag:            "animals",
+		AttachmentType: dto.AttachmentTypeImage,
+	}
+	expectedFilters := filters
+	expectedFilters.AttachmentType = ""
+	repo.EXPECT().GetNewPosts(mock.Anything, anonymous, timedCursor, pageLimit+1, expectedFilters).
+		Return([]*dto.PostPreview{}, nil)
+
+	uc := newTestContentUsecaseWithOnlineConf(repo, client)
+	_, err := uc.GetNewPosts(context.Background(), anonymous, timedCursor, pageLimit, filters)
+	require.NoError(t, err)
+	require.Equal(t, "content", client.scope)
+	require.Equal(t, "feed_attachment_filter", client.key)
+	require.Equal(t, uuid.Nil, client.userID)
+}
+
 func newTestContentUsecase(repo contentusecase.Repository, identities ...contentusecase.IdentityClient) *contentusecase.ContentUsecase {
-	return newTestContentUsecaseWithMedia(repo, nil, identities...)
+	return newTestContentUsecaseWithMediaAndOnlineConf(repo, nil, nil, identities...)
 }
 
 func newTestContentUsecaseWithMedia(
 	repo contentusecase.Repository,
 	media contentusecase.MediaStorage,
+	identities ...contentusecase.IdentityClient,
+) *contentusecase.ContentUsecase {
+	return newTestContentUsecaseWithMediaAndOnlineConf(repo, media, nil, identities...)
+}
+
+func newTestContentUsecaseWithOnlineConf(
+	repo contentusecase.Repository,
+	onlineconf contentusecase.OnlineConfClient,
+	identities ...contentusecase.IdentityClient,
+) *contentusecase.ContentUsecase {
+	return newTestContentUsecaseWithMediaAndOnlineConf(repo, nil, onlineconf, identities...)
+}
+
+func newTestContentUsecaseWithMediaAndOnlineConf(
+	repo contentusecase.Repository,
+	media contentusecase.MediaStorage,
+	onlineconf contentusecase.OnlineConfClient,
 	identities ...contentusecase.IdentityClient,
 ) *contentusecase.ContentUsecase {
 	s, err := sanitizer.NewSanitizer(sanitizer.DefaultConfig())
@@ -662,6 +785,7 @@ func newTestContentUsecaseWithMedia(
 	return contentusecase.New(
 		repo,
 		identity,
+		onlineconf,
 		s,
 		testutils.SetupValidator(),
 		"/media",

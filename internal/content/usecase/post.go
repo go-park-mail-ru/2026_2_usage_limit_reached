@@ -21,6 +21,11 @@ type (
 	getUserPopularPostsFunc func(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
 )
 
+const (
+	feedAttachmentFilterScope = "content"
+	feedAttachmentFilterKey   = "feed_attachment_filter"
+)
+
 func (uc *ContentUsecase) CreatePost(ctx context.Context, userID *uuid.UUID, p dto.PostRequest) (uuid.UUID, error) {
 	if userID == nil {
 		return uuid.Nil, fmt.Errorf("%s: %w", "create post", ErrUnauthorized)
@@ -125,6 +130,7 @@ func (uc *ContentUsecase) GetMyOldDrafts(ctx context.Context, userID *uuid.UUID,
 }
 
 func (uc *ContentUsecase) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) (*dto.TimedPostsPage, error) {
+	filters = uc.applyFeedAttachmentFilter(userID, filters)
 	page, err := uc.getTimedPosts(ctx, func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 		return uc.repo.GetNewPosts(ctx, userID, cursor, limit, filters)
 	}, userID, cursor, limit)
@@ -135,6 +141,7 @@ func (uc *ContentUsecase) GetNewPosts(ctx context.Context, userID *uuid.UUID, cu
 }
 
 func (uc *ContentUsecase) GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) (*dto.TimedPostsPage, error) {
+	filters = uc.applyFeedAttachmentFilter(userID, filters)
 	page, err := uc.getTimedPosts(ctx, func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
 		return uc.repo.GetOldPosts(ctx, userID, cursor, limit, filters)
 	}, userID, cursor, limit)
@@ -145,6 +152,7 @@ func (uc *ContentUsecase) GetOldPosts(ctx context.Context, userID *uuid.UUID, cu
 }
 
 func (uc *ContentUsecase) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int, filters dto.FeedFilters) (*dto.PopularPostsPage, error) {
+	filters = uc.applyFeedAttachmentFilter(userID, filters)
 	page, err := uc.getPopularPosts(ctx, func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
 		return uc.repo.GetPopularPosts(ctx, userID, cursor, limit, filters)
 	}, userID, cursor, limit)
@@ -152,6 +160,19 @@ func (uc *ContentUsecase) GetPopularPosts(ctx context.Context, userID *uuid.UUID
 		return nil, mapRepoError("get popular posts", err)
 	}
 	return page, nil
+}
+
+func (uc *ContentUsecase) applyFeedAttachmentFilter(userID *uuid.UUID, filters dto.FeedFilters) dto.FeedFilters {
+	id := uuid.Nil
+	if userID != nil {
+		id = *userID
+	}
+
+	if uc.onlineconf == nil || !uc.onlineconf.Enabled(feedAttachmentFilterScope, feedAttachmentFilterKey, id) {
+		filters.AttachmentType = ""
+	}
+
+	return filters
 }
 
 func (uc *ContentUsecase) GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error) {

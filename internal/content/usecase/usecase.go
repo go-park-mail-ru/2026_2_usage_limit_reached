@@ -71,6 +71,10 @@ type IdentityClient interface {
 	GetUserByUsername(ctx context.Context, username string) (*identitycontracts.UserInfo, error)
 }
 
+type OnlineConfClient interface {
+	Enabled(scope, key string, userID uuid.UUID) bool
+}
+
 // Проверка тела поста после санитайзинга. Интерфейс определен здесь, чтобы usecase не зависел от пакета validator целиком
 type SanitizedBodyValidator interface {
 	IsValidSanitizedPostBody(raw, sanitized string) bool
@@ -89,6 +93,7 @@ type AttachmentLimiter interface {
 type ContentUsecase struct {
 	repo           Repository
 	identity       IdentityClient
+	onlineconf     OnlineConfClient
 	sanitizer      *sanitizer.Sanitizer
 	bodyCheck      SanitizedBodyValidator
 	attLimits      AttachmentLimiter
@@ -100,6 +105,7 @@ type ContentUsecase struct {
 func New(
 	r Repository,
 	ic IdentityClient,
+	oc OnlineConfClient,
 	s *sanitizer.Sanitizer,
 	v SanitizedBodyValidator,
 	abp string,
@@ -110,6 +116,7 @@ func New(
 	return &ContentUsecase{
 		repo:           r,
 		identity:       ic,
+		onlineconf:     oc,
 		sanitizer:      s,
 		bodyCheck:      v,
 		attLimits:      limits,

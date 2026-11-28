@@ -56,7 +56,7 @@ func newMediaTestUsecase(
 	s, err := sanitizer.NewSanitizer(sanitizer.DefaultConfig())
 	require.NoError(t, err)
 
-	return postusecase.New(repo, nil, s, testutils.SetupValidator(), "/media", limits, media, testutils.SetupLogger())
+	return postusecase.New(repo, nil, nil, s, testutils.SetupValidator(), "/media", limits, media, testutils.SetupLogger())
 }
 
 func pngFile(t *testing.T) []byte {

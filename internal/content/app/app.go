@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	identityclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
+	onlineconfclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/onlineconf"
 	contentconfig "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/config"
 	contenthttp "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http"
 	httprouter "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/delivery/http/router"
@@ -63,7 +64,20 @@ func Run(configPath string) error {
 	defer identityConn.Close()
 
 	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout, appLogger)
-	contentUc := contentuc.New(postRepo, identityClient, postSanitizer, valid, cfg.S3.PublicPath, valid, s3Client, appLogger)
+
+	onlineconfCfg := onlineconfclient.DefaultConfig()
+	onlineconfCfg.Scopes = []string{"content"}
+	if err := onlineconfCfg.Validate(); err != nil {
+		return fmt.Errorf("onlineconf client config error: %w", err)
+	}
+	onlineconfConn, err := grpc.NewClient(onlineconfCfg.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("onlineconf client initialization error: %w", err)
+	}
+	defer onlineconfConn.Close()
+	onlineconfClient := onlineconfclient.New(onlineconfConn, onlineconfCfg, appLogger)
+
+	contentUc := contentuc.New(postRepo, identityClient, onlineconfClient, postSanitizer, valid, cfg.S3.PublicPath, valid, s3Client, appLogger)
 
 	csrfManager := csrf.NewManager(cfg.CSRF)
 
@@ -96,6 +110,11 @@ func Run(configPath string) error {
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		return httpSrv.Run(gctx, router)
+	})
+
+	g.Go(func() error {
+		onlineconfClient.Run(gctx)
+		return nil
 	})
 
 	return g.Wait()

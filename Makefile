@@ -10,7 +10,7 @@ export PATH := $(GOBIN):$(PATH)
 
 PROTO_FILES := $(shell find $(PROTO_ROOT) -name '*.proto' | sed 's|^$(PROTO_ROOT)/||' | sort)
 
-.PHONY: proto proto-clean proto-check tools swagger swagger-identity swagger-content reindex-posts swagger-monetization
+.PHONY: proto proto-clean proto-check tools swagger swagger-identity swagger-content swagger-onlineconf reindex-posts swagger-monetization
 
 # Генерирует Go-код в pkg/proto.
 # protoc должен быть установлен отдельно; плагины ставятся make tools.
@@ -33,7 +33,7 @@ tools:
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 # Каждый сервис пишет свою спецификацию в свою папку.
-swagger: swagger-identity swagger-content swagger-monetization
+swagger: swagger-identity swagger-content swagger-onlineconf swagger-monetization
 
 swagger-identity:
 	@mkdir -p docs/identity
@@ -41,11 +41,15 @@ swagger-identity:
 
 swagger-content:
 	@mkdir -p docs/content
-$(SWAG) init -g cmd/content/main.go -o docs/content $(SWAG_FLAGS) --tags posts
+	$(SWAG) init -g cmd/content/main.go -o docs/content $(SWAG_FLAGS) --tags posts
 
 swagger-monetization:
 	@mkdir -p docs/monetization
-$(SWAG) init -g cmd/monetization/main.go -o docs/monetization $(SWAG_FLAGS) --tags donations
+	$(SWAG) init -g cmd/monetization/main.go -o docs/monetization $(SWAG_FLAGS) --tags donations
+
+swagger-onlineconf:
+	@mkdir -p docs/onlineconf
+	$(SWAG) init -g cmd/onlineconf/main.go -o docs/onlineconf $(SWAG_FLAGS) --tags onlineconf-admin,onlineconf-front,onlineconf-access
 
 # Пересчитывает post.search_text у существующих постов санитайзером из pkg/sanitizer
 reindex-posts:

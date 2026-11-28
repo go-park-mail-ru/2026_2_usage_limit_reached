@@ -56,9 +56,9 @@ func previews(n int) []*dto.PostPreview {
 		publishedAt := postTime.Add(-time.Duration(i) * time.Hour)
 		items[i] = &dto.PostPreview{
 			ID:                   uuid.New(),
-			Author:               dto.AuthorResponse{ID: postAuthorID, Username: authorUsername, Nickname: "РРІР°РЅ"},
-			Title:                "РџРѕСЃС‚",
-			BodyPreview:          "РўРµРєСЃС‚ РїРѕСЃС‚Р°",
+			Author:               dto.AuthorResponse{ID: postAuthorID, Username: authorUsername, Nickname: "Иван"},
+			Title:                "Пост",
+			BodyPreview:          "Текст поста",
 			PublishedOrUpdatedAt: &publishedAt,
 			LikesCount:           int64(100 - i),
 		}

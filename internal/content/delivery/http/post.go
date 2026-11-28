@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
@@ -16,14 +17,15 @@ import (
 )
 
 const (
-	sortByNew     = "new"
-	sortByOld     = "old"
-	sortByPopular = "popular"
-	sortField     = "sort"
-	limitField    = "limit"
-	cursorFiled   = "cursor"
-	defaultLimit  = 20
-	maxLimit      = 50
+	sortByNew       = "new"
+	sortByOld       = "old"
+	sortByPopular   = "popular"
+	sortField       = "sort"
+	limitField      = "limit"
+	cursorField     = "cursor"
+	queryField      = "q"
+	tagField        = "tag"
+	attachmentField = "attachment_type"
 )
 
 type (
@@ -51,28 +53,44 @@ func NewPostHandler(uc ContentUsecase, v *validator.Validator, logger *slog.Logg
 // @Param sort query string true "Порядок сортировки" Enums(new, old, popular)
 // @Param limit query int false "Размер страницы (значения вне диапазона 1-50 заменяются на 20)" default(20) minimum(1) maximum(50)
 // @Param cursor query string false "Курсор из next_cursor предыдущего ответа (для первой страницы не передаётся)"
+// @Param q query string false "Поиск по заголовку и видимому тексту поста"
+// @Param tag query string false "Тема автора" Enums(Творчество, Образование, Технологии, Игры, Другое)
+// @Param attachment_type query string false "Тип вложения" Enums(any, video, image, audio, file)
 // @Success 200 {object} dto.PostsPageResponse "Страница постов"
-// @Failure 400 {object} response.ErrorResponse "Неверный sort или cursor"
+// @Failure 400 {object} response.ErrorResponse "Неверный sort, cursor, tag или attachment_type"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /feed [get]
 func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	limit := feed.ParseLimit(r.URL.Query().Get(limitField), defaultLimit, maxLimit)
-	rawCursor := r.URL.Query().Get(cursorFiled)
+	limit := feed.ParseLimit(r.URL.Query().Get(limitField), h.validator.DefaultFeedLimit(), h.validator.MaxFeedLimit())
+	rawCursor := r.URL.Query().Get(cursorField)
 
-	var (
-		resp *dto.PostsPageResponse
-		err  error
-	)
+	filters, err := h.parseFeedFilters(r)
+	if err != nil {
+		handleError(ctx, h.logger, w, "get feed", err)
+		return
+	}
+	if err := filters.Validate(h.validator); err != nil {
+		handleError(ctx, h.logger, w, "get feed", err)
+		return
+	}
+
+	var resp *dto.PostsPageResponse
 	userID := h.getUserIDFromContext(ctx)
 	sort := r.URL.Query().Get(sortField)
 	switch sort {
 	case sortByNew:
-		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetNewPosts)
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error) {
+			return h.uc.GetNewPosts(ctx, userID, cursor, limit, *filters)
+		})
 	case sortByOld:
-		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, h.uc.GetOldPosts)
+		resp, err = h.feedTimed(ctx, userID, rawCursor, limit, func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error) {
+			return h.uc.GetOldPosts(ctx, userID, cursor, limit, *filters)
+		})
 	case sortByPopular:
-		resp, err = h.feedPopular(ctx, userID, rawCursor, limit, h.uc.GetPopularPosts)
+		resp, err = h.feedPopular(ctx, userID, rawCursor, limit, func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error) {
+			return h.uc.GetPopularPosts(ctx, userID, cursor, limit, *filters)
+		})
 	default:
 		err = validator.ErrValidation
 	}
@@ -104,8 +122,8 @@ func (h *PostHandler) UserPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit := feed.ParseLimit(r.URL.Query().Get("limit"), defaultLimit, maxLimit)
-	rawCursor := r.URL.Query().Get("cursor")
+	limit := feed.ParseLimit(r.URL.Query().Get(limitField), h.validator.DefaultFeedLimit(), h.validator.MaxFeedLimit())
+	rawCursor := r.URL.Query().Get(cursorField)
 
 	var (
 		resp *dto.PostsPageResponse
@@ -200,8 +218,8 @@ func (h *PostHandler) userPostsPopular(
 // @Router /profile/me/posts [get]
 func (h *PostHandler) MyPosts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	limit := feed.ParseLimit(r.URL.Query().Get(limitField), defaultLimit, maxLimit)
-	rawCursor := r.URL.Query().Get(cursorFiled)
+	limit := feed.ParseLimit(r.URL.Query().Get(limitField), h.validator.DefaultFeedLimit(), h.validator.MaxFeedLimit())
+	rawCursor := r.URL.Query().Get(cursorField)
 
 	var (
 		resp *dto.PostsPageResponse
@@ -242,8 +260,8 @@ func (h *PostHandler) MyPosts(w http.ResponseWriter, r *http.Request) {
 // @Router /profile/me/drafts [get]
 func (h *PostHandler) MyDrafts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	limit := feed.ParseLimit(r.URL.Query().Get(limitField), defaultLimit, maxLimit)
-	rawCursor := r.URL.Query().Get(cursorFiled)
+	limit := feed.ParseLimit(r.URL.Query().Get(limitField), h.validator.DefaultFeedLimit(), h.validator.MaxFeedLimit())
+	rawCursor := r.URL.Query().Get(cursorField)
 
 	var (
 		resp *dto.PostsPageResponse
@@ -263,6 +281,42 @@ func (h *PostHandler) MyDrafts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (h *PostHandler) parseFeedFilters(r *http.Request) (*dto.FeedFilters, error) {
+	params := r.URL.Query()
+
+	tags := params[tagField]
+	if len(tags) > 1 {
+		return nil, fmt.Errorf("invalid tag: %w", validator.ErrValidation)
+	}
+
+	tag := ""
+	if len(tags) == 1 {
+		if !h.validator.IsAllowedCategory(tags[0]) {
+			return nil, fmt.Errorf("invalid tag: %w", validator.ErrValidation)
+		}
+		tag = tags[0]
+	}
+
+	attachments := params[attachmentField]
+	if len(attachments) > 1 {
+		return nil, fmt.Errorf("invalid attachment type: %w", validator.ErrValidation)
+	}
+
+	attachment := dto.AttachmentType("")
+	if len(attachments) == 1 {
+		if !dto.AttachmentType(attachments[0]).IsValid() {
+			return nil, fmt.Errorf("invalid attachment type: %w", validator.ErrValidation)
+		}
+		attachment = dto.AttachmentType(attachments[0])
+	}
+
+	return &dto.FeedFilters{
+		Query:          strings.TrimSpace(params.Get(queryField)),
+		Tag:            tag,
+		AttachmentType: attachment,
+	}, nil
 }
 
 func (h *PostHandler) feedTimed(

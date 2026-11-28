@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/models"
-	postusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/usecase"
+	contentusecase "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/content/usecase/mock_content_usecase"
 	identitycontracts "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/contracts/identity"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/testutils"
@@ -32,7 +32,7 @@ var (
 	timedCursor   = &dto.TimedPostsCursor{PublishedOrUpdatedAt: postTime, PostID: postID}
 	popularCursor = &dto.PopularPostsCursor{Likes: 10, PublishedAt: postTime, PostID: postID}
 	postRequest   = dto.PostRequest{Title: "Мой первый пост", Body: "Текст поста", Status: "published"}
-	postModel     = models.Post{Title: "Мой первый пост", Body: "Текст поста", Status: "published"}
+	postModel     = models.Post{Title: "Мой первый пост", Body: "Текст поста", SearchText: "Текст поста", Status: "published"}
 )
 
 type listMethod struct {
@@ -41,7 +41,7 @@ type listMethod struct {
 	lookupAuthor bool
 	nextCursor   func(p *dto.PostPreview) any
 	expect       func(repo *mock_content_usecase.MockRepository, userID *uuid.UUID, items []*dto.PostPreview, err error)
-	call         func(uc *postusecase.ContentUsecase, userID *uuid.UUID) (*page, error)
+	call         func(uc *contentusecase.ContentUsecase, userID *uuid.UUID) (*page, error)
 }
 
 func listMethods() []listMethod {
@@ -52,7 +52,7 @@ func listMethods() []listMethod {
 			expect: func(repo *mock_content_usecase.MockRepository, u *uuid.UUID, items []*dto.PostPreview, err error) {
 				repo.EXPECT().GetMyNewPosts(mock.Anything, u, timedCursor, pageLimit+1).Return(items, err)
 			},
-			call: func(uc *postusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
+			call: func(uc *contentusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
 				return fromTimed(uc.GetMyNewPosts(ctx, u, timedCursor, pageLimit))
 			},
 		},
@@ -61,7 +61,7 @@ func listMethods() []listMethod {
 			expect: func(repo *mock_content_usecase.MockRepository, u *uuid.UUID, items []*dto.PostPreview, err error) {
 				repo.EXPECT().GetMyOldPosts(mock.Anything, u, timedCursor, pageLimit+1).Return(items, err)
 			},
-			call: func(uc *postusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
+			call: func(uc *contentusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
 				return fromTimed(uc.GetMyOldPosts(ctx, u, timedCursor, pageLimit))
 			},
 		},
@@ -70,7 +70,7 @@ func listMethods() []listMethod {
 			expect: func(repo *mock_content_usecase.MockRepository, u *uuid.UUID, items []*dto.PostPreview, err error) {
 				repo.EXPECT().GetMyPopularPosts(mock.Anything, u, popularCursor, pageLimit+1).Return(items, err)
 			},
-			call: func(uc *postusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
+			call: func(uc *contentusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
 				return fromPopular(uc.GetMyPopularPosts(ctx, u, popularCursor, pageLimit))
 			},
 		},
@@ -79,7 +79,7 @@ func listMethods() []listMethod {
 			expect: func(repo *mock_content_usecase.MockRepository, u *uuid.UUID, items []*dto.PostPreview, err error) {
 				repo.EXPECT().GetMyNewDrafts(mock.Anything, u, timedCursor, pageLimit+1).Return(items, err)
 			},
-			call: func(uc *postusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
+			call: func(uc *contentusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
 				return fromTimed(uc.GetMyNewDrafts(ctx, u, timedCursor, pageLimit))
 			},
 		},
@@ -88,35 +88,35 @@ func listMethods() []listMethod {
 			expect: func(repo *mock_content_usecase.MockRepository, u *uuid.UUID, items []*dto.PostPreview, err error) {
 				repo.EXPECT().GetMyOldDrafts(mock.Anything, u, timedCursor, pageLimit+1).Return(items, err)
 			},
-			call: func(uc *postusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
+			call: func(uc *contentusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
 				return fromTimed(uc.GetMyOldDrafts(ctx, u, timedCursor, pageLimit))
 			},
 		},
 		{
 			name: "GetNewPosts", nextCursor: timedNext,
 			expect: func(repo *mock_content_usecase.MockRepository, u *uuid.UUID, items []*dto.PostPreview, err error) {
-				repo.EXPECT().GetNewPosts(mock.Anything, u, timedCursor, pageLimit+1).Return(items, err)
+				repo.EXPECT().GetNewPosts(mock.Anything, u, timedCursor, pageLimit+1, dto.FeedFilters{}).Return(items, err)
 			},
-			call: func(uc *postusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
-				return fromTimed(uc.GetNewPosts(ctx, u, timedCursor, pageLimit))
+			call: func(uc *contentusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
+				return fromTimed(uc.GetNewPosts(ctx, u, timedCursor, pageLimit, dto.FeedFilters{}))
 			},
 		},
 		{
 			name: "GetOldPosts", nextCursor: timedNext,
 			expect: func(repo *mock_content_usecase.MockRepository, u *uuid.UUID, items []*dto.PostPreview, err error) {
-				repo.EXPECT().GetOldPosts(mock.Anything, u, timedCursor, pageLimit+1).Return(items, err)
+				repo.EXPECT().GetOldPosts(mock.Anything, u, timedCursor, pageLimit+1, dto.FeedFilters{}).Return(items, err)
 			},
-			call: func(uc *postusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
-				return fromTimed(uc.GetOldPosts(ctx, u, timedCursor, pageLimit))
+			call: func(uc *contentusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
+				return fromTimed(uc.GetOldPosts(ctx, u, timedCursor, pageLimit, dto.FeedFilters{}))
 			},
 		},
 		{
 			name: "GetPopularPosts", nextCursor: popularNext,
 			expect: func(repo *mock_content_usecase.MockRepository, u *uuid.UUID, items []*dto.PostPreview, err error) {
-				repo.EXPECT().GetPopularPosts(mock.Anything, u, popularCursor, pageLimit+1).Return(items, err)
+				repo.EXPECT().GetPopularPosts(mock.Anything, u, popularCursor, pageLimit+1, dto.FeedFilters{}).Return(items, err)
 			},
-			call: func(uc *postusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
-				return fromPopular(uc.GetPopularPosts(ctx, u, popularCursor, pageLimit))
+			call: func(uc *contentusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
+				return fromPopular(uc.GetPopularPosts(ctx, u, popularCursor, pageLimit, dto.FeedFilters{}))
 			},
 		},
 		{
@@ -125,7 +125,7 @@ func listMethods() []listMethod {
 				authorID := postAuthorIDForItems(items)
 				repo.EXPECT().GetUserNewPosts(mock.Anything, u, authorID, timedCursor, pageLimit+1).Return(items, err)
 			},
-			call: func(uc *postusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
+			call: func(uc *contentusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
 				return fromTimed(uc.GetUserNewPosts(ctx, u, authorUsername, timedCursor, pageLimit))
 			},
 		},
@@ -135,7 +135,7 @@ func listMethods() []listMethod {
 				authorID := postAuthorIDForItems(items)
 				repo.EXPECT().GetUserOldPosts(mock.Anything, u, authorID, timedCursor, pageLimit+1).Return(items, err)
 			},
-			call: func(uc *postusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
+			call: func(uc *contentusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
 				return fromTimed(uc.GetUserOldPosts(ctx, u, authorUsername, timedCursor, pageLimit))
 			},
 		},
@@ -145,14 +145,14 @@ func listMethods() []listMethod {
 				authorID := postAuthorIDForItems(items)
 				repo.EXPECT().GetUserPopularPosts(mock.Anything, u, authorID, popularCursor, pageLimit+1).Return(items, err)
 			},
-			call: func(uc *postusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
+			call: func(uc *contentusecase.ContentUsecase, u *uuid.UUID) (*page, error) {
 				return fromPopular(uc.GetUserPopularPosts(ctx, u, authorUsername, popularCursor, pageLimit))
 			},
 		},
 	}
 }
 
-func TestContentUsecase_ListPosts_Pagination(t *testing.T) {
+func TestPostUsecase_ListPosts_Pagination(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -179,7 +179,7 @@ func TestContentUsecase_ListPosts_Pagination(t *testing.T) {
 				m.expect(repo, &postUserID, items, nil)
 				expectListIdentity(identity, m, items)
 
-				uc := newTestContentUsecase(repo, identity)
+				uc := newTestUsecase(repo, identity)
 				got, err := m.call(uc, &postUserID)
 
 				require.NoError(t, err)
@@ -194,7 +194,7 @@ func TestContentUsecase_ListPosts_Pagination(t *testing.T) {
 	}
 }
 
-func TestContentUsecase_ListPosts_Anonymous(t *testing.T) {
+func TestPostUsecase_ListPosts_Anonymous(t *testing.T) {
 	t.Parallel()
 
 	for _, m := range listMethods() {
@@ -210,12 +210,12 @@ func TestContentUsecase_ListPosts_Anonymous(t *testing.T) {
 				expectListIdentity(identity, m, items)
 			}
 
-			uc := newTestContentUsecase(repo, identity)
+			uc := newTestUsecase(repo, identity)
 			got, err := m.call(uc, anonymous)
 
 			if m.requiresAuth {
 				require.Nil(t, got)
-				require.ErrorIs(t, err, postusecase.ErrUnauthorized)
+				require.ErrorIs(t, err, contentusecase.ErrUnauthorized)
 
 				return
 			}
@@ -225,7 +225,7 @@ func TestContentUsecase_ListPosts_Anonymous(t *testing.T) {
 	}
 }
 
-func TestContentUsecase_ListPosts_Errors(t *testing.T) {
+func TestPostUsecase_ListPosts_Errors(t *testing.T) {
 	t.Parallel()
 
 	technicalErr := errors.New("post storage unavailable")
@@ -234,7 +234,7 @@ func TestContentUsecase_ListPosts_Errors(t *testing.T) {
 		repoErr error
 		wantErr error
 	}{
-		{name: "unknown author", repoErr: models.ErrPostNotFound, wantErr: postusecase.ErrNotFound},
+		{name: "unknown author", repoErr: models.ErrPostNotFound, wantErr: contentusecase.ErrNotFound},
 		{name: "storage failure", repoErr: technicalErr, wantErr: technicalErr},
 	}
 	for _, m := range listMethods() {
@@ -248,7 +248,7 @@ func TestContentUsecase_ListPosts_Errors(t *testing.T) {
 				m.expect(repo, &postUserID, nil, tt.repoErr)
 				expectListIdentity(identity, m, nil)
 
-				uc := newTestContentUsecase(repo, identity)
+				uc := newTestUsecase(repo, identity)
 				got, err := m.call(uc, &postUserID)
 
 				require.Nil(t, got)
@@ -258,31 +258,31 @@ func TestContentUsecase_ListPosts_Errors(t *testing.T) {
 	}
 }
 
-func TestContentUsecase_CreatePost_Success(t *testing.T) {
+func TestPostUsecase_CreatePost_Success(t *testing.T) {
 	t.Parallel()
 
 	repo := mock_content_usecase.NewMockRepository(t)
 	repo.EXPECT().CreatePost(mock.Anything, &postUserID, postModel).Return(postID, nil)
 
-	uc := newTestContentUsecase(repo)
+	uc := newTestUsecase(repo)
 	got, err := uc.CreatePost(context.Background(), &postUserID, postRequest)
 
 	require.NoError(t, err)
 	require.Equal(t, postID, got)
 }
 
-func TestContentUsecase_CreatePost_Anonymous(t *testing.T) {
+func TestPostUsecase_CreatePost_Anonymous(t *testing.T) {
 	t.Parallel()
 
-	uc := newTestContentUsecase(mock_content_usecase.NewMockRepository(t))
+	uc := newTestUsecase(mock_content_usecase.NewMockRepository(t))
 
 	got, err := uc.CreatePost(context.Background(), anonymous, postRequest)
 
 	require.Equal(t, uuid.Nil, got)
-	require.ErrorIs(t, err, postusecase.ErrUnauthorized)
+	require.ErrorIs(t, err, contentusecase.ErrUnauthorized)
 }
 
-func TestContentUsecase_CreatePost_Errors(t *testing.T) {
+func TestPostUsecase_CreatePost_Errors(t *testing.T) {
 	t.Parallel()
 
 	technicalErr := errors.New("post storage unavailable")
@@ -291,9 +291,9 @@ func TestContentUsecase_CreatePost_Errors(t *testing.T) {
 		repoErr error
 		wantErr error
 	}{
-		{name: "reader is not an author", repoErr: models.ErrInvalidAuthorID, wantErr: postusecase.ErrForbidden},
-		{name: "invalid fields", repoErr: models.ErrPostValidation, wantErr: postusecase.ErrValidation},
-		{name: "unauthorized in storage", repoErr: models.ErrUnauthorized, wantErr: postusecase.ErrUnauthorized},
+		{name: "reader is not an author", repoErr: models.ErrInvalidAuthorID, wantErr: contentusecase.ErrForbidden},
+		{name: "invalid fields", repoErr: models.ErrPostValidation, wantErr: contentusecase.ErrValidation},
+		{name: "unauthorized in storage", repoErr: models.ErrUnauthorized, wantErr: contentusecase.ErrUnauthorized},
 		{name: "storage failure", repoErr: technicalErr, wantErr: technicalErr},
 	}
 	for _, tt := range tests {
@@ -303,7 +303,7 @@ func TestContentUsecase_CreatePost_Errors(t *testing.T) {
 			repo := mock_content_usecase.NewMockRepository(t)
 			repo.EXPECT().CreatePost(mock.Anything, &postUserID, postModel).Return(uuid.Nil, tt.repoErr)
 
-			uc := newTestContentUsecase(repo)
+			uc := newTestUsecase(repo)
 			got, err := uc.CreatePost(context.Background(), &postUserID, postRequest)
 
 			require.Equal(t, uuid.Nil, got)
@@ -312,7 +312,7 @@ func TestContentUsecase_CreatePost_Errors(t *testing.T) {
 	}
 }
 
-func TestContentUsecase_GetPost(t *testing.T) {
+func TestPostUsecase_GetPost(t *testing.T) {
 	t.Parallel()
 
 	technicalErr := errors.New("post storage unavailable")
@@ -330,7 +330,7 @@ func TestContentUsecase_GetPost(t *testing.T) {
 	}{
 		{name: "authorized viewer", userID: &postUserID, post: post},
 		{name: "anonymous viewer", userID: anonymous, post: post},
-		{name: "hidden or unknown post", userID: &postUserID, repoErr: models.ErrPostNotFound, wantErr: postusecase.ErrNotFound},
+		{name: "hidden or unknown post", userID: &postUserID, repoErr: models.ErrPostNotFound, wantErr: contentusecase.ErrNotFound},
 		{name: "storage failure", userID: &postUserID, repoErr: technicalErr, wantErr: technicalErr},
 	}
 	for _, tt := range tests {
@@ -359,7 +359,7 @@ func TestContentUsecase_GetPost(t *testing.T) {
 					Once()
 			}
 
-			uc := newTestContentUsecase(repo, identity)
+			uc := newTestUsecase(repo, identity)
 			got, err := uc.GetPost(context.Background(), tt.userID, postID)
 
 			if tt.wantErr != nil {
@@ -380,7 +380,7 @@ func TestContentUsecase_GetPost(t *testing.T) {
 	}
 }
 
-func TestContentUsecase_GetUserPosts_UnknownUsername(t *testing.T) {
+func TestPostUsecase_GetUserPosts_UnknownUsername(t *testing.T) {
 	t.Parallel()
 
 	for _, m := range listMethods() {
@@ -399,29 +399,29 @@ func TestContentUsecase_GetUserPosts_UnknownUsername(t *testing.T) {
 				Return(&identitycontracts.UserInfo{}, identitycontracts.ErrUserNotFound).
 				Once()
 
-			uc := newTestContentUsecase(repo, identity)
+			uc := newTestUsecase(repo, identity)
 			got, err := m.call(uc, &postUserID)
 
 			require.Nil(t, got)
-			require.ErrorIs(t, err, postusecase.ErrNotFound)
+			require.ErrorIs(t, err, contentusecase.ErrNotFound)
 		})
 	}
 }
 
-func TestContentUsecase_UpdatePost(t *testing.T) {
+func TestPostUsecase_UpdatePost(t *testing.T) {
 	t.Parallel()
 
 	technicalErr := errors.New("post storage unavailable")
-	updated := models.Post{ID: postID, Title: postModel.Title, Body: postModel.Body, Status: postModel.Status}
+	updated := models.Post{ID: postID, Title: postModel.Title, Body: postModel.Body, SearchText: postModel.SearchText, Status: postModel.Status}
 	tests := []struct {
 		name    string
 		repoErr error
 		wantErr error
 	}{
 		{name: "actual version"},
-		{name: "stale version", repoErr: models.ErrPostConflict, wantErr: postusecase.ErrConflict},
-		{name: "foreign or unknown post", repoErr: models.ErrPostNotFound, wantErr: postusecase.ErrNotFound},
-		{name: "invalid fields", repoErr: models.ErrPostValidation, wantErr: postusecase.ErrValidation},
+		{name: "stale version", repoErr: models.ErrPostConflict, wantErr: contentusecase.ErrConflict},
+		{name: "foreign or unknown post", repoErr: models.ErrPostNotFound, wantErr: contentusecase.ErrNotFound},
+		{name: "invalid fields", repoErr: models.ErrPostValidation, wantErr: contentusecase.ErrValidation},
 		{name: "storage failure", repoErr: technicalErr, wantErr: technicalErr},
 	}
 	for _, tt := range tests {
@@ -431,7 +431,7 @@ func TestContentUsecase_UpdatePost(t *testing.T) {
 			repo := mock_content_usecase.NewMockRepository(t)
 			repo.EXPECT().UpdatePost(mock.Anything, &postUserID, updated, postTime).Return(tt.repoErr)
 
-			uc := newTestContentUsecase(repo)
+			uc := newTestUsecase(repo)
 			err := uc.UpdatePost(context.Background(), &postUserID, postID, postRequest, postTime)
 
 			if tt.wantErr != nil {
@@ -444,17 +444,17 @@ func TestContentUsecase_UpdatePost(t *testing.T) {
 	}
 }
 
-func TestContentUsecase_UpdatePost_Anonymous(t *testing.T) {
+func TestPostUsecase_UpdatePost_Anonymous(t *testing.T) {
 	t.Parallel()
 
-	uc := newTestContentUsecase(mock_content_usecase.NewMockRepository(t))
+	uc := newTestUsecase(mock_content_usecase.NewMockRepository(t))
 
 	err := uc.UpdatePost(context.Background(), anonymous, postID, postRequest, postTime)
 
-	require.ErrorIs(t, err, postusecase.ErrUnauthorized)
+	require.ErrorIs(t, err, contentusecase.ErrUnauthorized)
 }
 
-func TestContentUsecase_DeletePost(t *testing.T) {
+func TestPostUsecase_DeletePost(t *testing.T) {
 	t.Parallel()
 
 	technicalErr := errors.New("post storage unavailable")
@@ -464,7 +464,7 @@ func TestContentUsecase_DeletePost(t *testing.T) {
 		wantErr error
 	}{
 		{name: "own post"},
-		{name: "foreign or unknown post", repoErr: models.ErrPostNotFound, wantErr: postusecase.ErrNotFound},
+		{name: "foreign or unknown post", repoErr: models.ErrPostNotFound, wantErr: contentusecase.ErrNotFound},
 		{name: "storage failure", repoErr: technicalErr, wantErr: technicalErr},
 	}
 	for _, tt := range tests {
@@ -474,7 +474,7 @@ func TestContentUsecase_DeletePost(t *testing.T) {
 			repo := mock_content_usecase.NewMockRepository(t)
 			repo.EXPECT().DeletePost(mock.Anything, &postUserID, postID).Return(tt.repoErr)
 
-			uc := newTestContentUsecase(repo)
+			uc := newTestUsecase(repo)
 			err := uc.DeletePost(context.Background(), &postUserID, postID)
 
 			if tt.wantErr != nil {
@@ -487,20 +487,20 @@ func TestContentUsecase_DeletePost(t *testing.T) {
 	}
 }
 
-func TestContentUsecase_DeletePost_Anonymous(t *testing.T) {
+func TestPostUsecase_DeletePost_Anonymous(t *testing.T) {
 	t.Parallel()
 
-	uc := newTestContentUsecase(mock_content_usecase.NewMockRepository(t))
+	uc := newTestUsecase(mock_content_usecase.NewMockRepository(t))
 
 	err := uc.DeletePost(context.Background(), anonymous, postID)
 
-	require.ErrorIs(t, err, postusecase.ErrUnauthorized)
+	require.ErrorIs(t, err, contentusecase.ErrUnauthorized)
 }
 
 type likeMethod struct {
 	name   string
 	expect func(repo *mock_content_usecase.MockRepository, likes int64, err error)
-	call   func(uc *postusecase.ContentUsecase, userID *uuid.UUID) (int64, error)
+	call   func(uc *contentusecase.ContentUsecase, userID *uuid.UUID) (int64, error)
 }
 
 func likeMethods() []likeMethod {
@@ -511,7 +511,7 @@ func likeMethods() []likeMethod {
 			expect: func(repo *mock_content_usecase.MockRepository, likes int64, err error) {
 				repo.EXPECT().LikePost(mock.Anything, &postUserID, postID).Return(likes, err)
 			},
-			call: func(uc *postusecase.ContentUsecase, u *uuid.UUID) (int64, error) {
+			call: func(uc *contentusecase.ContentUsecase, u *uuid.UUID) (int64, error) {
 				return uc.LikePost(ctx, u, postID)
 			},
 		},
@@ -520,14 +520,14 @@ func likeMethods() []likeMethod {
 			expect: func(repo *mock_content_usecase.MockRepository, likes int64, err error) {
 				repo.EXPECT().DeletePostLike(mock.Anything, &postUserID, postID).Return(likes, err)
 			},
-			call: func(uc *postusecase.ContentUsecase, u *uuid.UUID) (int64, error) {
+			call: func(uc *contentusecase.ContentUsecase, u *uuid.UUID) (int64, error) {
 				return uc.DeletePostLike(ctx, u, postID)
 			},
 		},
 	}
 }
 
-func TestContentUsecase_Likes(t *testing.T) {
+func TestPostUsecase_Likes(t *testing.T) {
 	t.Parallel()
 
 	technicalErr := errors.New("post storage unavailable")
@@ -539,7 +539,7 @@ func TestContentUsecase_Likes(t *testing.T) {
 		wantErr   error
 	}{
 		{name: "returns actual likes count", repoLikes: 13, wantLikes: 13},
-		{name: "unavailable post", repoErr: models.ErrPostNotFound, wantErr: postusecase.ErrNotFound},
+		{name: "unavailable post", repoErr: models.ErrPostNotFound, wantErr: contentusecase.ErrNotFound},
 		{name: "storage failure", repoErr: technicalErr, wantErr: technicalErr},
 	}
 	for _, m := range likeMethods() {
@@ -550,7 +550,7 @@ func TestContentUsecase_Likes(t *testing.T) {
 				repo := mock_content_usecase.NewMockRepository(t)
 				m.expect(repo, tt.repoLikes, tt.repoErr)
 
-				uc := newTestContentUsecase(repo)
+				uc := newTestUsecase(repo)
 				got, err := m.call(uc, &postUserID)
 
 				require.Equal(t, tt.wantLikes, got)
@@ -565,33 +565,33 @@ func TestContentUsecase_Likes(t *testing.T) {
 	}
 }
 
-func TestContentUsecase_Likes_Anonymous(t *testing.T) {
+func TestPostUsecase_Likes_Anonymous(t *testing.T) {
 	t.Parallel()
 
 	for _, m := range likeMethods() {
 		t.Run(m.name, func(t *testing.T) {
 			t.Parallel()
 
-			uc := newTestContentUsecase(mock_content_usecase.NewMockRepository(t))
+			uc := newTestUsecase(mock_content_usecase.NewMockRepository(t))
 
 			got, err := m.call(uc, anonymous)
 
 			require.Zero(t, got)
-			require.ErrorIs(t, err, postusecase.ErrUnauthorized)
+			require.ErrorIs(t, err, contentusecase.ErrUnauthorized)
 		})
 	}
 }
 
-func newTestContentUsecase(repo postusecase.Repository, identities ...postusecase.IdentityClient) *postusecase.ContentUsecase {
+func newTestUsecase(repo contentusecase.Repository, identities ...contentusecase.IdentityClient) *contentusecase.ContentUsecase {
 	s, err := sanitizer.NewSanitizer(sanitizer.DefaultConfig())
 	if err != nil {
 		panic(err)
 	}
 
-	var identity postusecase.IdentityClient
+	var identity contentusecase.IdentityClient
 	if len(identities) > 0 {
 		identity = identities[0]
 	}
 
-	return postusecase.New(repo, identity, s, testutils.SetupValidator(), "/media")
+	return contentusecase.New(repo, identity, s, testutils.SetupValidator())
 }

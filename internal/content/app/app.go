@@ -57,7 +57,7 @@ func Run(configPath string) error {
 	defer identityConn.Close()
 
 	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout)
-	contentUc := contentuc.New(postRepo, identityClient, postSanitizer, valid, cfg.S3.PublicPath)
+	contentUc := contentuc.New(postRepo, identityClient, postSanitizer, valid)
 
 	csrfManager := csrf.NewManager(cfg.CSRF)
 

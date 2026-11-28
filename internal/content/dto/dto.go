@@ -95,3 +95,36 @@ type PostLikeResponse struct {
 	LikesCount  int64 `json:"likes_count" example:"13"`
 	LikedByUser bool  `json:"liked_by_user" example:"true"`
 }
+
+type AttachmentType string
+
+const (
+	AttachmentTypeAny   AttachmentType = "any"
+	AttachmentTypeVideo AttachmentType = "video"
+	AttachmentTypeImage AttachmentType = "image"
+	AttachmentTypeAudio AttachmentType = "audio"
+	AttachmentTypeFile  AttachmentType = "file"
+)
+
+func (t AttachmentType) IsValid() bool {
+	switch t {
+	case AttachmentTypeAny, AttachmentTypeVideo, AttachmentTypeImage, AttachmentTypeAudio, AttachmentTypeFile:
+		return true
+	default:
+		return false
+	}
+}
+
+type FeedFilters struct {
+	Query          string
+	Tag            string
+	AttachmentType AttachmentType
+}
+
+func (f FeedFilters) Validate(v *validator.Validator) error {
+	if !v.IsValidSearchQuery(f.Query) {
+		return fmt.Errorf("invalid search query: %w", validator.ErrValidation)
+	}
+
+	return nil
+}

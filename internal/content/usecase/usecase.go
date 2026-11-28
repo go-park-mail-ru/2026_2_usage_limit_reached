@@ -47,9 +47,9 @@ type Repository interface {
 	GetMyPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
 	GetMyNewDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
 	GetMyOldDrafts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
-	GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
-	GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
-	GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
+	GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) ([]*dto.PostPreview, error)
+	GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) ([]*dto.PostPreview, error)
+	GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int, filters dto.FeedFilters) ([]*dto.PostPreview, error)
 	GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
 	GetUserOldPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error)
 	GetUserPopularPosts(ctx context.Context, userID *uuid.UUID, authorID uuid.UUID, cursor *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error)
@@ -71,13 +71,12 @@ type SanitizedBodyValidator interface {
 }
 
 type ContentUsecase struct {
-	repo           Repository
-	identity       IdentityClient
-	sanitizer      *sanitizer.Sanitizer
-	bodyCheck      SanitizedBodyValidator
-	avatarBasePath string
+	repo      Repository
+	identity  IdentityClient
+	sanitizer *sanitizer.Sanitizer
+	bodyCheck SanitizedBodyValidator
 }
 
-func New(r Repository, ic IdentityClient, s *sanitizer.Sanitizer, v SanitizedBodyValidator, abp string) *ContentUsecase {
-	return &ContentUsecase{repo: r, identity: ic, sanitizer: s, bodyCheck: v, avatarBasePath: abp}
+func New(r Repository, ic IdentityClient, s *sanitizer.Sanitizer, v SanitizedBodyValidator) *ContentUsecase {
+	return &ContentUsecase{repo: r, identity: ic, sanitizer: s, bodyCheck: v}
 }

@@ -659,8 +659,8 @@ func (_c *MockContentUsecase_GetMyPopularPosts_Call) RunAndReturn(run func(ctx c
 }
 
 // GetNewPosts provides a mock function for the type MockContentUsecase
-func (_mock *MockContentUsecase) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error) {
-	ret := _mock.Called(ctx, userID, cursor, limit)
+func (_mock *MockContentUsecase) GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) (*dto.TimedPostsPage, error) {
+	ret := _mock.Called(ctx, userID, cursor, limit, filters)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetNewPosts")
@@ -668,18 +668,18 @@ func (_mock *MockContentUsecase) GetNewPosts(ctx context.Context, userID *uuid.U
 
 	var r0 *dto.TimedPostsPage
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) (*dto.TimedPostsPage, error)); ok {
-		return returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int, dto.FeedFilters) (*dto.TimedPostsPage, error)); ok {
+		return returnFunc(ctx, userID, cursor, limit, filters)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) *dto.TimedPostsPage); ok {
-		r0 = returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int, dto.FeedFilters) *dto.TimedPostsPage); ok {
+		r0 = returnFunc(ctx, userID, cursor, limit, filters)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*dto.TimedPostsPage)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) error); ok {
-		r1 = returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int, dto.FeedFilters) error); ok {
+		r1 = returnFunc(ctx, userID, cursor, limit, filters)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -696,11 +696,12 @@ type MockContentUsecase_GetNewPosts_Call struct {
 //   - userID *uuid.UUID
 //   - cursor *dto.TimedPostsCursor
 //   - limit int
-func (_e *MockContentUsecase_Expecter) GetNewPosts(ctx any, userID any, cursor any, limit any) *MockContentUsecase_GetNewPosts_Call {
-	return &MockContentUsecase_GetNewPosts_Call{Call: _e.mock.On("GetNewPosts", ctx, userID, cursor, limit)}
+//   - filters dto.FeedFilters
+func (_e *MockContentUsecase_Expecter) GetNewPosts(ctx any, userID any, cursor any, limit any, filters any) *MockContentUsecase_GetNewPosts_Call {
+	return &MockContentUsecase_GetNewPosts_Call{Call: _e.mock.On("GetNewPosts", ctx, userID, cursor, limit, filters)}
 }
 
-func (_c *MockContentUsecase_GetNewPosts_Call) Run(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int)) *MockContentUsecase_GetNewPosts_Call {
+func (_c *MockContentUsecase_GetNewPosts_Call) Run(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters)) *MockContentUsecase_GetNewPosts_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -718,11 +719,16 @@ func (_c *MockContentUsecase_GetNewPosts_Call) Run(run func(ctx context.Context,
 		if args[3] != nil {
 			arg3 = args[3].(int)
 		}
+		var arg4 dto.FeedFilters
+		if args[4] != nil {
+			arg4 = args[4].(dto.FeedFilters)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
 			arg3,
+			arg4,
 		)
 	})
 	return _c
@@ -733,14 +739,14 @@ func (_c *MockContentUsecase_GetNewPosts_Call) Return(timedPostsPage *dto.TimedP
 	return _c
 }
 
-func (_c *MockContentUsecase_GetNewPosts_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)) *MockContentUsecase_GetNewPosts_Call {
+func (_c *MockContentUsecase_GetNewPosts_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) (*dto.TimedPostsPage, error)) *MockContentUsecase_GetNewPosts_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetOldPosts provides a mock function for the type MockContentUsecase
-func (_mock *MockContentUsecase) GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error) {
-	ret := _mock.Called(ctx, userID, cursor, limit)
+func (_mock *MockContentUsecase) GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) (*dto.TimedPostsPage, error) {
+	ret := _mock.Called(ctx, userID, cursor, limit, filters)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetOldPosts")
@@ -748,18 +754,18 @@ func (_mock *MockContentUsecase) GetOldPosts(ctx context.Context, userID *uuid.U
 
 	var r0 *dto.TimedPostsPage
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) (*dto.TimedPostsPage, error)); ok {
-		return returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int, dto.FeedFilters) (*dto.TimedPostsPage, error)); ok {
+		return returnFunc(ctx, userID, cursor, limit, filters)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) *dto.TimedPostsPage); ok {
-		r0 = returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int, dto.FeedFilters) *dto.TimedPostsPage); ok {
+		r0 = returnFunc(ctx, userID, cursor, limit, filters)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*dto.TimedPostsPage)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) error); ok {
-		r1 = returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int, dto.FeedFilters) error); ok {
+		r1 = returnFunc(ctx, userID, cursor, limit, filters)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -776,11 +782,12 @@ type MockContentUsecase_GetOldPosts_Call struct {
 //   - userID *uuid.UUID
 //   - cursor *dto.TimedPostsCursor
 //   - limit int
-func (_e *MockContentUsecase_Expecter) GetOldPosts(ctx any, userID any, cursor any, limit any) *MockContentUsecase_GetOldPosts_Call {
-	return &MockContentUsecase_GetOldPosts_Call{Call: _e.mock.On("GetOldPosts", ctx, userID, cursor, limit)}
+//   - filters dto.FeedFilters
+func (_e *MockContentUsecase_Expecter) GetOldPosts(ctx any, userID any, cursor any, limit any, filters any) *MockContentUsecase_GetOldPosts_Call {
+	return &MockContentUsecase_GetOldPosts_Call{Call: _e.mock.On("GetOldPosts", ctx, userID, cursor, limit, filters)}
 }
 
-func (_c *MockContentUsecase_GetOldPosts_Call) Run(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int)) *MockContentUsecase_GetOldPosts_Call {
+func (_c *MockContentUsecase_GetOldPosts_Call) Run(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters)) *MockContentUsecase_GetOldPosts_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -798,11 +805,16 @@ func (_c *MockContentUsecase_GetOldPosts_Call) Run(run func(ctx context.Context,
 		if args[3] != nil {
 			arg3 = args[3].(int)
 		}
+		var arg4 dto.FeedFilters
+		if args[4] != nil {
+			arg4 = args[4].(dto.FeedFilters)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
 			arg3,
+			arg4,
 		)
 	})
 	return _c
@@ -813,14 +825,14 @@ func (_c *MockContentUsecase_GetOldPosts_Call) Return(timedPostsPage *dto.TimedP
 	return _c
 }
 
-func (_c *MockContentUsecase_GetOldPosts_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)) *MockContentUsecase_GetOldPosts_Call {
+func (_c *MockContentUsecase_GetOldPosts_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) (*dto.TimedPostsPage, error)) *MockContentUsecase_GetOldPosts_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetPopularPosts provides a mock function for the type MockContentUsecase
-func (_mock *MockContentUsecase) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error) {
-	ret := _mock.Called(ctx, userID, cursor, limit)
+func (_mock *MockContentUsecase) GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int, filters dto.FeedFilters) (*dto.PopularPostsPage, error) {
+	ret := _mock.Called(ctx, userID, cursor, limit, filters)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetPopularPosts")
@@ -828,18 +840,18 @@ func (_mock *MockContentUsecase) GetPopularPosts(ctx context.Context, userID *uu
 
 	var r0 *dto.PopularPostsPage
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) (*dto.PopularPostsPage, error)); ok {
-		return returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int, dto.FeedFilters) (*dto.PopularPostsPage, error)); ok {
+		return returnFunc(ctx, userID, cursor, limit, filters)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) *dto.PopularPostsPage); ok {
-		r0 = returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int, dto.FeedFilters) *dto.PopularPostsPage); ok {
+		r0 = returnFunc(ctx, userID, cursor, limit, filters)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*dto.PopularPostsPage)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) error); ok {
-		r1 = returnFunc(ctx, userID, cursor, limit)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int, dto.FeedFilters) error); ok {
+		r1 = returnFunc(ctx, userID, cursor, limit, filters)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -856,11 +868,12 @@ type MockContentUsecase_GetPopularPosts_Call struct {
 //   - userID *uuid.UUID
 //   - cursor *dto.PopularPostsCursor
 //   - limit int
-func (_e *MockContentUsecase_Expecter) GetPopularPosts(ctx any, userID any, cursor any, limit any) *MockContentUsecase_GetPopularPosts_Call {
-	return &MockContentUsecase_GetPopularPosts_Call{Call: _e.mock.On("GetPopularPosts", ctx, userID, cursor, limit)}
+//   - filters dto.FeedFilters
+func (_e *MockContentUsecase_Expecter) GetPopularPosts(ctx any, userID any, cursor any, limit any, filters any) *MockContentUsecase_GetPopularPosts_Call {
+	return &MockContentUsecase_GetPopularPosts_Call{Call: _e.mock.On("GetPopularPosts", ctx, userID, cursor, limit, filters)}
 }
 
-func (_c *MockContentUsecase_GetPopularPosts_Call) Run(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int)) *MockContentUsecase_GetPopularPosts_Call {
+func (_c *MockContentUsecase_GetPopularPosts_Call) Run(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int, filters dto.FeedFilters)) *MockContentUsecase_GetPopularPosts_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -878,11 +891,16 @@ func (_c *MockContentUsecase_GetPopularPosts_Call) Run(run func(ctx context.Cont
 		if args[3] != nil {
 			arg3 = args[3].(int)
 		}
+		var arg4 dto.FeedFilters
+		if args[4] != nil {
+			arg4 = args[4].(dto.FeedFilters)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
 			arg3,
+			arg4,
 		)
 	})
 	return _c
@@ -893,7 +911,7 @@ func (_c *MockContentUsecase_GetPopularPosts_Call) Return(popularPostsPage *dto.
 	return _c
 }
 
-func (_c *MockContentUsecase_GetPopularPosts_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)) *MockContentUsecase_GetPopularPosts_Call {
+func (_c *MockContentUsecase_GetPopularPosts_Call) RunAndReturn(run func(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int, filters dto.FeedFilters) (*dto.PopularPostsPage, error)) *MockContentUsecase_GetPopularPosts_Call {
 	_c.Call.Return(run)
 	return _c
 }

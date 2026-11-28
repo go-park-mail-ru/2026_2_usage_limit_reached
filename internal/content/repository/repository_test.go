@@ -29,9 +29,9 @@ var (
 	technicalErr  = errors.New("post storage unavailable")
 	likeTxOptions = pgx.TxOptions{IsoLevel: pgx.ReadCommitted}
 
-	createPostQuery    = testutils.SQLInOrder("INSERT INTO post (author_id, title, body, status, published_at)", "RETURNING id")
+	createPostQuery    = testutils.SQLInOrder("INSERT INTO post (author_id, title, body, search_text, status, published_at)", "RETURNING id")
 	getPostQuery       = testutils.SQLInOrder("FROM post p", "WHERE p.id = $2", "AND (p.status = 'published' OR p.author_id = $1)")
-	updatePostQuery    = testutils.SQLInOrder("UPDATE post SET", "WHERE id = $1 AND author_id = $2 AND updated_at = $6")
+	updatePostQuery    = testutils.SQLInOrder("UPDATE post SET", "search_text = $5", "WHERE id = $1 AND author_id = $2 AND updated_at = $7")
 	postVersionQuery   = testutils.SQLInOrder("SELECT author_id, updated_at FROM post WHERE id = $1")
 	deletePostQuery    = testutils.SQLInOrder("DELETE FROM post WHERE id = $1 AND author_id = $2")
 	availablePostQuery = testutils.SQLInOrder("SELECT p.author_id", "WHERE p.id = $2", "AND p.status = 'published'", "FOR KEY SHARE OF p")
@@ -109,19 +109,23 @@ func listMethods() []listMethod {
 		})...)
 
 	methods = append(methods, timed("GetNewPosts",
-		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published'",
+		testutils.SQLInOrder("WITH page AS", "LEFT JOIN post_access pa", "WHERE p.status = 'published'",
 			"(p.published_at, p.id) < ($2::timestamptz, $3::uuid)", "ORDER BY p.published_at DESC, p.id DESC", "LIMIT $4",
-			"LEFT JOIN post_access pa", "ORDER BY p.published_at DESC, p.id DESC"),
+			"ORDER BY p.published_at DESC, p.id DESC"),
 		func(r *Repository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetNewPosts
+			return func(ctx context.Context, u *uuid.UUID, c *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+				return r.GetNewPosts(ctx, u, c, limit, dto.FeedFilters{})
+			}
 		})...)
 
 	methods = append(methods, timed("GetOldPosts",
-		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published'",
+		testutils.SQLInOrder("WITH page AS", "LEFT JOIN post_access pa", "WHERE p.status = 'published'",
 			"(p.published_at, p.id) > ($2::timestamptz, $3::uuid)", "ORDER BY p.published_at, p.id", "LIMIT $4",
-			"LEFT JOIN post_access pa", "ORDER BY p.published_at, p.id"),
+			"ORDER BY p.published_at, p.id"),
 		func(r *Repository) func(context.Context, *uuid.UUID, *dto.TimedPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetOldPosts
+			return func(ctx context.Context, u *uuid.UUID, c *dto.TimedPostsCursor, limit int) ([]*dto.PostPreview, error) {
+				return r.GetOldPosts(ctx, u, c, limit, dto.FeedFilters{})
+			}
 		})...)
 
 	methods = append(methods, popular("GetMyPopularPosts",
@@ -133,11 +137,14 @@ func listMethods() []listMethod {
 		})...)
 
 	methods = append(methods, popular("GetPopularPosts",
-		testutils.SQLInOrder("WITH page AS", "WHERE p.status = 'published'",
+		testutils.SQLInOrder("WITH page AS", "LEFT JOIN post_access pa", "WHERE p.status = 'published'",
 			"(p.likes_count, p.published_at, p.id) < ($2::bigint, $3::timestamptz, $4::uuid)",
-			"ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC", "LIMIT $5", "LEFT JOIN post_access pa"),
+			"ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC", "LIMIT $5",
+			"ORDER BY p.likes_count DESC, p.published_at DESC, p.id DESC"),
 		func(r *Repository) func(context.Context, *uuid.UUID, *dto.PopularPostsCursor, int) ([]*dto.PostPreview, error) {
-			return r.GetPopularPosts
+			return func(ctx context.Context, u *uuid.UUID, c *dto.PopularPostsCursor, limit int) ([]*dto.PostPreview, error) {
+				return r.GetPopularPosts(ctx, u, c, limit, dto.FeedFilters{})
+			}
 		})...)
 
 	methods = append(methods, userTimed("GetUserNewPosts",
@@ -170,9 +177,9 @@ func listMethods() []listMethod {
 func TestRepository_CreatePost_Success(t *testing.T) {
 	t.Parallel()
 
-	post := models.Post{Title: "Мой первый пост", Body: "Текст поста", Status: "published"}
+	post := models.Post{Title: "Мой первый пост", Body: "Текст поста", SearchText: "Текст поста", Status: "published"}
 	repo, pool := newRepository(t)
-	pool.ExpectQuery(createPostQuery).WithArgs(&postUserID, post.Title, post.Body, post.Status).
+	pool.ExpectQuery(createPostQuery).WithArgs(&postUserID, post.Title, post.Body, post.SearchText, post.Status).
 		WillReturnRows(pgxmock.NewRows(createdPostIDColumn).AddRow(postID))
 
 	got, err := repo.CreatePost(context.Background(), &postUserID, post)
@@ -197,9 +204,9 @@ func TestRepository_CreatePost_Errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			post := models.Post{Title: "Мой первый пост", Body: "Текст поста", Status: "draft"}
+			post := models.Post{Title: "Мой первый пост", Body: "Текст поста", SearchText: "Текст поста", Status: "draft"}
 			repo, pool := newRepository(t)
-			pool.ExpectQuery(createPostQuery).WithArgs(&postUserID, post.Title, post.Body, post.Status).WillReturnError(tt.dbErr)
+			pool.ExpectQuery(createPostQuery).WithArgs(&postUserID, post.Title, post.Body, post.SearchText, post.Status).WillReturnError(tt.dbErr)
 
 			got, err := repo.CreatePost(context.Background(), &postUserID, post)
 
@@ -352,9 +359,9 @@ func TestRepository_ListPosts_Errors(t *testing.T) {
 func TestRepository_UpdatePost(t *testing.T) {
 	t.Parallel()
 
-	post := models.Post{ID: postID, Title: "Новый заголовок", Body: "Новый текст", Status: "published"}
+	post := models.Post{ID: postID, Title: "Новый заголовок", Body: "Новый текст", SearchText: "Новый текст", Status: "published"}
 	notUpdated := func(pool pgxmock.PgxPoolIface) {
-		pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime).
+		pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.SearchText, post.Status, postTime).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 	}
 	currentVersion := func(pool pgxmock.PgxPoolIface, authorID uuid.UUID, updatedAt time.Time) {
@@ -370,14 +377,14 @@ func TestRepository_UpdatePost(t *testing.T) {
 		{
 			name: "actual version",
 			expect: func(pool pgxmock.PgxPoolIface) {
-				pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime).
+				pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.SearchText, post.Status, postTime).
 					WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 			},
 		},
 		{
 			name: "check constraint",
 			expect: func(pool pgxmock.PgxPoolIface) {
-				pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime).
+				pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.SearchText, post.Status, postTime).
 					WillReturnError(testutils.PgError("23514"))
 			},
 			wantErr: models.ErrPostValidation,
@@ -385,7 +392,7 @@ func TestRepository_UpdatePost(t *testing.T) {
 		{
 			name: "update storage failure",
 			expect: func(pool pgxmock.PgxPoolIface) {
-				pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.Status, postTime).
+				pool.ExpectExec(updatePostQuery).WithArgs(post.ID, &postUserID, post.Title, post.Body, post.SearchText, post.Status, postTime).
 					WillReturnError(technicalErr)
 			},
 			wantErr: technicalErr,

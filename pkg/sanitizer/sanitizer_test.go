@@ -42,6 +42,26 @@ func TestSanitize(t *testing.T) {
 			expected: `<p>a</p>`,
 		},
 		{
+			name:     "Attachment marker is kept",
+			input:    `<p>a</p><figure data-attachment-id="00000000-0000-4000-8000-000000000001"></figure>`,
+			expected: `<p>a</p><figure data-attachment-id="00000000-0000-4000-8000-000000000001"></figure>`,
+		},
+		{
+			name:     "Attachment marker drops other attributes",
+			input:    `<figure class="c" style="x" onclick="alert(1)" data-attachment-id="00000000-0000-4000-8000-000000000001"></figure>`,
+			expected: `<figure data-attachment-id="00000000-0000-4000-8000-000000000001"></figure>`,
+		},
+		{
+			name:     "Attachment marker with invalid id is unwrapped",
+			input:    `<p>a</p><figure data-attachment-id="not-a-uuid"></figure>`,
+			expected: `<p>a</p>`,
+		},
+		{
+			name:     "Attachment marker without id is unwrapped",
+			input:    `<p>a</p><figure></figure>`,
+			expected: `<p>a</p>`,
+		},
+		{
 			name:     "Https link is kept with target and rel",
 			input:    `<a href=" https://example.com/path?q=1 " class="c" onclick="alert(1)">a</a>`,
 			expected: `<a href="https://example.com/path?q=1" ` + linkAttrs + `>a</a>`,
@@ -148,6 +168,35 @@ func TestHasText(t *testing.T) {
 			t.Parallel()
 
 			require.Equal(t, tt.expected, sanitizer.HasText(tt.input))
+		})
+	}
+}
+
+func TestPlainText(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "Tags are stripped", input: `<p>a <strong>b</strong> <em>c</em></p>`, expected: "a b c"},
+		{name: "Blocks are separated", input: `<p>a</p><p>b</p>`, expected: "a b"},
+		{name: "Removed with content", input: `<p>a</p><script>alert(1)</script><style>.x{}</style><p>b</p>`, expected: "a b"},
+		{name: "Entities are decoded", input: `<p>R&amp;D &laquo;x&raquo;</p>`, expected: `R&D «x»`},
+		{name: "Whitespace is collapsed", input: "<p>a\n\n  b\t\tc</p>", expected: "a b c"},
+		{name: "Links keep their text", input: `<p><a href="https://example.com">link</a> text</p>`, expected: "link text"},
+		{name: "Empty input", input: ``, expected: ``},
+		{name: "Only markup", input: `<p></p><br/>`, expected: ``},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := newSanitizer(t).PlainText(tt.input)
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }

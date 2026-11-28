@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 )
@@ -15,6 +16,7 @@ import (
 // — Разрешены теги: p, h3, strong, em, u, s, ul, ol, li, a, br.
 // — b заменяется на strong, i на em, del и strike на s, div на p.
 // — Все переданные атрибуты удаляются, кроме проверенного href у ссылки. То есть style, class, id, onclick и прочее не сохраняются.
+// — Тег figure разрешён только как маркер вложения с data-attachment-id (UUID); остальные атрибуты удаляются.
 // — Ссылки разрешены только с полным https-адресом. Относительные ссылки и адреса с http:, javascript:, data: не разрешены.
 // — Ссылкам добавляются target="_blank" и rel="noopener noreferrer nofollow".
 // — Если адрес ссылки недопустимый, сам тег ссылки убирается, но её текст остается.
@@ -22,7 +24,10 @@ import (
 // — У остальных неразрешенных тегов убирается сам тег, а допустимое содержимое сохраняется.
 // — HTML-комментарии удаляются. Картинки через img не поддерживаются.
 
-const linkRel = "noopener noreferrer nofollow"
+const (
+	linkRel        = "noopener noreferrer nofollow"
+	attachmentAttr = "data-attachment-id"
+)
 
 type SanitizerConfig struct {
 	AllowedTags        []string          `mapstructure:"allowed_tags"`
@@ -32,7 +37,7 @@ type SanitizerConfig struct {
 
 func DefaultConfig() SanitizerConfig {
 	return SanitizerConfig{
-		AllowedTags: []string{"p", "h3", "strong", "em", "u", "s", "ul", "ol", "li", "a", "br"},
+		AllowedTags: []string{"p", "h3", "strong", "em", "u", "s", "ul", "ol", "li", "a", "br", "figure"},
 		TagAliases: map[string]string{
 			"b": "strong", "i": "em", "del": "s", "strike": "s", "div": "p",
 		},
@@ -137,6 +142,45 @@ func HasText(input string) bool {
 	return false
 }
 
+// PlainText возвращает видимый текст разметки: теги отбрасываются, содержимое
+// удаляемых тегов (script, style и т.п.) пропускается, сущности декодируются,
+// пробелы схлопываются. Используется для поискового текста поста.
+func (s *Sanitizer) PlainText(input string) (string, error) {
+	nodes, err := html.ParseFragment(strings.NewReader(input), bodyContext)
+	if err != nil {
+		return "", fmt.Errorf("parse html: %w", err)
+	}
+
+	var output strings.Builder
+	for _, node := range nodes {
+		s.collectText(node, &output)
+	}
+
+	return normalizeSpace(output.String()), nil
+}
+
+func (s *Sanitizer) collectText(node *html.Node, output *strings.Builder) {
+	switch node.Type {
+	case html.TextNode:
+		output.WriteString(node.Data)
+	case html.ElementNode:
+		if s.removedWithContent[node.DataAtom] {
+			return
+		}
+
+		// Разделитель, чтобы текст соседних блоков не склеивался: <p>a</p><p>b</p> → "a b"
+		output.WriteString(" ")
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			s.collectText(child, output)
+		}
+		output.WriteString(" ")
+	}
+}
+
+func normalizeSpace(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
 // Рекурсия безопасна, т.к. html.ParseFragment отклоняет вложенность глубже 512 элементов
 func (s *Sanitizer) cleanNode(node *html.Node) []*html.Node {
 	switch {
@@ -160,16 +204,25 @@ func (s *Sanitizer) cleanNode(node *html.Node) []*html.Node {
 	}
 
 	clean := &html.Node{Type: html.ElementNode, DataAtom: tag, Data: tag.String()}
-	if tag == atom.A {
+	switch tag {
+	case atom.A:
 		href, ok := safeURL(attr(node, "href"))
 		if !ok {
 			return children
 		}
+
 		clean.Attr = []html.Attribute{
 			{Key: "href", Val: href},
 			{Key: "target", Val: "_blank"},
 			{Key: "rel", Val: linkRel},
 		}
+	case atom.Figure:
+		id, ok := attachmentID(node)
+		if !ok {
+			return children
+		}
+
+		clean.Attr = []html.Attribute{{Key: attachmentAttr, Val: id}}
 	}
 
 	for _, child := range children {
@@ -186,6 +239,20 @@ func safeURL(raw string) (string, bool) {
 	}
 
 	return parsed.String(), true
+}
+
+func attachmentID(node *html.Node) (string, bool) {
+	raw := strings.TrimSpace(attr(node, attachmentAttr))
+	if raw == "" {
+		return "", false
+	}
+
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return "", false
+	}
+
+	return id.String(), true
 }
 
 func attr(node *html.Node, key string) string {

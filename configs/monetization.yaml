@@ -11,6 +11,12 @@ identity:
   address: identity:50051
   timeout: 1s
 
+onlineconf:
+  # Скоупы задаются в коде сервиса: monetization читает только свой скоуп.
+  address: onlineconf:50052
+  timeout: 1s
+  poll_interval: 15s
+
 postgres:
   host: db
   port: 5432

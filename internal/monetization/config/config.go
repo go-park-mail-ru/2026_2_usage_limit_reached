@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	identityclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
+	onlineconfclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/onlineconf"
 	expirationworker "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_expiration_worker"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
@@ -21,6 +22,7 @@ const DefaultConfigPath = "configs/monetization.yaml"
 type Config struct {
 	Monetization ServiceConfig              `mapstructure:"monetization"`
 	Identity     identityclient.Config      `mapstructure:"identity"`
+	Onlineconf   onlineconfclient.Config    `mapstructure:"onlineconf"`
 	Postgres     postgres.PostgresConfig    `mapstructure:"postgres"`
 	Log          logger.LoggerConfig        `mapstructure:"log"`
 	CSRF         csrf.CSRFConfig            `mapstructure:"csrf"`
@@ -37,12 +39,16 @@ func DefaultConfig() Config {
 	httpCfg := httpserver.DefaultConfig()
 	httpCfg.Port = "8083"
 
+	onlineconfCfg := onlineconfclient.DefaultConfig()
+	onlineconfCfg.Scopes = []string{"monetization"}
+
 	return Config{
 		Monetization: ServiceConfig{
 			HTTP:             httpCfg,
 			ExpirationWorker: expirationworker.DefaultConfig(),
 		},
 		Identity:   identityclient.DefaultConfig(),
+		Onlineconf: onlineconfCfg,
 		Postgres:   postgres.DefaultConfig(),
 		Log:        logger.DefaultConfig(),
 		CSRF:       csrf.DefaultConfig(),
@@ -56,6 +62,7 @@ func (c Config) Validate() error {
 		c.Monetization.HTTP.Validate(),
 		c.Monetization.ExpirationWorker.Validate(),
 		c.Identity.Validate(),
+		c.Onlineconf.Validate(),
 		c.Postgres.Validate(),
 		c.Log.Validate(),
 		c.CSRF.Validate(),

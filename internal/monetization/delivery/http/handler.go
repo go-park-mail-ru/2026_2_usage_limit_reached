@@ -26,7 +26,7 @@ func handleError(ctx context.Context, logger *slog.Logger, w http.ResponseWriter
 
 	switch {
 	case errors.Is(err, dto.ErrDonationAmountBelowMinimum):
-		response.WriteJSON(w, http.StatusBadRequest, response.ErrorResponse{Error: "donation_amount_below_minimum"})
+		response.ErrorWithCode(w, http.StatusBadRequest, "donation_amount_below_minimum")
 	case errors.Is(err, donationusecase.ErrForbidden):
 		response.ErrorForbidden(w)
 	case errors.Is(err, donationusecase.ErrNotFound):

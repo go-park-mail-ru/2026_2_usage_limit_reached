@@ -42,6 +42,10 @@ func ErrorConflict(w http.ResponseWriter) {
 	write(w, http.StatusConflict, ErrorResponse{Error: "conflict"})
 }
 
+func ErrorWithCode(w http.ResponseWriter, code int, errorCode string) {
+	write(w, code, ErrorResponse{Error: errorCode})
+}
+
 func ErrorNotFound(w http.ResponseWriter) {
 	write(w, http.StatusNotFound, ErrorResponse{Error: "not found"})
 }

@@ -22,7 +22,7 @@ var (
 
 const (
 	defaultDonationMinAmountMinor int64 = 100
-	donationMinimumScope                = "front"
+	donationMinimumScope                = "monetization"
 	donationMinimumKey                  = "payment.min_amount_minor"
 )
 

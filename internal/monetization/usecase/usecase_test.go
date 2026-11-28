@@ -207,14 +207,14 @@ func TestMonetizationUsecase_GetDonationSettings(t *testing.T) {
 		{
 			name: "configured amount",
 			reader: testOnlineConfReader{
-				values: map[string]string{"front/payment.min_amount_minor": "300"},
+				values: map[string]string{"monetization/payment.min_amount_minor": "300"},
 			},
 			want: 300,
 		},
 		{
 			name: "rejects a value not divisible by 100",
 			reader: testOnlineConfReader{
-				values: map[string]string{"front/payment.min_amount_minor": "250"},
+				values: map[string]string{"monetization/payment.min_amount_minor": "250"},
 			},
 			wantErr: true,
 		},

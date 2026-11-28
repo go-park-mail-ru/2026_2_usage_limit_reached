@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	identityclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
+	onlineconfclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/onlineconf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/csrf"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/httpserver"
@@ -23,6 +24,7 @@ const DefaultConfigPath = "configs/content.yaml"
 type Config struct {
 	Content    ServiceConfig              `mapstructure:"content"`
 	Identity   identityclient.Config      `mapstructure:"identity"`
+	Onlineconf onlineconfclient.Config    `mapstructure:"onlineconf"`
 	Postgres   postgres.PostgresConfig    `mapstructure:"postgres"`
 	S3         s3.S3Config                `mapstructure:"s3"`
 	Log        logger.LoggerConfig        `mapstructure:"log"`
@@ -41,9 +43,13 @@ func DefaultConfig() Config {
 	httpCfg := httpserver.DefaultConfig()
 	httpCfg.Port = "8082"
 
+	onlineconfCfg := onlineconfclient.DefaultConfig()
+	onlineconfCfg.Scopes = []string{"content"}
+
 	return Config{
 		Content:    ServiceConfig{HTTP: httpCfg},
 		Identity:   identityclient.DefaultConfig(),
+		Onlineconf: onlineconfCfg,
 		Postgres:   postgres.DefaultConfig(),
 		S3:         s3.DefaultConfig(),
 		Log:        logger.DefaultConfig(),
@@ -59,6 +65,7 @@ func (c Config) Validate() error {
 	return errors.Join(
 		c.Content.HTTP.Validate(),
 		c.Identity.Validate(),
+		c.Onlineconf.Validate(),
 		c.Postgres.Validate(),
 		c.S3.Validate(),
 		c.Log.Validate(),

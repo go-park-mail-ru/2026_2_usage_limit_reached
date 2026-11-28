@@ -65,8 +65,7 @@ func Run(configPath string) error {
 
 	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout, appLogger)
 
-	onlineconfCfg := onlineconfclient.DefaultConfig()
-	onlineconfCfg.Scopes = []string{"content"}
+	onlineconfCfg := cfg.Onlineconf
 	if err := onlineconfCfg.Validate(); err != nil {
 		return fmt.Errorf("onlineconf client config error: %w", err)
 	}

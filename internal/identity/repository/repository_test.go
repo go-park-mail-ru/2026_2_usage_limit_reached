@@ -19,7 +19,7 @@ import (
 var (
 	testUserID = uuid.MustParse("00000000-0000-4000-8000-000000000001")
 	testTime   = time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
-	userCols   = []string{"id", "username", "nickname", "email", "password_hash", "avatar_key", "status", "created_at", "updated_at"}
+	userCols   = []string{"id", "username", "nickname", "email", "password_hash", "avatar_key", "status", "role", "created_at", "updated_at"}
 	errDB      = errors.New("connection lost")
 )
 
@@ -36,13 +36,13 @@ func newTestRepository(t *testing.T) (*Repository, pgxmock.PgxPoolIface) {
 func testUser() *models.User {
 	return &models.User{
 		ID: testUserID, Username: "ivan001", Nickname: "Иван", Email: "ivan@example.test",
-		PasswordHash: "hash", Status: models.StatusActive, CreatedAt: testTime, UpdatedAt: testTime,
+		PasswordHash: "hash", Status: models.StatusActive, Role: models.RoleUser, CreatedAt: testTime, UpdatedAt: testTime,
 	}
 }
 
 func userRow() *pgxmock.Rows {
 	return pgxmock.NewRows(userCols).
-		AddRow(testUserID, "ivan001", "Иван", "ivan@example.test", "hash", nil, models.StatusActive, testTime, testTime)
+		AddRow(testUserID, "ivan001", "Иван", "ivan@example.test", "hash", nil, models.StatusActive, models.RoleUser, testTime, testTime)
 }
 
 func TestRepository_CreateUser(t *testing.T) {
@@ -56,7 +56,7 @@ func TestRepository_CreateUser(t *testing.T) {
 	}{
 		{
 			name: "created",
-			rows: pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(testUserID, testTime, testTime),
+			rows: pgxmock.NewRows([]string{"id", "role", "created_at", "updated_at"}).AddRow(testUserID, models.RoleUser, testTime, testTime),
 			want: testUser(),
 		},
 		{name: "username or email taken", err: &pgconn.PgError{Code: "23505"}, wantErr: models.ErrUserExists},

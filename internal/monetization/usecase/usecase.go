@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/models"
 	paymentProvider "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/payment_provider"
-	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
 	"github.com/google/uuid"
 )
 
@@ -20,8 +20,18 @@ var (
 	ErrConflict   = errors.New("payment conflict")
 )
 
+const (
+	defaultDonationMinAmountMinor int64 = 100
+	donationMinimumScope                = "front"
+	donationMinimumKey                  = "payment.min_amount_minor"
+)
+
 type IdentityClient interface {
 	GetUsers(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*identitycontracts.UserInfo, error)
+}
+
+type OnlineConfClient interface {
+	Value(scope, key string) (string, bool)
 }
 
 type MonetizationRepository interface {
@@ -58,15 +68,41 @@ type MonetizationUsecase struct {
 	paymentRepo     PaymentRepository
 	paymentProvider paymentProvider.Provider
 	identity        IdentityClient
-	validator       *validator.Validator
+	onlineconf      OnlineConfClient
 }
 
-func New(repo MonetizationRepository, paymentRepo PaymentRepository, provider paymentProvider.Provider, identity IdentityClient, v *validator.Validator) *MonetizationUsecase {
+func New(repo MonetizationRepository, paymentRepo PaymentRepository, provider paymentProvider.Provider, identity IdentityClient, onlineconf OnlineConfClient) *MonetizationUsecase {
 	return &MonetizationUsecase{
 		repo:            repo,
 		paymentRepo:     paymentRepo,
 		paymentProvider: provider,
 		identity:        identity,
-		validator:       v,
+		onlineconf:      onlineconf,
 	}
+}
+
+func (uc *MonetizationUsecase) donationMinimum() (int64, error) {
+	minimum := defaultDonationMinAmountMinor
+	if uc.onlineconf != nil {
+		if raw, ok := uc.onlineconf.Value(donationMinimumScope, donationMinimumKey); ok {
+			if err := json.Unmarshal([]byte(raw), &minimum); err != nil {
+				return 0, fmt.Errorf("parse minimum donation amount: %w", err)
+			}
+		}
+	}
+
+	if minimum <= 0 || minimum%100 != 0 {
+		return 0, fmt.Errorf("invalid minimum donation amount: %d", minimum)
+	}
+
+	return minimum, nil
+}
+
+func (uc *MonetizationUsecase) GetDonationSettings(context.Context) (*dto.DonationSettings, error) {
+	minimum, err := uc.donationMinimum()
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.DonationSettings{MinAmountMinor: minimum}, nil
 }

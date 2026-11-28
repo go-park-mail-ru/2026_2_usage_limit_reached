@@ -404,8 +404,8 @@ func (v Validator) IsValidPaymentReqKey(reqKey string) bool {
 	return len([]rune(reqKey)) == v.cfg.Payment.RequestKeyLen && err == nil
 }
 
-func (v Validator) IsValidPaymentAmountMinor(amount int64) bool {
-	return int64(v.cfg.Payment.MinAmountMinor) <= amount
+func (v Validator) IsValidPaymentAmountMinor(amount, minimumAmountMinor int64) bool {
+	return minimumAmountMinor <= amount
 }
 
 func (v Validator) IsValidPaymentCurrency(cur string) bool {

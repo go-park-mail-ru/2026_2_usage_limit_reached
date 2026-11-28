@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	identityclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/identity"
+	onlineconfclient "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/clients/onlineconf"
 	monetizationconfig "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/config"
 	monetizationhttp "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/delivery/http"
 	httprouter "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/monetization/delivery/http/router"
@@ -54,12 +55,24 @@ func Run(configPath string) error {
 	defer identityConn.Close()
 	identityClient := identityclient.New(identityConn, cfg.Identity.Timeout, appLogger)
 
+	onlineconfCfg := onlineconfclient.DefaultConfig()
+	onlineconfCfg.Scopes = []string{"front"}
+	if err := onlineconfCfg.Validate(); err != nil {
+		return fmt.Errorf("onlineconf client config error: %w", err)
+	}
+	onlineconfConn, err := grpc.NewClient(onlineconfCfg.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("onlineconf client initialization error: %w", err)
+	}
+	defer onlineconfConn.Close()
+	onlineconfClient := onlineconfclient.New(onlineconfConn, onlineconfCfg, appLogger)
+
 	monetizationUc := monetizationuc.New(
 		monetizationRepo,
 		monetizationRepo,
 		paymentprovider.NewMockProvider(),
 		identityClient,
-		valid,
+		onlineconfClient,
 	)
 
 	csrfManager := csrf.NewManager(cfg.CSRF)
@@ -74,9 +87,11 @@ func Run(configPath string) error {
 	private := router.NewRoute().Subrouter()
 	private.Use(middleware.AuthMiddleware(identityClient), middleware.CSRFMiddleware(csrfManager))
 
-	httprouter.RegisterRoutes(private, httprouter.Router{
+	routerDeps := httprouter.Router{
 		Donation: monetizationhttp.NewDonationHandler(monetizationUc, valid, appLogger),
-	})
+	}
+	httprouter.RegisterPublicRoutes(router, routerDeps)
+	httprouter.RegisterRoutes(private, routerDeps)
 
 	httpSrv, err := httpserver.New(cfg.Monetization.HTTP, appLogger)
 	if err != nil {
@@ -93,6 +108,11 @@ func Run(configPath string) error {
 
 	g.Go(func() error {
 		expirationworker.RunExpirationWorker(gctx, monetizationRepo, cfg.Monetization.ExpirationWorker, appLogger)
+		return nil
+	})
+
+	g.Go(func() error {
+		onlineconfClient.Run(gctx)
 		return nil
 	})
 

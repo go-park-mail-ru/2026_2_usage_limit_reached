@@ -46,6 +46,7 @@ func (r *MonetizationRepository) CreateDonationWithPayment(ctx context.Context, 
 	)
 
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
+		var err error
 		const insertOrder = `
 			INSERT INTO payment_order (
 				payer_id, request_key, purpose, origin, expected_amount_minor, currency, status, expires_at
@@ -57,7 +58,7 @@ func (r *MonetizationRepository) CreateDonationWithPayment(ctx context.Context, 
 				credited_attempt_id, expires_at, paid_at, canceled_at, created_at, updated_at
 		`
 
-		err := tx.QueryRow(ctx, insertOrder,
+		err = tx.QueryRow(ctx, insertOrder,
 			req.DonorID, req.RequestKey, models.PurposeDonation, models.OriginManual,
 			req.AmountMinor, req.Currency, req.ExpiresAt,
 		).Scan(

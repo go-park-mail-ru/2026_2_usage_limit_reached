@@ -18,12 +18,15 @@ type MonetizationUsecase interface {
 	Donate(ctx context.Context, payerID uuid.UUID, donationReq dto.CreateDonationRequest) (*dto.SentDonation, error)
 	GetSentDonations(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error)
 	GetReceivedDonations(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error)
+	GetDonationSettings(ctx context.Context) (*dto.DonationSettings, error)
 }
 
 func handleError(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, action string, err error) {
 	logError(ctx, logger, action, err)
 
 	switch {
+	case errors.Is(err, dto.ErrDonationAmountBelowMinimum):
+		response.WriteJSON(w, http.StatusBadRequest, response.ErrorResponse{Error: "donation_amount_below_minimum"})
 	case errors.Is(err, donationusecase.ErrForbidden):
 		response.ErrorForbidden(w)
 	case errors.Is(err, donationusecase.ErrNotFound):

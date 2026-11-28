@@ -7,6 +7,7 @@ import (
 )
 
 type DonationHandler interface {
+	GetDonationSettings(w http.ResponseWriter, r *http.Request)
 	SendDonation(w http.ResponseWriter, r *http.Request)
 	GetMySentDonations(w http.ResponseWriter, r *http.Request)
 	GetMyReceivedDonations(w http.ResponseWriter, r *http.Request)
@@ -14,6 +15,10 @@ type DonationHandler interface {
 
 type Router struct {
 	Donation DonationHandler
+}
+
+func RegisterPublicRoutes(public *mux.Router, deps Router) {
+	public.HandleFunc("/donations/settings", deps.Donation.GetDonationSettings).Methods(http.MethodGet, http.MethodOptions)
 }
 
 func RegisterRoutes(private *mux.Router, deps Router) {

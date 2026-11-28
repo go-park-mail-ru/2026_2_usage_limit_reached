@@ -24,10 +24,6 @@ func (uc *MonetizationUsecase) Donate(ctx context.Context, donorID uuid.UUID, do
 		return nil, ErrForbidden
 	}
 
-	if err := donationReq.Validate(uc.validator); err != nil {
-		return nil, fmt.Errorf("donate: %w: %w", ErrValidation, err)
-	}
-
 	users, err := uc.identity.GetUsers(ctx, []uuid.UUID{donationReq.AuthorID})
 	if err != nil {
 		return nil, fmt.Errorf("get donation author: %w", err)

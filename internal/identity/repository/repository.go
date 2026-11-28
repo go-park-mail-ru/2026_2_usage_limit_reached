@@ -32,7 +32,7 @@ func (r *Repository) CreateUser(ctx context.Context, u models.User) (*models.Use
 	const query = `
 		INSERT INTO "user" (username, nickname, email, password_hash, status)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, created_at, updated_at
+		RETURNING id, role, created_at, updated_at
 	`
 
 	r.logger.DebugContext(ctx, "executing query",
@@ -40,7 +40,7 @@ func (r *Repository) CreateUser(ctx context.Context, u models.User) (*models.Use
 		slog.String("username", u.Username),
 	)
 
-	err := r.pool.QueryRow(ctx, query, u.Username, u.Nickname, u.Email, u.PasswordHash, u.Status).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
+	err := r.pool.QueryRow(ctx, query, u.Username, u.Nickname, u.Email, u.PasswordHash, u.Status).Scan(&u.ID, &u.Role, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		err = postgres.ParseError(err)
 		if errors.Is(err, postgres.ErrUniqViolation) {
@@ -115,7 +115,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id uuid.UUID) (*models.Use
 
 func (r *Repository) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]models.User, error) {
 	const query = `
-		SELECT id, username, nickname, email, password_hash, avatar_key, status, created_at, updated_at
+		SELECT id, username, nickname, email, password_hash, avatar_key, status, role, created_at, updated_at
 		FROM "user"
 		WHERE id = ANY($1)
 	`
@@ -143,6 +143,7 @@ func (r *Repository) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]mode
 			&user.PasswordHash,
 			&user.AvatarKey,
 			&user.Status,
+			&user.Role,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		); err != nil {
@@ -169,7 +170,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*models.
 
 func (r *Repository) getUser(ctx context.Context, field string, v any) (*models.User, error) {
 	const getQuery = `
-		SELECT id, username, nickname, email, password_hash, avatar_key, status, created_at, updated_at
+		SELECT id, username, nickname, email, password_hash, avatar_key, status, role, created_at, updated_at
 		FROM "user"
 		WHERE %s = $1
 	`
@@ -200,6 +201,7 @@ func (r *Repository) getUser(ctx context.Context, field string, v any) (*models.
 		&user.PasswordHash,
 		&user.AvatarKey,
 		&user.Status,
+		&user.Role,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)

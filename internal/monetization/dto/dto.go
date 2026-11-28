@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 )
 
+var ErrDonationAmountBelowMinimum = errors.New("donation_amount_below_minimum")
+
 type CreateDonationRequest struct {
 	AuthorID    uuid.UUID `json:"-"`
 	RequestKey  string    `json:"request_key"`
@@ -19,13 +21,13 @@ type CreateDonationRequest struct {
 	Currency    string    `json:"currency"`
 }
 
-func (r CreateDonationRequest) Validate(v *validator.Validator) error {
+func (r CreateDonationRequest) Validate(v *validator.Validator, minimumAmountMinor int64) error {
 	errs := make([]error, 0)
 	switch {
 	case r.Message != nil && !v.IsValidDonationMessage(*r.Message):
 		errs = append(errs, fmt.Errorf("invalid message"))
-	case !v.IsValidPaymentAmountMinor(r.AmountMinor):
-		errs = append(errs, fmt.Errorf("invalid amount"))
+	case !v.IsValidPaymentAmountMinor(r.AmountMinor, minimumAmountMinor):
+		errs = append(errs, ErrDonationAmountBelowMinimum)
 	case !v.IsValidPaymentCurrency(r.Currency):
 		errs = append(errs, fmt.Errorf("invalid currency"))
 	case !v.IsValidPaymentReqKey(r.RequestKey):
@@ -41,6 +43,10 @@ func (r CreateDonationRequest) Validate(v *validator.Validator) error {
 type CreateDonationResponse struct {
 	PaymentOrderID uuid.UUID `json:"id"`
 	Status         string    `json:"status"`
+}
+
+type DonationSettings struct {
+	MinAmountMinor int64 `json:"min_amount_minor"`
 }
 
 type GetDonationResponse struct {

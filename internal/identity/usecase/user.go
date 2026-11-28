@@ -19,6 +19,7 @@ func (uc *Usecase) createUser(ctx context.Context, req dto.CreateUserRequest) (*
 		Nickname:     strings.TrimSpace(req.Nickname),
 		PasswordHash: req.PasswordHash,
 		Status:       models.StatusActive,
+		Role:         models.RoleUser,
 	})
 	if err != nil {
 		if errors.Is(err, models.ErrUserExists) {

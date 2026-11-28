@@ -48,6 +48,7 @@ func TestDonationHandler_SendDonation_Success(t *testing.T) {
 	t.Parallel()
 
 	router, uc := newRouter(t)
+	uc.On("GetDonationSettings", mock.Anything).Return(&dto.DonationSettings{MinAmountMinor: 100}, nil)
 	uc.EXPECT().Donate(mock.Anything, donationPayerID, donateReq).
 		Return(&dto.SentDonation{PaymentOrderID: donationOrderID, Status: "paid"}, nil)
 
@@ -66,6 +67,7 @@ func TestDonationHandler_SendDonation_AuthorFromPathOnly(t *testing.T) {
 	body := `{"author_id":"` + uuid.NewString() + `","request_key":"` + requestKey + `","amount_minor":50000,"currency":"RUB"}`
 	want := dto.CreateDonationRequest{AuthorID: donationAuthorID, RequestKey: requestKey, AmountMinor: 50000, Currency: "RUB"}
 	router, uc := newRouter(t)
+	uc.On("GetDonationSettings", mock.Anything).Return(&dto.DonationSettings{MinAmountMinor: 100}, nil)
 	uc.EXPECT().Donate(mock.Anything, donationPayerID, want).
 		Return(&dto.SentDonation{PaymentOrderID: donationOrderID, Status: "pending"}, nil)
 
@@ -86,7 +88,6 @@ func TestDonationHandler_SendDonation_InvalidRequest(t *testing.T) {
 		{name: "malformed json", target: donateTarget, body: `{"request_key":`},
 		{name: "empty body", target: donateTarget, body: ``},
 		{name: "wrong type", target: donateTarget, body: `{"request_key":"` + requestKey + `","amount_minor":"много","currency":"RUB"}`},
-		{name: "amount below minimum", target: donateTarget, body: `{"request_key":"` + requestKey + `","amount_minor":4,"currency":"RUB"}`},
 		{name: "unsupported currency", target: donateTarget, body: `{"request_key":"` + requestKey + `","amount_minor":50000,"currency":"USD"}`},
 		{name: "missing currency", target: donateTarget, body: `{"request_key":"` + requestKey + `","amount_minor":50000}`},
 		{name: "request key is not uuid", target: donateTarget, body: `{"request_key":"donation-1","amount_minor":50000,"currency":"RUB"}`},
@@ -97,13 +98,30 @@ func TestDonationHandler_SendDonation_InvalidRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			router, _ := newRouter(t)
+			router, uc := newRouter(t)
+			switch tt.name {
+			case "unsupported currency", "missing currency", "request key is not uuid", "missing request key", "too long message":
+				uc.On("GetDonationSettings", mock.Anything).Return(&dto.DonationSettings{MinAmountMinor: 100}, nil)
+			}
 
 			rec := serve(router, newRequest(http.MethodPost, tt.target, tt.body, &donationPayerID))
 
 			require.Equal(t, http.StatusBadRequest, rec.Code)
 		})
 	}
+}
+
+func TestDonationHandler_GetDonationSettings(t *testing.T) {
+	t.Parallel()
+
+	router, uc := newRouter(t)
+	uc.On("GetDonationSettings", mock.Anything).
+		Return(&dto.DonationSettings{MinAmountMinor: 300}, nil)
+
+	rec := serve(router, newRequest(http.MethodGet, "/donations/settings", "", nil))
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, dto.DonationSettings{MinAmountMinor: 300}, testutils.DecodeJSON[dto.DonationSettings](t, rec))
 }
 
 func TestDonationHandler_SendDonation_Anonymous(t *testing.T) {
@@ -114,6 +132,20 @@ func TestDonationHandler_SendDonation_Anonymous(t *testing.T) {
 	rec := serve(router, newRequest(http.MethodPost, donateTarget, donateJSON, anonymous))
 
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+func TestDonationHandler_SendDonation_BelowConfiguredMinimum(t *testing.T) {
+	t.Parallel()
+
+	router, uc := newRouter(t)
+	uc.On("GetDonationSettings", mock.Anything).
+		Return(&dto.DonationSettings{MinAmountMinor: 500}, nil)
+	body := `{"request_key":"` + requestKey + `","amount_minor":100,"currency":"RUB"}`
+
+	rec := serve(router, newRequest(http.MethodPost, donateTarget, body, &donationPayerID))
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, "donation_amount_below_minimum", testutils.DecodeJSON[response.ErrorResponse](t, rec).Error)
 }
 
 func TestDonationHandler_SendDonation_Errors(t *testing.T) {
@@ -135,6 +167,7 @@ func TestDonationHandler_SendDonation_Errors(t *testing.T) {
 			t.Parallel()
 
 			router, uc := newRouter(t)
+			uc.On("GetDonationSettings", mock.Anything).Return(&dto.DonationSettings{MinAmountMinor: 100}, nil)
 			uc.EXPECT().Donate(mock.Anything, donationPayerID, donateReq).Return(nil, wrapped(tt.ucErr))
 
 			rec := serve(router, newRequest(http.MethodPost, donateTarget, donateJSON, &donationPayerID))

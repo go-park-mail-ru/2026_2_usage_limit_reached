@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package onlineconf.v1;
+
+option go_package = "github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/proto/onlineconf/v1;onlineconfpb";
+
+// OnlineConfService — API сервиса конфигурации для сервисов-потребителей
+// (app, content, monetization). Админские операции (CRUD конфигов и флагов,
+// история, проверка юзера) идут по HTTP и сюда не входят.
+//
+// Потребитель периодически забирает снапшот нужных скоупов и сам
+// вычисляет значения тогглов локально (pkg/onlineconf/eval.go), поэтому
+// сервис отдаёт «сырые» данные: значения и параметры флагов вместе со списками
+// принудительных включений и отключений.
+service OnlineConfService {
+  // GetSnapshot возвращает текущее состояние запрошенных скоупов.
+  //
+  // Если known_revision не равен 0 и совпадает с текущей ревизией сервиса, ответ
+  // содержит not_modified = true без configs и flags, а клиент оставляет прежний
+  // снапшот.
+  //
+  // Коды ошибок:
+  //   INVALID_ARGUMENT — список scopes пуст или содержит пустую строку;
+  //   UNAVAILABLE      — сервис временно недоступен (клиент оставляет прежний снапшот).
+  // Неизвестный скоуп ошибкой не считается: по нему просто нет данных.
+  rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse);
+}
+
+message GetSnapshotRequest {
+  // Скоупы, данные которых нужны потребителю (например, "content").
+  repeated string scopes = 1;
+
+  // Ревизия, полученная клиентом в прошлом ответе. 0 — снапшота ещё нет:
+  // при known_revision = 0 сервис всегда отдаёт полные данные, даже если его
+  // собственная ревизия тоже 0 (например, в БД только сид-данные без записей
+  // в oc_history).
+  int64 known_revision = 2;
+}
+
+message GetSnapshotResponse {
+  // Глобальная монотонная ревизия: растёт при любом изменении конфигов и флагов
+  // и не сбрасывается при перезапуске сервиса (например, максимальный id из
+  // oc_history). Ревизия общая для всех скоупов, поэтому изменение чужого скоупа
+  // тоже вызывает перечитывание. Это безвредно.
+  int64 revision = 1;
+
+  // true — известная клиенту ревизия актуальна, configs и flags пусты.
+  bool not_modified = 2;
+
+  repeated Config configs = 3;
+  repeated Flag flags = 4;
+}
+
+// Config — значение настройки. В поле value лежит JSON-значение в текстовом виде,
+// как оно хранится в oc_config.value (JSONB): число 100, строка "abc" вместе
+// с кавычками, true, массив [1,2] или объект {"min":10,"max":1000}.
+// Тип разбирает потребитель (contracts.JSON, Int64, String, Bool). Объявленный
+// тип значения (scalar/array/json) нужен админке и фронту и в gRPC не передаётся.
+message Config {
+  string scope = 1;
+  string key = 2;
+  string value = 3;
+}
+
+// Flag — тоггл с процентной раскаткой и персональными переопределениями.
+message Flag {
+  string scope = 1;
+  string key = 2;
+
+  // Доля пользователей, для которых флаг включён: 0..100.
+  uint32 rollout_percent = 3;
+
+  // UUID пользователей с принудительным включением и отключением.
+  // Принудительное отключение приоритетнее включения и раскатки.
+  repeated string force_on_user_ids = 4;
+  repeated string force_off_user_ids = 5;
+}

@@ -107,6 +107,66 @@ func TestAuthMiddleware(t *testing.T) {
 	}
 }
 
+func TestAdminMiddleware(t *testing.T) {
+	tests := []struct {
+		name           string
+		cookie         *http.Cookie
+		user           *authn.User
+		verifyErr      error
+		expectedStatus int
+	}{
+		{name: "unauthenticated", expectedStatus: http.StatusUnauthorized},
+		{
+			name:           "invalid session",
+			cookie:         &http.Cookie{Name: jwt.CookieName, Value: "invalid"},
+			verifyErr:      authn.ErrInvalidToken,
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:           "non-admin",
+			cookie:         &http.Cookie{Name: jwt.CookieName, Value: "user"},
+			user:           &authn.User{ID: uuid.New(), Role: "user"},
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name:           "admin",
+			cookie:         &http.Cookie{Name: jwt.CookieName, Value: "admin"},
+			user:           &authn.User{ID: uuid.New(), Role: "admin"},
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:           "identity unavailable",
+			cookie:         &http.Cookie{Name: jwt.CookieName, Value: "admin"},
+			verifyErr:      authn.ErrUnavailable,
+			expectedStatus: http.StatusServiceUnavailable,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			verifier := &MockTokenVerifier{VerifyFunc: func(context.Context, string) (*authn.User, error) {
+				return tt.user, tt.verifyErr
+			}}
+			nextCalled := false
+			handler := middleware.AdminMiddleware(verifier)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				nextCalled = true
+				w.WriteHeader(http.StatusNoContent)
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+			if tt.cookie != nil {
+				req.AddCookie(tt.cookie)
+			}
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, req)
+
+			require.Equal(t, tt.expectedStatus, recorder.Code)
+			require.Equal(t, tt.expectedStatus == http.StatusNoContent, nextCalled)
+			require.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+		})
+	}
+}
+
 func TestOptionalAuthMiddleware(t *testing.T) {
 	userID := uuid.New()
 	validUser := &authn.User{ID: userID, Role: "user"}

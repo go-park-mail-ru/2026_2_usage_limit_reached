@@ -196,6 +196,47 @@ func expectedSentDonation(status string) *dto.SentDonation {
 	}
 }
 
+func TestMonetizationUsecase_GetDonationSettings(t *testing.T) {
+	tests := []struct {
+		name    string
+		reader  donationusecase.OnlineConfClient
+		want    int64
+		wantErr bool
+	}{
+		{name: "default when no reader", want: 100},
+		{
+			name: "configured amount",
+			reader: testOnlineConfReader{
+				values: map[string]string{"front/payment.min_amount_minor": "300"},
+			},
+			want: 300,
+		},
+		{
+			name: "rejects a value not divisible by 100",
+			reader: testOnlineConfReader{
+				values: map[string]string{"front/payment.min_amount_minor": "250"},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uc, _, _, _, _ := newUsecaseWithReader(t, tt.reader)
+
+			got, err := uc.GetDonationSettings(context.Background())
+
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Nil(t, got)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, &dto.DonationSettings{MinAmountMinor: tt.want}, got)
+		})
+	}
+}
+
 func TestMonetizationUsecase_Donate_PaymentStatuses(t *testing.T) {
 	t.Parallel()
 
@@ -293,19 +334,6 @@ func TestMonetizationUsecase_Donate_InvalidIDs(t *testing.T) {
 			require.ErrorIs(t, err, tt.wantErr)
 		})
 	}
-}
-
-func TestMonetizationUsecase_Donate_InvalidRequest(t *testing.T) {
-	t.Parallel()
-
-	uc, _, _, _, _ := newUsecase(t)
-	req := donationReq
-	req.AmountMinor = 0
-
-	got, err := uc.Donate(context.Background(), donationPayerID, req)
-
-	require.Nil(t, got)
-	require.ErrorIs(t, err, donationusecase.ErrValidation)
 }
 
 func TestMonetizationUsecase_Donate_AuthorNotFound(t *testing.T) {

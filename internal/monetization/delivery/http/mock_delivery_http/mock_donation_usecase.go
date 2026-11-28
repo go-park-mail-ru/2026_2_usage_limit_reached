@@ -48,6 +48,20 @@ func (_m *MockDonationUsecase) EXPECT() *MockDonationUsecase_Expecter {
 	return &MockDonationUsecase_Expecter{mock: &_m.Mock}
 }
 
+func (_mock *MockDonationUsecase) GetDonationSettings(ctx context.Context) (*dto.DonationSettings, error) {
+	ret := _mock.Called(ctx)
+	if len(ret) == 0 {
+		panic("no return value specified for GetDonationSettings")
+	}
+
+	var settings *dto.DonationSettings
+	if ret.Get(0) != nil {
+		settings = ret.Get(0).(*dto.DonationSettings)
+	}
+
+	return settings, ret.Error(1)
+}
+
 // Donate provides a mock function for the type MockDonationUsecase
 func (_mock *MockDonationUsecase) Donate(ctx context.Context, payerID uuid.UUID, donationReq dto.CreateDonationRequest) (*dto.SentDonation, error) {
 	ret := _mock.Called(ctx, payerID, donationReq)

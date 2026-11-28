@@ -47,6 +47,30 @@ func AuthMiddleware(verifier TokenVerifier) func(http.Handler) http.Handler {
 	}
 }
 
+// AdminMiddleware requires a valid session with the admin role.
+func AdminMiddleware(verifier TokenVerifier) func(http.Handler) http.Handler {
+	authenticated := AuthMiddleware(verifier)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "no-store")
+			authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				user, ok := UserInfoFromContext(r.Context())
+				if !ok {
+					response.ErrorUnauthorized(w)
+					return
+				}
+				if user.Role != "admin" {
+					response.ErrorForbidden(w)
+					return
+				}
+
+				next.ServeHTTP(w, r)
+			})).ServeHTTP(w, r)
+		})
+	}
+}
+
 func OptionalAuthMiddleware(verifier TokenVerifier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

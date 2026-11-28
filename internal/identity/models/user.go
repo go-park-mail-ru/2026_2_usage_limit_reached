@@ -18,6 +18,12 @@ const (
 	StatusDeleted = "deleted"
 )
 
+const (
+	RoleUser    = "user"
+	RoleAdmin   = "admin"
+	RoleSupport = "support"
+)
+
 func IsActiveStatus(status string) bool {
 	return status == StatusActive
 }
@@ -30,6 +36,7 @@ type User struct {
 	PasswordHash string
 	AvatarKey    *string
 	Status       string
+	Role         string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

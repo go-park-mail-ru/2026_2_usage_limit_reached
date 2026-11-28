@@ -36,6 +36,7 @@ func (u UserInfo) IsActive() bool {
 type UserCredentials struct {
 	UserInfo
 	PasswordHash string
+	Role         string
 }
 
 func ToUserInfo(user *models.User, avatarURL *string) *UserInfo {
@@ -63,5 +64,6 @@ func ToUserCredentials(user *models.User, avatarURL *string) *UserCredentials {
 	return &UserCredentials{
 		UserInfo:     *ToUserInfo(user, avatarURL),
 		PasswordHash: user.PasswordHash,
+		Role:         user.Role,
 	}
 }

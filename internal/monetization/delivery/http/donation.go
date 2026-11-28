@@ -35,6 +35,24 @@ func NewDonationHandler(uc MonetizationUsecase, v *validator.Validator, logger *
 	return &DonationHandler{uc: uc, validator: v, logger: logger}
 }
 
+// ВЕРОЯТНО НУЖНО УБРАТЬ
+// GetDonationSettings returns the current public donation settings.
+// @Summary Настройки донатов
+// @Tags donations
+// @Produce json
+// @Success 200 {object} dto.DonationSettings
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /donations/settings [get]
+func (h *DonationHandler) GetDonationSettings(w http.ResponseWriter, r *http.Request) {
+	settings, err := h.uc.GetDonationSettings(r.Context())
+	if err != nil {
+		handleError(r.Context(), h.logger, w, "get donation settings", err)
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, settings)
+}
+
 type getDonationsFunc func(ctx context.Context, payerID uuid.UUID, cursor *dto.DonationCursor, limit int) (*dto.DonationPage, error)
 
 // SendDonation отправляет донат автору
@@ -47,7 +65,7 @@ type getDonationsFunc func(ctx context.Context, payerID uuid.UUID, cursor *dto.D
 // @Param author_id path string true "ID автора" Format(uuid)
 // @Param request body dto.CreateDonationRequest true "Данные доната"
 // @Success 200 {object} dto.CreateDonationResponse "Донат создан, возвращён статус оплаты"
-// @Failure 400 {object} response.ErrorResponse "Ошибка валидации или некорректный ID автора"
+// @Failure 400 {object} response.ErrorResponse "Ошибка валидации, некорректный ID автора или donation_amount_below_minimum"
 // @Failure 401 {object} response.ErrorResponse "Пользователь неавторизован"
 // @Failure 404 {object} response.ErrorResponse "Автор не найден"
 // @Failure 409 {object} response.ErrorResponse "Конфликт оплаты"
@@ -67,14 +85,19 @@ func (h *DonationHandler) SendDonation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := donationReq.Validate(h.validator); err != nil {
-		handleError(ctx, h.logger, w, "send donation", err)
-		return
-	}
-
 	user, ok := middleware.UserInfoFromContext(ctx)
 	if !ok {
 		response.ErrorUnauthorized(w)
+		return
+	}
+
+	settings, err := h.uc.GetDonationSettings(ctx)
+	if err != nil {
+		handleError(ctx, h.logger, w, "send donation", err)
+		return
+	}
+	if err := donationReq.Validate(h.validator, settings.MinAmountMinor); err != nil {
+		handleError(ctx, h.logger, w, "send donation", err)
 		return
 	}
 

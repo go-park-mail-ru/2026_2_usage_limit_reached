@@ -29,6 +29,7 @@ func testUser() *models.User {
 		Nickname:  "Иван",
 		Email:     "ivan@example.test",
 		Status:    models.StatusActive,
+		Role:      models.RoleUser,
 		CreatedAt: testTime,
 		UpdatedAt: testTime,
 	}
@@ -80,6 +81,28 @@ func TestLogin(t *testing.T) {
 
 		return user
 	}
+
+	t.Run("admin role is written to token claims", func(t *testing.T) {
+		repo := mock_identity_usecase.NewMockRepository(t)
+		admin := userWithHash()
+		admin.Role = models.RoleAdmin
+		repo.EXPECT().GetUserByUsername(mock.Anything, "ivan001").Return(admin, nil)
+
+		tokens := mock_identity_usecase.NewMockTokenManager(t)
+		tokens.EXPECT().Generate(testUserID, mock.MatchedBy(func(payload interface{ Encode() ([]byte, error) }) bool {
+			raw, err := payload.Encode()
+			if err != nil {
+				return false
+			}
+
+			var claims map[string]any
+			return json.Unmarshal(raw, &claims) == nil && claims["role"] == models.RoleAdmin
+		})).Return("token", nil)
+
+		_, _, err := newUsecase(repo, tokens, nil).Login(context.Background(), dto.LoginRequest{Login: "ivan001", Password: "password123"})
+
+		require.NoError(t, err)
+	})
 
 	t.Run("success", func(t *testing.T) {
 		repo := mock_identity_usecase.NewMockRepository(t)

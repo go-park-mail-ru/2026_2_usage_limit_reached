@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/dto"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/models"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/pkg/authn"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -45,7 +46,7 @@ func (uc *Usecase) Register(ctx context.Context, regInput dto.RegistrationReques
 		return nil, "", fmt.Errorf("failed to create user: %w", err)
 	}
 
-	token, err := uc.tokens.Generate(user.ID, tokenClaims{UserID: user.ID, Email: user.Email, Username: user.Username, Role: "user"})
+	token, err := uc.tokens.Generate(user.ID, tokenClaims{UserID: user.ID, Email: user.Email, Username: user.Username, Role: models.RoleUser})
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -71,7 +72,7 @@ func (uc *Usecase) Login(ctx context.Context, logReq dto.LoginRequest) (*dto.Use
 		return nil, "", fmt.Errorf("%w: account disabled", ErrLoginFailed)
 	}
 
-	token, err := uc.tokens.Generate(user.ID, tokenClaims{UserID: user.ID, Email: user.Email, Username: user.Username, Role: "user"})
+	token, err := uc.tokens.Generate(user.ID, tokenClaims{UserID: user.ID, Email: user.Email, Username: user.Username, Role: user.Role})
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to generate token: %w", err)
 	}

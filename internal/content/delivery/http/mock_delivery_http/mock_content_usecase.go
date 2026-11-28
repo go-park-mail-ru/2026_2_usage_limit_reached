@@ -1570,3 +1570,4 @@ func (_c *MockContentUsecase_UploadAttachment_Call) RunAndReturn(run func(ctx co
 	_c.Call.Return(run)
 	return _c
 }
+

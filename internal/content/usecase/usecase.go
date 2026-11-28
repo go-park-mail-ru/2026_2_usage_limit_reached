@@ -21,6 +21,10 @@ var (
 	ErrValidation   = errors.New("validation error")
 	ErrNotFound     = errors.New("not found")
 	ErrConflict     = errors.New("post update conflict")
+
+	// ErrAdvancedFiltersDisabled — фильтр ленты по вложениям выключен для
+	// пользователя: delivery отвечает 403 feed_advanced_filters_disabled.
+	ErrAdvancedFiltersDisabled = errors.New("feed advanced filters disabled")
 )
 
 var repoErrors = []struct{ from, to error }{

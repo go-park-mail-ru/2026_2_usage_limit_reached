@@ -56,6 +56,12 @@ func (c *testOnlineConfClient) Enabled(scope, key string, userID uuid.UUID) bool
 	c.scope = scope
 	c.key = key
 	c.userID = userID
+
+	// Как и настоящий клиент: аноним (uuid.Nil) всегда вне раскатки.
+	if userID == uuid.Nil {
+		return false
+	}
+
 	return c.enabled
 }
 
@@ -709,20 +715,38 @@ func TestFeedAttachmentFilterGate(t *testing.T) {
 					Tag:            "animals",
 					AttachmentType: dto.AttachmentTypeVideo,
 				}
-				expectedFilters := inputFilters
-				if !enabled {
-					expectedFilters.AttachmentType = ""
-				}
-				method.setup(repo, expectedFilters)
 
 				uc := newTestContentUsecaseWithOnlineConf(repo, client)
+
+				if !enabled {
+					// Флаг выключен: валидный attachment_type — 403, репозиторий не дёргаем.
+					err := method.call(uc, &userID, inputFilters)
+					require.ErrorIs(t, err, contentusecase.ErrAdvancedFiltersDisabled)
+					require.Equal(t, "content", client.scope)
+					require.Equal(t, "feed_attachment_filter", client.key)
+					require.Equal(t, userID, client.userID)
+					return
+				}
+
+				method.setup(repo, inputFilters)
 				require.NoError(t, method.call(uc, &userID, inputFilters))
-				require.Equal(t, "content", client.scope)
-				require.Equal(t, "feed_attachment_filter", client.key)
 				require.Equal(t, userID, client.userID)
 			})
 		}
 	}
+}
+
+// Без attachment_type лента работает одинаково при любом состоянии флага.
+func TestFeedAttachmentFilterGateWithoutAttachment(t *testing.T) {
+	repo := mock_content_usecase.NewMockRepository(t)
+	client := &testOnlineConfClient{enabled: false}
+	filters := dto.FeedFilters{Query: "cats", Tag: "animals"}
+	repo.EXPECT().GetNewPosts(mock.Anything, mock.Anything, timedCursor, pageLimit+1, filters).
+		Return([]*dto.PostPreview{}, nil)
+
+	uc := newTestContentUsecaseWithOnlineConf(repo, client)
+	_, err := uc.GetNewPosts(context.Background(), &postUserID, timedCursor, pageLimit, filters)
+	require.NoError(t, err)
 }
 
 func TestFeedAttachmentFilterGateAnonymousUser(t *testing.T) {
@@ -733,17 +757,28 @@ func TestFeedAttachmentFilterGateAnonymousUser(t *testing.T) {
 		Tag:            "animals",
 		AttachmentType: dto.AttachmentTypeImage,
 	}
-	expectedFilters := filters
-	expectedFilters.AttachmentType = ""
-	repo.EXPECT().GetNewPosts(mock.Anything, anonymous, timedCursor, pageLimit+1, expectedFilters).
-		Return([]*dto.PostPreview{}, nil)
 
 	uc := newTestContentUsecaseWithOnlineConf(repo, client)
 	_, err := uc.GetNewPosts(context.Background(), anonymous, timedCursor, pageLimit, filters)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, contentusecase.ErrAdvancedFiltersDisabled)
 	require.Equal(t, "content", client.scope)
 	require.Equal(t, "feed_attachment_filter", client.key)
 	require.Equal(t, uuid.Nil, client.userID)
+}
+
+func TestFeedSettings(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		client := &testOnlineConfClient{enabled: enabled}
+		uc := newTestContentUsecaseWithOnlineConf(mock_content_usecase.NewMockRepository(t), client)
+
+		settings := uc.FeedSettings(context.Background(), &postUserID)
+		require.Equal(t, enabled, settings.AdvancedFiltersEnabled)
+		require.False(t, settings.AccessibleOnlySupported)
+	}
+
+	// Гость всегда получает выключенные фильтры: аноним вне раскатки.
+	guest := newTestContentUsecaseWithOnlineConf(mock_content_usecase.NewMockRepository(t), &testOnlineConfClient{enabled: true})
+	require.False(t, guest.FeedSettings(context.Background(), nil).AdvancedFiltersEnabled)
 }
 
 func newTestContentUsecase(repo contentusecase.Repository, identities ...contentusecase.IdentityClient) *contentusecase.ContentUsecase {

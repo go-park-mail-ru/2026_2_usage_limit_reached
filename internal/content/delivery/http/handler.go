@@ -26,6 +26,7 @@ type ContentUsecase interface {
 	GetNewPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) (*dto.TimedPostsPage, error)
 	GetOldPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.TimedPostsCursor, limit int, filters dto.FeedFilters) (*dto.TimedPostsPage, error)
 	GetPopularPosts(ctx context.Context, userID *uuid.UUID, cursor *dto.PopularPostsCursor, limit int, filters dto.FeedFilters) (*dto.PopularPostsPage, error)
+	FeedSettings(ctx context.Context, userID *uuid.UUID) *dto.FeedSettings
 	GetUserNewPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
 	GetUserOldPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.TimedPostsCursor, limit int) (*dto.TimedPostsPage, error)
 	GetUserPopularPosts(ctx context.Context, userID *uuid.UUID, authorUsername string, cursor *dto.PopularPostsCursor, limit int) (*dto.PopularPostsPage, error)
@@ -42,6 +43,8 @@ type ContentUsecase interface {
 func handleError(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, action string, err error) {
 	logError(ctx, logger, action, err)
 	switch {
+	case errors.Is(err, contentusecase.ErrAdvancedFiltersDisabled):
+		response.ErrorWithCode(w, http.StatusForbidden, "feed_advanced_filters_disabled")
 	case errors.Is(err, contentusecase.ErrConflict):
 		response.ErrorConflict(w)
 	case errors.Is(err, contentusecase.ErrForbidden):

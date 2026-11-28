@@ -8,6 +8,7 @@ import (
 
 type PostHandler interface {
 	Feed(w http.ResponseWriter, r *http.Request)
+	FeedSettings(w http.ResponseWriter, r *http.Request)
 	UserPosts(w http.ResponseWriter, r *http.Request)
 	MyPosts(w http.ResponseWriter, r *http.Request)
 	MyDrafts(w http.ResponseWriter, r *http.Request)
@@ -30,6 +31,7 @@ type Router struct {
 }
 
 func RegisterRoutes(public *mux.Router, private *mux.Router, deps Router) {
+	public.HandleFunc("/feed/settings", deps.Post.FeedSettings).Methods(http.MethodGet, http.MethodOptions)
 	public.HandleFunc("/feed", deps.Post.Feed).Methods(http.MethodGet, http.MethodOptions)
 	public.HandleFunc("/posts/{id}", deps.Post.ViewPost).Methods(http.MethodGet, http.MethodOptions)
 	public.HandleFunc("/users/{username}/posts", deps.Post.UserPosts).Methods(http.MethodGet, http.MethodOptions)

@@ -77,6 +77,14 @@ type PostsPageResponse struct {
 	NextCursor *string        `json:"next_cursor" example:"eyJraW5kIjoibmV3X3Bvc3RzIn0"`
 }
 
+// FeedSettings — состояние расширенных фильтров ленты для текущего пользователя.
+// AdvancedFiltersEnabled — итоговое состояние флага content/feed_attachment_filter
+// с учётом раскатки и персональных переопределений.
+type FeedSettings struct {
+	AdvancedFiltersEnabled  bool `json:"advanced_filters_enabled" example:"true"`
+	AccessibleOnlySupported bool `json:"accessible_only_supported" example:"false"`
+}
+
 type TimedPostsCursor struct {
 	PublishedOrUpdatedAt time.Time `json:"published_or_updated_at"`
 	PostID               uuid.UUID `json:"post_id"`

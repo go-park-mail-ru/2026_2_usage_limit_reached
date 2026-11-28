@@ -146,8 +146,30 @@ INSERT INTO oc_scope (name, description) VALUES
     ('content',      'Контент-сервис: посты, ленты');
 
 INSERT INTO oc_config (scope, key, value, value_type, description) VALUES
-    ('front', 'payment.min_amount_minor', '300', 'scalar',
-     'Минимальная сумма доната в копейках (300 = 3.00 RUB)');
+    ('monetization', 'payment.min_amount_minor', '100', 'scalar',
+     'Минимальная сумма доната в копейках (100 = 1.00 RUB)');
 
 INSERT INTO oc_flag (scope, key, description) VALUES
     ('content', 'feed_attachment_filter', 'Фильтр ленты по типу вложений');
+
+-- Сиды обязаны попасть и в историю. Ревизия = max(oc_history.id), а клиент
+-- при первом запросе шлёт known_revision = 0: если после чистого развертывания
+-- история пуста, сервис ответит not_modified (0 == 0) и засеянные данные
+-- не доедут до потребителей до первой ручной мутации.
+INSERT INTO oc_history (entity_type, entity_id, action, new_value)
+SELECT 'scope', id, 'create',
+       jsonb_build_object('name', name, 'description', description)
+  FROM oc_scope;
+
+INSERT INTO oc_history (entity_type, entity_id, action, new_value)
+SELECT 'config', id, 'create',
+       jsonb_build_object('scope', scope, 'key', key, 'value', value,
+                          'value_type', value_type, 'description', description)
+  FROM oc_config;
+
+INSERT INTO oc_history (entity_type, entity_id, action, new_value)
+SELECT 'flag', id, 'create',
+       jsonb_build_object('scope', scope, 'key', key,
+                          'rollout_percent', rollout_percent,
+                          'description', description)
+  FROM oc_flag;

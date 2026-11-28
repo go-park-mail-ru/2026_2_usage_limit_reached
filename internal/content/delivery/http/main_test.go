@@ -25,7 +25,7 @@ func newRouter(t *testing.T) (*mux.Router, *mock_delivery_http.MockContentUsecas
 	attachmentsHandler := handlers.NewAttachmentsHandler(uc, testutils.SetupValidator(), testutils.SetupLogger())
 	postHandler := handlers.NewPostHandler(uc, testutils.SetupValidator(), testutils.SetupLogger())
 	router := mux.NewRouter()
-	httprouter.RegisterRoutes(router, router, httprouter.Handlers{
+	httprouter.RegisterRoutes(router, router, httprouter.Router{
 		Post:        postHandler,
 		Attachments: attachmentsHandler,
 	})
@@ -56,9 +56,9 @@ func previews(n int) []*dto.PostPreview {
 		publishedAt := postTime.Add(-time.Duration(i) * time.Hour)
 		items[i] = &dto.PostPreview{
 			ID:                   uuid.New(),
-			Author:               dto.AuthorResponse{ID: postAuthorID, Username: authorUsername, Nickname: "Иван"},
-			Title:                "Пост",
-			BodyPreview:          "Текст поста",
+			Author:               dto.AuthorResponse{ID: postAuthorID, Username: authorUsername, Nickname: "РРІР°РЅ"},
+			Title:                "РџРѕСЃС‚",
+			BodyPreview:          "РўРµРєСЃС‚ РїРѕСЃС‚Р°",
 			PublishedOrUpdatedAt: &publishedAt,
 			LikesCount:           int64(100 - i),
 		}

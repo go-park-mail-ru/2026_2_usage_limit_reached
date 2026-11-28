@@ -71,6 +71,8 @@ type PaymentRules struct {
 	RequestKeyLen   int                    `mapstructure:"request_key_len"`
 	MinAmountMinor  int                    `mapstructure:"min_amount_minor"`
 	AllowedCurrency map[currency.Unit]bool `mapstructure:"allowed_currency"`
+	AllowedPurposes map[string]bool        `mapstructure:"allowed_purposes"`
+	AllowedOrigins  map[string]bool        `mapstructure:"allowed_origins"`
 }
 
 type DonationRules struct {
@@ -124,6 +126,8 @@ func DefaultConfig() ValidationConfig {
 			RequestKeyLen:   36,
 			MinAmountMinor:  5,
 			AllowedCurrency: map[currency.Unit]bool{currency.RUB: true},
+			AllowedPurposes: map[string]bool{"donation": true, "subscription": true},
+			AllowedOrigins:  map[string]bool{"manual": true, "auto_renewal": true},
 		},
 		Donation: DonationRules{
 			MaxMessageLen: 5000,
@@ -199,6 +203,12 @@ func (c ValidationConfig) Validate() error {
 	}
 	if len(c.Payment.AllowedCurrency) == 0 {
 		errs = append(errs, errors.New("validator: payment.allowed_currency must not be empty"))
+	}
+	if len(c.Payment.AllowedPurposes) == 0 {
+		errs = append(errs, errors.New("validator: payment.allowed_purposes must not be empty"))
+	}
+	if len(c.Payment.AllowedOrigins) == 0 {
+		errs = append(errs, errors.New("validator: payment.allowed_origins must not be empty"))
 	}
 
 	return errors.Join(errs...)
@@ -308,6 +318,14 @@ func (v Validator) IsValidPaymentAmountMinor(amount int64) bool {
 func (v Validator) IsValidPaymentCurrency(cur string) bool {
 	unit, err := currency.ParseISO(cur)
 	return v.cfg.Payment.AllowedCurrency[unit] && err == nil
+}
+
+func (v Validator) IsValidPaymentPurpose(purpose string) bool {
+	return v.cfg.Payment.AllowedPurposes[strings.TrimSpace(purpose)]
+}
+
+func (v Validator) IsValidPaymentOrigin(origin string) bool {
+	return v.cfg.Payment.AllowedOrigins[strings.TrimSpace(origin)]
 }
 
 func (v Validator) IsValidDonationMessage(mes string) bool {

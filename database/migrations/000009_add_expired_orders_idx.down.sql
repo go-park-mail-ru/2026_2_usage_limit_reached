@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_payment_order_expires_at_active;

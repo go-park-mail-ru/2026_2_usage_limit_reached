@@ -52,22 +52,22 @@ func Run(configPath string) error {
 		return fmt.Errorf("s3 client initialization error: %w", err)
 	}
 
-	userRepo := identityrepo.NewUserRepository(postgresClient, appLogger)
-	identityUc := identityuc.New(userRepo, tokens, s3Client, cfg.S3.PublicPath, appLogger)
+	repo := identityrepo.NewRepository(postgresClient, appLogger)
 
 	valid, err := validator.NewValidator(cfg.Validation)
 	if err != nil {
 		return fmt.Errorf("validator initialization error: %w", err)
 	}
 
-	identityHandler := identitygrpc.NewHandler(identityUc, appLogger)
+	identityUc := identityuc.New(repo, tokens, s3Client, cfg.S3.PublicPath, appLogger)
+
 	grpcApp := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			interceptors.UnaryRecovery(appLogger),
 			interceptors.UnaryLogging(appLogger),
 		),
 	)
-	identitypb.RegisterIdentityServiceServer(grpcApp, identityHandler)
+	identitypb.RegisterIdentityServiceServer(grpcApp, identitygrpc.NewHandler(identityUc, appLogger))
 
 	grpcSrv, err := grpcserver.New(cfg.Identity.GRPC, appLogger, grpcApp)
 	if err != nil {
@@ -93,6 +93,7 @@ func Run(configPath string) error {
 		Auth:    identityhttp.NewAuthHandler(identityUc, valid, appLogger),
 		Profile: identityhttp.NewProfileHandler(identityUc, valid, appLogger),
 		CSRF:    identityhttp.NewCSRFHandler(csrfManager, appLogger),
+		Author:  identityhttp.NewAuthorHandler(identityUc, valid, appLogger),
 	})
 
 	httpSrv, err := httpserver.New(cfg.Identity.HTTP, appLogger)

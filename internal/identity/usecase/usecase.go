@@ -20,6 +20,7 @@ var (
 	ErrInvalidNickname       = errors.New("invalid nickname")
 	ErrProfileNotFound       = errors.New("profile not found")
 	ErrUserInactive          = errors.New("user is not active")
+	ErrAuthorNotFound        = errors.New("author not found")
 	ErrUnsupportedAvatarType = errors.New("unsupported avatar type")
 	ErrAvatarTooLarge        = errors.New("avatar too large")
 	ErrRegistrationFailed    = errors.New("registration failed")
@@ -53,6 +54,11 @@ type Repository interface {
 	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
 	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
 	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]models.User, error)
+
+	SearchAuthors(ctx context.Context, query string, categories []string, cursor *dto.AuthorSearchCursor, limit int) ([]*models.Author, error)
+	CreateAuthor(ctx context.Context, id uuid.UUID, bio string, category *string) (*models.Author, error)
+	GetAuthorByID(ctx context.Context, id uuid.UUID) (*models.Author, error)
+	UpdateAuthorDetails(ctx context.Context, id uuid.UUID, bio string, category *string) (*models.Author, error)
 }
 
 type TokenManager interface {

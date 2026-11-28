@@ -18,6 +18,10 @@ const (
 	StatusDeleted = "deleted"
 )
 
+func IsActiveStatus(status string) bool {
+	return status == StatusActive
+}
+
 type User struct {
 	ID           uuid.UUID
 	Username     string

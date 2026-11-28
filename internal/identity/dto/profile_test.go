@@ -57,11 +57,11 @@ func TestToProfileResponse(t *testing.T) {
 	avatar := "/media/avatars/ivan.png"
 
 	t.Run("Nil profile", func(t *testing.T) {
-		require.Nil(t, dto.ToProfileResponse(nil, &avatar))
+		require.Nil(t, dto.ToProfileResponse(nil, &avatar, nil))
 	})
 
 	t.Run("Profile without avatar", func(t *testing.T) {
-		got := dto.ToProfileResponse(newProfile(), nil)
+		got := dto.ToProfileResponse(newProfile(), nil, nil)
 
 		require.Equal(t, "ivan@gmail.com", got.User.Email)
 		require.Equal(t, "ivan001", got.User.Username)
@@ -69,7 +69,7 @@ func TestToProfileResponse(t *testing.T) {
 	})
 
 	t.Run("Profile with avatar", func(t *testing.T) {
-		got := dto.ToProfileResponse(newProfile(), &avatar)
+		got := dto.ToProfileResponse(newProfile(), &avatar, nil)
 
 		require.Equal(t, profileUserID, got.User.ID)
 		require.Equal(t, profileTime, got.User.CreatedAt)
@@ -81,11 +81,11 @@ func TestToPublicProfileResponse(t *testing.T) {
 	avatar := "/media/avatars/ivan.png"
 
 	t.Run("Nil profile", func(t *testing.T) {
-		require.Nil(t, dto.ToPublicProfileResponse(nil, &avatar))
+		require.Nil(t, dto.ToPublicProfileResponse(nil, &avatar, nil))
 	})
 
 	t.Run("Public response has no email", func(t *testing.T) {
-		got := dto.ToPublicProfileResponse(newProfile(), &avatar)
+		got := dto.ToPublicProfileResponse(newProfile(), &avatar, nil)
 
 		require.Equal(t, dto.PublicProfileUserResponse{
 			ID:        profileUserID,

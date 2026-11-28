@@ -26,7 +26,7 @@ type UserInfo struct {
 }
 
 func IsActiveStatus(status string) bool {
-	return status == models.StatusActive
+	return models.IsActiveStatus(status)
 }
 
 func (u UserInfo) IsActive() bool {

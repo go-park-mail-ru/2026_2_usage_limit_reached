@@ -19,4 +19,3 @@ type UserInfo struct {
 	CreatedAt *time.Time
 	Status    string
 }
-

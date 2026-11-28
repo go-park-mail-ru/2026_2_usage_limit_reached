@@ -11,6 +11,7 @@ packages:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/http:
     interfaces:
       IdentityUsecase:
+      AuthorUsecase:
   github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/payments/usecase:
     interfaces:
       PaymentRepo:

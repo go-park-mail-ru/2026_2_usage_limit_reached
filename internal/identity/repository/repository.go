@@ -19,16 +19,16 @@ const (
 	UsernameField = "username"
 )
 
-type UserRepository struct {
+type Repository struct {
 	pool   postgres.DB
 	logger *slog.Logger
 }
 
-func NewUserRepository(db *postgres.DBClient, logger *slog.Logger) *UserRepository {
-	return &UserRepository{pool: db.Pool, logger: logger}
+func NewRepository(db *postgres.DBClient, logger *slog.Logger) *Repository {
+	return &Repository{pool: db.Pool, logger: logger}
 }
 
-func (r *UserRepository) CreateUser(ctx context.Context, u models.User) (*models.User, error) {
+func (r *Repository) CreateUser(ctx context.Context, u models.User) (*models.User, error) {
 	const query = `
 		INSERT INTO "user" (username, nickname, email, password_hash, status)
 		VALUES ($1, $2, $3, $4, $5)
@@ -53,7 +53,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, u models.User) (*models
 	return &u, nil
 }
 
-func (r *UserRepository) UpdateNickname(ctx context.Context, id uuid.UUID, nickname string) (string, error) {
+func (r *Repository) UpdateNickname(ctx context.Context, id uuid.UUID, nickname string) (string, error) {
 	const query = `
 		UPDATE "user"
 		SET nickname = $2
@@ -80,7 +80,7 @@ func (r *UserRepository) UpdateNickname(ctx context.Context, id uuid.UUID, nickn
 	return updated, nil
 }
 
-func (r *UserRepository) UpdateAvatarKey(ctx context.Context, id uuid.UUID, key *string) (*string, error) {
+func (r *Repository) UpdateAvatarKey(ctx context.Context, id uuid.UUID, key *string) (*string, error) {
 	const query = `
 		UPDATE "user" AS u
 		SET avatar_key = $2
@@ -109,11 +109,11 @@ func (r *UserRepository) UpdateAvatarKey(ctx context.Context, id uuid.UUID, key 
 	return oldKey, nil
 }
 
-func (r *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
+func (r *Repository) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	return r.getUser(ctx, IDField, id)
 }
 
-func (r *UserRepository) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]models.User, error) {
+func (r *Repository) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]models.User, error) {
 	const query = `
 		SELECT id, username, nickname, email, password_hash, avatar_key, status, created_at, updated_at
 		FROM "user"
@@ -159,15 +159,15 @@ func (r *UserRepository) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]
 	return users, nil
 }
 
-func (r *UserRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
+func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	return r.getUser(ctx, UsernameField, username)
 }
 
-func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	return r.getUser(ctx, EmailField, email)
 }
 
-func (r *UserRepository) getUser(ctx context.Context, field string, v any) (*models.User, error) {
+func (r *Repository) getUser(ctx context.Context, field string, v any) (*models.User, error) {
 	const getQuery = `
 		SELECT id, username, nickname, email, password_hash, avatar_key, status, created_at, updated_at
 		FROM "user"

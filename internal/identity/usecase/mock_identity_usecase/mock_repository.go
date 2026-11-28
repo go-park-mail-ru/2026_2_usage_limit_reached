@@ -7,6 +7,7 @@ package mock_identity_usecase
 import (
 	"context"
 
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/dto"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/models"
 	"github.com/google/uuid"
 	mock "github.com/stretchr/testify/mock"
@@ -46,6 +47,86 @@ type MockRepository_Expecter struct {
 
 func (_m *MockRepository) EXPECT() *MockRepository_Expecter {
 	return &MockRepository_Expecter{mock: &_m.Mock}
+}
+
+// CreateAuthor provides a mock function for the type MockRepository
+func (_mock *MockRepository) CreateAuthor(ctx context.Context, id uuid.UUID, bio string, category *string) (*models.Author, error) {
+	ret := _mock.Called(ctx, id, bio, category)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateAuthor")
+	}
+
+	var r0 *models.Author
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, *string) (*models.Author, error)); ok {
+		return returnFunc(ctx, id, bio, category)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, *string) *models.Author); ok {
+		r0 = returnFunc(ctx, id, bio, category)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.Author)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, string, *string) error); ok {
+		r1 = returnFunc(ctx, id, bio, category)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_CreateAuthor_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateAuthor'
+type MockRepository_CreateAuthor_Call struct {
+	*mock.Call
+}
+
+// CreateAuthor is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+//   - bio string
+//   - category *string
+func (_e *MockRepository_Expecter) CreateAuthor(ctx any, id any, bio any, category any) *MockRepository_CreateAuthor_Call {
+	return &MockRepository_CreateAuthor_Call{Call: _e.mock.On("CreateAuthor", ctx, id, bio, category)}
+}
+
+func (_c *MockRepository_CreateAuthor_Call) Run(run func(ctx context.Context, id uuid.UUID, bio string, category *string)) *MockRepository_CreateAuthor_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 *string
+		if args[3] != nil {
+			arg3 = args[3].(*string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_CreateAuthor_Call) Return(author *models.Author, err error) *MockRepository_CreateAuthor_Call {
+	_c.Call.Return(author, err)
+	return _c
+}
+
+func (_c *MockRepository_CreateAuthor_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID, bio string, category *string) (*models.Author, error)) *MockRepository_CreateAuthor_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // CreateUser provides a mock function for the type MockRepository
@@ -112,6 +193,74 @@ func (_c *MockRepository_CreateUser_Call) Return(user1 *models.User, err error) 
 }
 
 func (_c *MockRepository_CreateUser_Call) RunAndReturn(run func(ctx context.Context, user models.User) (*models.User, error)) *MockRepository_CreateUser_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetAuthorByID provides a mock function for the type MockRepository
+func (_mock *MockRepository) GetAuthorByID(ctx context.Context, id uuid.UUID) (*models.Author, error) {
+	ret := _mock.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAuthorByID")
+	}
+
+	var r0 *models.Author
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*models.Author, error)); ok {
+		return returnFunc(ctx, id)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) *models.Author); ok {
+		r0 = returnFunc(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.Author)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_GetAuthorByID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAuthorByID'
+type MockRepository_GetAuthorByID_Call struct {
+	*mock.Call
+}
+
+// GetAuthorByID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+func (_e *MockRepository_Expecter) GetAuthorByID(ctx any, id any) *MockRepository_GetAuthorByID_Call {
+	return &MockRepository_GetAuthorByID_Call{Call: _e.mock.On("GetAuthorByID", ctx, id)}
+}
+
+func (_c *MockRepository_GetAuthorByID_Call) Run(run func(ctx context.Context, id uuid.UUID)) *MockRepository_GetAuthorByID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_GetAuthorByID_Call) Return(author *models.Author, err error) *MockRepository_GetAuthorByID_Call {
+	_c.Call.Return(author, err)
+	return _c
+}
+
+func (_c *MockRepository_GetAuthorByID_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID) (*models.Author, error)) *MockRepository_GetAuthorByID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -384,6 +533,172 @@ func (_c *MockRepository_GetUsersByIDs_Call) Return(users []models.User, err err
 }
 
 func (_c *MockRepository_GetUsersByIDs_Call) RunAndReturn(run func(ctx context.Context, ids []uuid.UUID) ([]models.User, error)) *MockRepository_GetUsersByIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SearchAuthors provides a mock function for the type MockRepository
+func (_mock *MockRepository) SearchAuthors(ctx context.Context, query string, categories []string, cursor *dto.AuthorSearchCursor, limit int) ([]*models.Author, error) {
+	ret := _mock.Called(ctx, query, categories, cursor, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SearchAuthors")
+	}
+
+	var r0 []*models.Author
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, []string, *dto.AuthorSearchCursor, int) ([]*models.Author, error)); ok {
+		return returnFunc(ctx, query, categories, cursor, limit)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, []string, *dto.AuthorSearchCursor, int) []*models.Author); ok {
+		r0 = returnFunc(ctx, query, categories, cursor, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*models.Author)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, []string, *dto.AuthorSearchCursor, int) error); ok {
+		r1 = returnFunc(ctx, query, categories, cursor, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_SearchAuthors_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SearchAuthors'
+type MockRepository_SearchAuthors_Call struct {
+	*mock.Call
+}
+
+// SearchAuthors is a helper method to define mock.On call
+//   - ctx context.Context
+//   - query string
+//   - categories []string
+//   - cursor *dto.AuthorSearchCursor
+//   - limit int
+func (_e *MockRepository_Expecter) SearchAuthors(ctx any, query any, categories any, cursor any, limit any) *MockRepository_SearchAuthors_Call {
+	return &MockRepository_SearchAuthors_Call{Call: _e.mock.On("SearchAuthors", ctx, query, categories, cursor, limit)}
+}
+
+func (_c *MockRepository_SearchAuthors_Call) Run(run func(ctx context.Context, query string, categories []string, cursor *dto.AuthorSearchCursor, limit int)) *MockRepository_SearchAuthors_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 []string
+		if args[2] != nil {
+			arg2 = args[2].([]string)
+		}
+		var arg3 *dto.AuthorSearchCursor
+		if args[3] != nil {
+			arg3 = args[3].(*dto.AuthorSearchCursor)
+		}
+		var arg4 int
+		if args[4] != nil {
+			arg4 = args[4].(int)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+			arg4,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_SearchAuthors_Call) Return(authors []*models.Author, err error) *MockRepository_SearchAuthors_Call {
+	_c.Call.Return(authors, err)
+	return _c
+}
+
+func (_c *MockRepository_SearchAuthors_Call) RunAndReturn(run func(ctx context.Context, query string, categories []string, cursor *dto.AuthorSearchCursor, limit int) ([]*models.Author, error)) *MockRepository_SearchAuthors_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateAuthorDetails provides a mock function for the type MockRepository
+func (_mock *MockRepository) UpdateAuthorDetails(ctx context.Context, id uuid.UUID, bio string, category *string) (*models.Author, error) {
+	ret := _mock.Called(ctx, id, bio, category)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateAuthorDetails")
+	}
+
+	var r0 *models.Author
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, *string) (*models.Author, error)); ok {
+		return returnFunc(ctx, id, bio, category)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, *string) *models.Author); ok {
+		r0 = returnFunc(ctx, id, bio, category)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.Author)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, string, *string) error); ok {
+		r1 = returnFunc(ctx, id, bio, category)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_UpdateAuthorDetails_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateAuthorDetails'
+type MockRepository_UpdateAuthorDetails_Call struct {
+	*mock.Call
+}
+
+// UpdateAuthorDetails is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+//   - bio string
+//   - category *string
+func (_e *MockRepository_Expecter) UpdateAuthorDetails(ctx any, id any, bio any, category any) *MockRepository_UpdateAuthorDetails_Call {
+	return &MockRepository_UpdateAuthorDetails_Call{Call: _e.mock.On("UpdateAuthorDetails", ctx, id, bio, category)}
+}
+
+func (_c *MockRepository_UpdateAuthorDetails_Call) Run(run func(ctx context.Context, id uuid.UUID, bio string, category *string)) *MockRepository_UpdateAuthorDetails_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 *string
+		if args[3] != nil {
+			arg3 = args[3].(*string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_UpdateAuthorDetails_Call) Return(author *models.Author, err error) *MockRepository_UpdateAuthorDetails_Call {
+	_c.Call.Return(author, err)
+	return _c
+}
+
+func (_c *MockRepository_UpdateAuthorDetails_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID, bio string, category *string) (*models.Author, error)) *MockRepository_UpdateAuthorDetails_Call {
 	_c.Call.Return(run)
 	return _c
 }

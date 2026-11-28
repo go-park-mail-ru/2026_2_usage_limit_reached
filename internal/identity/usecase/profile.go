@@ -24,7 +24,12 @@ func (uc *Usecase) GetMyProfile(ctx context.Context, userID uuid.UUID) (*dto.Pro
 		return nil, fmt.Errorf("get profile: %w", err)
 	}
 
-	return dto.ToProfileResponse(user, mediaurl.PublicPtr(uc.avatarBasePath, user.AvatarKey)), nil
+	author, err := uc.authorBlock(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get profile: %w", err)
+	}
+
+	return dto.ToProfileResponse(user, mediaurl.PublicPtr(uc.avatarBasePath, user.AvatarKey), author), nil
 }
 
 func (uc *Usecase) GetPublicProfile(ctx context.Context, username string) (*dto.PublicProfileResponse, error) {
@@ -41,7 +46,12 @@ func (uc *Usecase) GetPublicProfile(ctx context.Context, username string) (*dto.
 		return nil, fmt.Errorf("get public profile: %w", ErrProfileNotFound)
 	}
 
-	return dto.ToPublicProfileResponse(user, mediaurl.PublicPtr(uc.avatarBasePath, user.AvatarKey)), nil
+	author, err := uc.authorBlock(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get public profile: %w", err)
+	}
+
+	return dto.ToPublicProfileResponse(user, mediaurl.PublicPtr(uc.avatarBasePath, user.AvatarKey), author), nil
 }
 
 func (uc *Usecase) UpdateMyProfile(ctx context.Context, userID uuid.UUID, req dto.UpdateProfileRequest) (*dto.ProfileResponse, error) {
@@ -57,7 +67,25 @@ func (uc *Usecase) UpdateMyProfile(ctx context.Context, userID uuid.UUID, req dt
 
 	user.Nickname = nickname
 
-	return dto.ToProfileResponse(user, mediaurl.PublicPtr(uc.avatarBasePath, user.AvatarKey)), nil
+	author, err := uc.authorBlock(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("update profile: %w", err)
+	}
+
+	return dto.ToProfileResponse(user, mediaurl.PublicPtr(uc.avatarBasePath, user.AvatarKey), author), nil
+}
+
+func (uc *Usecase) authorBlock(ctx context.Context, userID uuid.UUID) (*dto.AuthorMeResponse, error) {
+	author, err := uc.repo.GetAuthorByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, models.ErrAuthorNotFound) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return dto.ToAuthorMeResponse(author), nil
 }
 
 func (uc *Usecase) getActiveUser(ctx context.Context, userID uuid.UUID) (*models.User, error) {

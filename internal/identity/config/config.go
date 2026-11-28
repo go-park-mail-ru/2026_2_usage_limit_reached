@@ -21,6 +21,7 @@ const DefaultConfigPath = "configs/identity.yaml"
 
 type Config struct {
 	Identity   ServiceConfig              `mapstructure:"identity"`
+	Admin      AdminConfig                `mapstructure:"admin"`
 	Postgres   postgres.PostgresConfig    `mapstructure:"postgres"`
 	S3         s3.S3Config                `mapstructure:"s3"`
 	Log        logger.LoggerConfig        `mapstructure:"log"`
@@ -28,6 +29,12 @@ type Config struct {
 	CSRF       csrf.CSRFConfig            `mapstructure:"csrf"`
 	CORS       middleware.CORSConfig      `mapstructure:"cors"`
 	Validation validator.ValidationConfig `mapstructure:"validation"`
+}
+
+type AdminConfig struct {
+	Email    string `mapstructure:"email"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
 }
 
 type ServiceConfig struct {
@@ -55,6 +62,7 @@ func (c Config) Validate() error {
 	return errors.Join(
 		c.Identity.HTTP.Validate(),
 		c.Identity.GRPC.Validate(),
+		c.Admin.Validate(),
 		c.Postgres.Validate(),
 		c.S3.Validate(),
 		c.Log.Validate(),
@@ -63,6 +71,13 @@ func (c Config) Validate() error {
 		c.CORS.Validate(),
 		c.Validation.Validate(),
 	)
+}
+
+func (c AdminConfig) Validate() error {
+	if strings.TrimSpace(c.Email) == "" || strings.TrimSpace(c.Username) == "" || c.Password == "" {
+		return errors.New("admin email, username, and password must be configured")
+	}
+	return nil
 }
 
 func Load(path string) (*Config, error) {
@@ -74,6 +89,15 @@ func Load(path string) (*Config, error) {
 
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
+	if err := v.BindEnv("admin.email", "IDENTITY_ADMIN_EMAIL"); err != nil {
+		return nil, fmt.Errorf("bind admin email environment variable: %w", err)
+	}
+	if err := v.BindEnv("admin.username", "IDENTITY_ADMIN_USERNAME"); err != nil {
+		return nil, fmt.Errorf("bind admin username environment variable: %w", err)
+	}
+	if err := v.BindEnv("admin.password", "IDENTITY_ADMIN_PASSWORD"); err != nil {
+		return nil, fmt.Errorf("bind admin password environment variable: %w", err)
+	}
 
 	cfg := DefaultConfig()
 	if err := v.Unmarshal(&cfg); err != nil {

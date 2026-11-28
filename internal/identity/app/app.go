@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
 	identityconfig "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/config"
 	identitygrpc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/grpc"
 	identityhttp "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/http"
 	httprouter "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/delivery/http/router"
+	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/dto"
 	identityrepo "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/repository"
 	identityuc "github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/identity/usecase"
 	"github.com/go-park-mail-ru/2026_2_usage_limit_reached/internal/pkg/validator"
@@ -60,6 +63,20 @@ func Run(configPath string) error {
 	}
 
 	identityUc := identityuc.New(repo, tokens, s3Client, cfg.S3.PublicPath, appLogger)
+	adminInput := dto.RegistrationRequest{
+		Email:    strings.TrimSpace(cfg.Admin.Email),
+		Username: strings.TrimSpace(cfg.Admin.Username),
+		Nickname: strings.TrimSpace(cfg.Admin.Username),
+		Password: cfg.Admin.Password,
+	}
+	if err := adminInput.Validate(valid); err != nil {
+		return fmt.Errorf("bootstrap admin config validation error: %w", err)
+	}
+	bootstrapCtx, cancelBootstrap := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelBootstrap()
+	if err := identityuc.BootstrapAdmin(bootstrapCtx, repo, adminInput.Email, adminInput.Username, adminInput.Password); err != nil {
+		return fmt.Errorf("admin bootstrap error: %w", err)
+	}
 
 	grpcApp := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(

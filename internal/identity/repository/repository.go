@@ -53,6 +53,30 @@ func (r *Repository) CreateUser(ctx context.Context, u models.User) (*models.Use
 	return &u, nil
 }
 
+func (r *Repository) EnsureAdmin(ctx context.Context, u models.User) error {
+	const query = `
+		INSERT INTO "user" (username, nickname, email, password_hash, status, role)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (username) DO UPDATE
+		SET nickname = EXCLUDED.nickname,
+			email = EXCLUDED.email,
+			password_hash = EXCLUDED.password_hash,
+			status = EXCLUDED.status,
+			role = EXCLUDED.role
+	`
+
+	r.logger.InfoContext(ctx, "ensuring bootstrap admin user",
+		slog.String("op", "ensure admin"),
+		slog.String("username", u.Username),
+	)
+
+	if _, err := r.pool.Exec(ctx, query, u.Username, u.Nickname, u.Email, u.PasswordHash, u.Status, u.Role); err != nil {
+		return fmt.Errorf("ensure admin user error: %w", postgres.ParseError(err))
+	}
+
+	return nil
+}
+
 func (r *Repository) UpdateNickname(ctx context.Context, id uuid.UUID, nickname string) (string, error) {
 	const query = `
 		UPDATE "user"

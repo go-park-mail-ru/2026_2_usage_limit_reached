@@ -541,7 +541,7 @@ func buildFeedFilters(filters dto.FeedFilters, nextArg int) (string, []any, int)
 	if filters.AttachmentType != "" {
 		args = append(args, filters.AttachmentType)
 		conditions = append(conditions, fmt.Sprintf(
-			"NOT %s AND EXISTS (SELECT 1 FROM post_block pb WHERE pb.post_id = p.id AND ($%d = 'any' OR pb.media_type = $%d))",
+			"NOT %s AND EXISTS (SELECT 1 FROM post_block pb JOIN media m ON m.id = pb.media_id WHERE pb.post_id = p.id AND ($%d = 'any' OR m.media_type = $%d))",
 			feedLockedExpr, nextArg, nextArg,
 		))
 		nextArg++

@@ -18,7 +18,7 @@ func TestBuildFeedFilters_Empty(t *testing.T) {
 	require.Equal(t, 4, limitArg)
 }
 
-// post_block после миграции 000013 хранит только media_id, тип вложения живёт
+// post_block после миграции 000012 хранит только media_id, тип вложения живёт
 // в media.media_type, поэтому фильтр обязан ходить через JOIN media.
 func TestBuildFeedFilters_AttachmentTypeUsesMediaTable(t *testing.T) {
 	t.Parallel()
